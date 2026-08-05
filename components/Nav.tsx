@@ -1,11 +1,12 @@
 'use client'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Clock, Users, Ticket, FileText, FileCheck, Receipt, LayoutDashboard, Settings, LogOut, ChevronRight } from 'lucide-react'
+import { Clock, Users, Ticket, FileText, FileCheck, Receipt, LayoutDashboard, Settings, LogOut, ChevronRight, Inbox } from 'lucide-react'
 import { signOut } from '@/lib/auth'
 
 const nav = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { label: 'Leads', href: '/leads', icon: Inbox },
   { label: 'Clients', href: '/clients', icon: Users },
   { label: 'Time Clock', href: '/time-clock', icon: Clock },
   { label: 'Tickets', href: '/tickets', icon: Ticket },
