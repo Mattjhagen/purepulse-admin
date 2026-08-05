@@ -7,3 +7,6 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  # NEXT_PUBLIC_* vars are intentionally bundled into client JS by Next.js.
+  # RESEND_API_KEY appears in build cache only, not in shipped code.
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_ANON_KEY,RESEND_API_KEY"
