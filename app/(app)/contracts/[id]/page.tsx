@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Contract, Client } from '@/lib/types'
 import { formatDate, formatMoney, statusBadgeClass, planBadgeClass, planLabel } from '@/lib/utils'
-import { ChevronLeft, Printer, Send, CheckCircle, XCircle, Edit3, Save } from 'lucide-react'
+import { ChevronLeft, Printer, Send, CheckCircle, XCircle, Edit3, Save, Mail, Link2 } from 'lucide-react'
 import Link from 'next/link'
 import { use } from 'react'
 
@@ -16,6 +16,8 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   const [editing, setEditing] = useState(false)
   const [content, setContent] = useState('')
   const [saving, setSaving] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [sendMsg, setSendMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
   const load = useCallback(async () => {
     const { data } = await supabase.from('contracts').select('*, clients(*)').eq('id', id).single()
@@ -32,6 +34,20 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
     await load()
     setEditing(false)
     setSaving(false)
+  }
+
+  async function sendForSigning() {
+    setSending(true)
+    setSendMsg(null)
+    const res = await fetch(`/api/contracts/${id}/send`, { method: 'POST' })
+    const data = await res.json()
+    if (data.error) {
+      setSendMsg({ type: 'err', text: data.error })
+    } else {
+      setSendMsg({ type: 'ok', text: 'Email sent — contract is now awaiting signature.' })
+      await load()
+    }
+    setSending(false)
   }
 
   async function updateStatus(status: string, extra: Record<string, unknown> = {}) {
@@ -64,7 +80,21 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
           </>
         )}
         <button className="btn btn-ghost" onClick={() => window.print()}><Printer size={14} /> Print / PDF</button>
-        {contract.status === 'draft' && <button className="btn btn-success" onClick={() => updateStatus('sent')}><Send size={14} /> Mark Sent</button>}
+        {['draft', 'sent'].includes(contract.status) && (
+          <button className="btn btn-success" onClick={sendForSigning} disabled={sending}>
+            <Mail size={14} /> {sending ? 'Sending…' : 'Email to Client'}
+          </button>
+        )}
+        {contract.signature_token && (
+          <button className="btn btn-ghost" onClick={() => {
+            const url = `${window.location.origin}/sign/${contract.signature_token}`
+            navigator.clipboard.writeText(url)
+            setSendMsg({ type: 'ok', text: 'Signing link copied to clipboard.' })
+          }}>
+            <Link2 size={14} /> Copy Signing Link
+          </button>
+        )}
+        {contract.status === 'draft' && <button className="btn btn-ghost" onClick={() => updateStatus('sent')}><Send size={14} /> Mark Sent</button>}
         {contract.status === 'sent' && (
           <>
             <button className="btn btn-success" onClick={() => updateStatus('signed', { signed_at: new Date().toISOString(), signed_by: client?.name })}>
@@ -76,6 +106,31 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
           <button className="btn btn-danger" onClick={() => updateStatus('terminated')}><XCircle size={14} /> Terminate</button>
         )}
       </div>
+
+      {/* Send feedback */}
+      {sendMsg && (
+        <div style={{
+          marginBottom: '1rem',
+          padding: '10px 16px',
+          borderRadius: 8,
+          fontSize: '0.875rem',
+          background: sendMsg.type === 'ok' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+          color: sendMsg.type === 'ok' ? 'var(--accent-green)' : 'var(--accent-red)',
+          border: `1px solid ${sendMsg.type === 'ok' ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}`,
+        }}>
+          {sendMsg.text}
+        </div>
+      )}
+
+      {/* Signed notice */}
+      {contract.status === 'signed' && (
+        <div style={{ marginBottom: '1rem', padding: '12px 16px', borderRadius: 8, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <CheckCircle size={16} style={{ color: 'var(--accent-green)', flexShrink: 0 }} />
+          <span style={{ fontSize: '0.875rem', color: 'var(--accent-green)', fontWeight: 500 }}>
+            Signed by <strong>{contract.signed_by}</strong> on {new Date(contract.signed_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+          </span>
+        </div>
+      )}
 
       {/* Contract doc */}
       <div id="contract-print" className="card-elevated" style={{ maxWidth: '760px' }}>
