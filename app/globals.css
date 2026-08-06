@@ -126,9 +126,56 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 .plan-business { color: var(--accent-green); }
 
 @media print {
-  nav, header, .no-print { display: none !important; }
-  body { background: white; color: black; }
-  .card, .card-elevated { border: 1px solid #e5e7eb; }
+  /* Reset all theme tokens to print-safe values */
+  :root {
+    --bg: #ffffff;
+    --bg-card: #ffffff;
+    --bg-card-hover: #ffffff;
+    --bg-elevated: #ffffff;
+    --border: #d1d5db;
+    --border-strong: #9ca3af;
+    --text: #111111;
+    --text-muted: #374151;
+    --text-dim: #6b7280;
+    --accent-green: #15803d;
+    --accent-red: #b91c1c;
+    --accent-amber: #b45309;
+    --accent-blue: #1d4ed8;
+  }
+
+  nav, header, .no-print,
+  .btn, button, a.btn { display: none !important; }
+
+  body, html {
+    background: #ffffff !important;
+    color: #111111 !important;
+    font-size: 11pt;
+  }
+
+  #contract-print {
+    max-width: 100% !important;
+    border: none !important;
+    background: white !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .card, .card-elevated {
+    background: white !important;
+    border: 1px solid #d1d5db !important;
+    box-shadow: none !important;
+  }
+
+  pre {
+    color: #111111 !important;
+    font-size: 10.5pt !important;
+    line-height: 1.7 !important;
+    white-space: pre-wrap !important;
+  }
+
+  .divider, hr { border-color: #d1d5db !important; }
+
+  @page { margin: 2cm; }
 }
 
 @media (max-width: 768px) {
