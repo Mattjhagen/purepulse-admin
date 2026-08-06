@@ -1,5 +1,6 @@
 'use client'
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect, use, useRef } from 'react'
+import SignaturePad, { type SignaturePadHandle } from '@/components/SignaturePad'
 
 type Contract = {
   id: string
@@ -29,9 +30,13 @@ export default function SignPage({ params }: { params: Promise<{ token: string }
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [signedName, setSignedName] = useState('')
+  const [initials, setInitials] = useState('')
   const [agreed, setAgreed] = useState(false)
   const [signing, setSigning] = useState(false)
   const [done, setDone] = useState(false)
+  const [sigMode, setSigMode] = useState<'draw' | 'type'>('draw')
+  const [padEmpty, setPadEmpty] = useState(true)
+  const padRef = useRef<SignaturePadHandle>(null)
 
   useEffect(() => {
     fetch(`/api/sign/${token}`)
@@ -44,18 +49,48 @@ export default function SignPage({ params }: { params: Promise<{ token: string }
       .finally(() => setLoading(false))
   }, [token])
 
+  function getTypedSignatureDataURL(text: string, font: string, width = 480, height = 120): string {
+    const canvas = document.createElement('canvas')
+    const dpr = window.devicePixelRatio || 1
+    canvas.width = width * dpr
+    canvas.height = height * dpr
+    canvas.style.width = `${width}px`
+    canvas.style.height = `${height}px`
+    const ctx = canvas.getContext('2d')!
+    ctx.scale(dpr, dpr)
+    ctx.clearRect(0, 0, width, height)
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, width, height)
+    ctx.fillStyle = '#111111'
+    ctx.font = `${Math.min(52, Math.floor(width / (text.length * 0.55 + 1)))}px ${font}`
+    ctx.textBaseline = 'middle'
+    ctx.fillText(text, 16, height / 2)
+    return canvas.toDataURL('image/png')
+  }
+
   async function sign() {
-    if (!signedName.trim() || !agreed) return
+    if (!signedName.trim() || !initials.trim() || !agreed) return
+    if (sigMode === 'draw' && padEmpty) return
     setSigning(true)
+
+    let signature_data: string | null = null
+    if (sigMode === 'draw') {
+      signature_data = padRef.current?.toDataURL() ?? null
+    } else {
+      signature_data = getTypedSignatureDataURL(signedName, '"Dancing Script", "Brush Script MT", cursive')
+    }
+
     const res = await fetch(`/api/sign/${token}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ signed_by: signedName }),
+      body: JSON.stringify({ signed_by: signedName, signature_data }),
     })
     const data = await res.json()
     if (data.error) { setError(data.error); setSigning(false); return }
     setDone(true)
   }
+
+  const canSign = signedName.trim() && initials.trim() && agreed && (sigMode === 'type' || !padEmpty)
 
   if (loading) return (
     <div style={styles.page}>
@@ -136,24 +171,111 @@ export default function SignPage({ params }: { params: Promise<{ token: string }
           <div style={styles.signBox}>
             <h3 style={{ margin: '0 0 6px', fontSize: '1.125rem', fontWeight: 700 }}>Sign this agreement</h3>
             <p style={{ color: '#555', fontSize: '0.875rem', margin: '0 0 24px', lineHeight: 1.6 }}>
-              By typing your full legal name below and clicking "Sign Contract", you agree to the terms of this
-              Web Services Agreement and confirm that you are authorised to enter into this agreement.
+              Enter your full legal name, provide your initials, then draw or type your signature.
             </p>
 
-            <label style={styles.label}>Full legal name</label>
-            <input
-              type="text"
-              placeholder="e.g. Jane Smith"
-              value={signedName}
-              onChange={e => setSignedName(e.target.value)}
-              style={styles.input}
-            />
+            {/* Name + initials row */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'start' }}>
+              <div>
+                <label style={styles.label}>Full legal name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Jane Smith"
+                  value={signedName}
+                  onChange={e => setSignedName(e.target.value)}
+                  style={styles.input}
+                />
+              </div>
+              <div>
+                <label style={styles.label}>Initials</label>
+                <input
+                  type="text"
+                  placeholder="JS"
+                  maxLength={5}
+                  value={initials}
+                  onChange={e => setInitials(e.target.value.toUpperCase())}
+                  style={{ ...styles.input, width: 72, textAlign: 'center', letterSpacing: '0.1em', fontWeight: 700 }}
+                />
+              </div>
+            </div>
 
-            {/* Signature preview */}
-            {signedName.trim() && (
-              <div style={styles.sigPreview}>
-                <p style={styles.sigPreviewLabel}>Your signature will appear as:</p>
-                <p style={styles.sigScript}>{signedName}</p>
+            {/* Signature mode toggle */}
+            <div style={{ display: 'flex', gap: 0, marginBottom: 12, border: '1.5px solid #d1d5db', borderRadius: 8, overflow: 'hidden', width: 'fit-content' }}>
+              {(['draw', 'type'] as const).map(mode => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => { setSigMode(mode); setPadEmpty(true); padRef.current?.clear() }}
+                  style={{
+                    padding: '7px 18px',
+                    fontSize: '0.8125rem',
+                    fontWeight: 600,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: sigMode === mode ? '#111' : '#fff',
+                    color: sigMode === mode ? '#fff' : '#374151',
+                    transition: 'background 0.15s, color 0.15s',
+                  }}
+                >
+                  {mode === 'draw' ? '✍ Draw' : 'Aa Type'}
+                </button>
+              ))}
+            </div>
+
+            {/* Draw pad */}
+            {sigMode === 'draw' && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <label style={styles.label}>Draw your signature</label>
+                  <button
+                    type="button"
+                    onClick={() => { padRef.current?.clear(); setPadEmpty(true) }}
+                    style={{ fontSize: '0.75rem', color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
+                  >
+                    Clear
+                  </button>
+                </div>
+                <SignaturePad
+                  ref={padRef}
+                  height={160}
+                  onBegin={() => setPadEmpty(false)}
+                />
+                {padEmpty && (
+                  <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: '6px 0 0', textAlign: 'center' }}>
+                    Sign above using your mouse or finger
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Typed signature preview */}
+            {sigMode === 'type' && (
+              <div style={{ marginBottom: 16 }}>
+                <label style={styles.label}>Signature preview</label>
+                <div style={{
+                  background: '#fafafa',
+                  border: '1.5px solid #d1d5db',
+                  borderRadius: 8,
+                  padding: '16px 20px',
+                  minHeight: 80,
+                  display: 'flex',
+                  alignItems: 'center',
+                }}>
+                  {signedName.trim() ? (
+                    <span style={{
+                      fontFamily: '"Dancing Script", "Brush Script MT", cursive',
+                      fontSize: 'clamp(1.5rem, 5vw, 2.25rem)',
+                      color: '#111',
+                      borderBottom: '1.5px solid #374151',
+                      paddingBottom: 2,
+                      display: 'inline-block',
+                    }}>
+                      {signedName}
+                    </span>
+                  ) : (
+                    <span style={{ color: '#9ca3af', fontSize: '0.875rem' }}>Your name will appear here in signature style</span>
+                  )}
+                </div>
               </div>
             )}
 
@@ -169,11 +291,11 @@ export default function SignPage({ params }: { params: Promise<{ token: string }
 
             <button
               onClick={sign}
-              disabled={!signedName.trim() || !agreed || signing}
+              disabled={!canSign || signing}
               style={{
                 ...styles.signBtn,
-                opacity: (!signedName.trim() || !agreed || signing) ? 0.45 : 1,
-                cursor: (!signedName.trim() || !agreed || signing) ? 'not-allowed' : 'pointer',
+                opacity: (!canSign || signing) ? 0.45 : 1,
+                cursor: (!canSign || signing) ? 'not-allowed' : 'pointer',
               }}
             >
               {signing ? 'Signing…' : 'Sign Contract'}
@@ -337,29 +459,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: 'inherit',
     marginBottom: 16,
     transition: 'border-color 0.15s',
-  },
-  sigPreview: {
-    background: '#f9fafb',
-    border: '1px solid #e5e7eb',
-    borderRadius: 8,
-    padding: '16px 20px',
-    marginBottom: 20,
-  },
-  sigPreviewLabel: {
-    fontSize: '0.75rem',
-    color: '#9ca3af',
-    margin: '0 0 6px',
-    textTransform: 'uppercase' as const,
-    letterSpacing: '0.05em',
-  },
-  sigScript: {
-    fontFamily: '"Dancing Script", "Brush Script MT", cursive',
-    fontSize: '1.75rem',
-    color: '#111',
-    margin: 0,
-    borderBottom: '1.5px solid #374151',
-    paddingBottom: 4,
-    display: 'inline-block',
   },
   checkLabel: {
     display: 'flex',

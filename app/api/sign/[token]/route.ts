@@ -39,7 +39,7 @@ export async function POST(
 ) {
   const { token } = await params
   const supabase = adminSupabase()
-  const { signed_by } = await req.json()
+  const { signed_by, signature_data } = await req.json()
 
   if (!signed_by?.trim()) {
     return NextResponse.json({ error: 'Full name is required to sign.' }, { status: 400 })
@@ -74,6 +74,7 @@ export async function POST(
       signed_at: signedAt,
       signed_by: signed_by.trim(),
       signature_ip: ip,
+      signature_data: signature_data ?? null,
       updated_at: signedAt,
     })
     .eq('id', contract.id)

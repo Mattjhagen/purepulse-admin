@@ -158,6 +158,16 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
               <p style={{ fontWeight: 600, color: 'var(--accent-green)' }}>{formatDate(contract.signed_at)}</p>
             </div>
           )}
+          {contract.signature_data && (
+            <div style={{ gridColumn: '1 / -1' }}>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Signature</p>
+              <img
+                src={contract.signature_data}
+                alt={`Signature of ${contract.signed_by}`}
+                style={{ maxWidth: 280, height: 80, objectFit: 'contain', border: '1px solid var(--border)', borderRadius: 6, background: '#fff', padding: '4px 8px' }}
+              />
+            </div>
+          )}
         </div>
 
         <hr className="divider" style={{ margin: '0 1.5rem' }} />
