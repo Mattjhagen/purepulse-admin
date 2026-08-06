@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const ALLOWED_ORIGINS = ['https://purepulse.one', 'http://localhost:3000']
+const ALLOWED_ORIGINS = ['https://purepulse.one', 'https://purepulseadmin.netlify.app', 'http://localhost:3000']
 
 function cors(origin: string | null) {
   const allowed = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]
@@ -40,6 +40,12 @@ export async function POST(request: NextRequest) {
     })
 
     if (error) throw error
+
+    // Send Supabase invite so the customer can access the client portal.
+    // If they already have an account this is a no-op (invite is ignored).
+    await supabase.auth.admin.inviteUserByEmail(email.trim(), {
+      redirectTo: 'https://purepulseadmin.netlify.app/portal',
+    })
 
     return NextResponse.json({ ok: true }, { status: 200, headers: cors(origin) })
   } catch {
