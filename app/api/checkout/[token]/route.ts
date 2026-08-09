@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { stripe, DEPOSIT_CENTS, PLAN_CENTS, PLAN_LABELS } from '@/lib/stripe'
+import { getStripe, DEPOSIT_CENTS, PLAN_CENTS, PLAN_LABELS } from '@/lib/stripe'
 import type { Plan } from '@/lib/types'
 
 function adminSupabase() {
@@ -19,7 +19,7 @@ export async function POST(
 
   const { data: contract, error } = await supabase
     .from('contracts')
-    .select('id, plan, monthly_rate, status, payment_status, stripe_checkout_session_id, clients(name, email)')
+    .select('id, plan, monthly_rate, status, payment_status, clients(name, email)')
     .eq('signature_token', token)
     .single()
 
@@ -42,47 +42,50 @@ export async function POST(
   const planCents = PLAN_CENTS[plan] ?? Math.round(contract.monthly_rate * 100)
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://purepulseadmin.netlify.app'
 
-  const session = await stripe.checkout.sessions.create({
-    mode: 'subscription',
+  // Charge deposit + first month together. Save card for future subscription billing.
+  const firstInvoiceCents = DEPOSIT_CENTS + planCents
+
+  const session = await getStripe().checkout.sessions.create({
+    mode: 'payment',
     customer_email: client?.email,
     client_reference_id: contract.id,
     metadata: {
       contract_id: contract.id,
       signature_token: token,
       plan,
+      plan_cents: String(planCents),
     },
     line_items: [
       {
         price_data: {
           currency: 'usd',
           product_data: {
-            name: `PurePulse ${planLabel} Plan`,
-            description: `Monthly web design & maintenance — 12-month agreement`,
+            name: `PurePulse Project Deposit`,
+            description: 'One-time non-refundable deposit to begin your website build',
+          },
+          unit_amount: DEPOSIT_CENTS,
+        },
+        quantity: 1,
+      },
+      {
+        price_data: {
+          currency: 'usd',
+          product_data: {
+            name: `PurePulse ${planLabel} Plan — Month 1`,
+            description: `First month of your ${planLabel} web maintenance plan`,
           },
           unit_amount: planCents,
-          recurring: { interval: 'month' },
         },
         quantity: 1,
       },
     ],
-    subscription_data: {
-      // $150 deposit billed on the first invoice alongside the first month
-      add_invoice_items: [
-        {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: 'PurePulse Project Deposit',
-              description: 'One-time non-refundable deposit to begin your website build',
-            },
-            unit_amount: DEPOSIT_CENTS,
-          },
-          quantity: 1,
-        },
-      ],
+    // Save the card for recurring monthly subscription billing after month 1
+    payment_intent_data: {
+      setup_future_usage: 'off_session',
       metadata: {
         contract_id: contract.id,
         plan,
+        plan_cents: String(planCents),
       },
     },
     payment_method_types: ['card'],
@@ -91,12 +94,11 @@ export async function POST(
     cancel_url: `${appUrl}/sign/${token}?cancelled=true`,
     custom_text: {
       submit: {
-        message: `Your first invoice includes the $150 deposit + first month's ${planLabel} plan fee. Recurring monthly billing starts next month.`,
+        message: `Today's charge: $${(firstInvoiceCents / 100).toFixed(2)} ($150 deposit + first month). Monthly billing of $${(planCents / 100).toFixed(2)} starts next month.`,
       },
     },
   })
 
-  // Mark as pending and store session ID
   await supabase
     .from('contracts')
     .update({
