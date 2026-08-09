@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { getStripe, PLAN_CENTS, PLAN_LABELS } from '@/lib/stripe'
+import { getStripe, PLAN_CENTS, PLAN_LABELS, getPlanPriceId } from '@/lib/stripe'
 import { Resend } from 'resend'
 import type Stripe from 'stripe'
 import type { Plan } from '@/lib/types'
@@ -54,27 +54,28 @@ export async function POST(req: NextRequest) {
     // The card saved via setup_future_usage is attached to the customer.
     if (customerId && plan && planCents > 0) {
       try {
-        // Get the default payment method from the payment intent
         const paymentIntent = await getStripe().paymentIntents.retrieve(
           session.payment_intent as string
         )
         const paymentMethodId = paymentIntent.payment_method as string | null
-
         const thirtyDaysFromNow = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60
+        const priceId = getPlanPriceId(plan)
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const subscription = await (getStripe().subscriptions.create as any)({
           customer: customerId,
-          items: [
-            {
-              price_data: {
-                currency: 'usd',
-                product_data: { name: `PurePulse ${PLAN_LABELS[plan] ?? plan} Plan` },
-                unit_amount: planCents,
-                recurring: { interval: 'month' },
-              },
-            },
-          ],
+          items: priceId
+            ? [{ price: priceId }]
+            : [
+                {
+                  price_data: {
+                    currency: 'usd',
+                    product_data: { name: `PurePulse ${PLAN_LABELS[plan] ?? plan} Plan` },
+                    unit_amount: planCents,
+                    recurring: { interval: 'month' },
+                  },
+                },
+              ],
           billing_cycle_anchor: thirtyDaysFromNow,
           proration_behavior: 'none',
           default_payment_method: paymentMethodId ?? undefined,
