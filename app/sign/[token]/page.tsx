@@ -87,7 +87,8 @@ export default function SignPage({ params }: { params: Promise<{ token: string }
     })
     const data = await res.json()
     if (data.error) { setError(data.error); setSigning(false); return }
-    setDone(true)
+    // Redirect to deposit checkout
+    window.location.href = `/checkout/${token}`
   }
 
   const canSign = signedName.trim() && initials.trim() && agreed && (sigMode === 'type' || !padEmpty)
