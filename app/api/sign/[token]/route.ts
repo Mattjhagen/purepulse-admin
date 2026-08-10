@@ -93,7 +93,7 @@ export async function POST(
   try {
     const { error: adminEmailError } = await resend.emails.send({
       from: 'PurePulse <contracts@login.purepulse.one>',
-      to: 'contact@purepulse.one',
+      to: 'matty@purepulse.one',
       subject: `✅ Contract signed by ${signed_by.trim()}`,
       html: `
         <div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;color:#111;">

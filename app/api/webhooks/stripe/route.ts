@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     try {
       const { error: adminEmailErr } = await resend.emails.send({
         from: 'PurePulse <contracts@login.purepulse.one>',
-        to: 'contact@purepulse.one',
+        to: 'matty@purepulse.one',
         subject: `💳 Payment received — ${client?.name ?? 'Client'}`,
         html: `
           <div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;color:#111;">
