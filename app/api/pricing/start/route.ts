@@ -23,8 +23,8 @@ export async function POST(req: NextRequest) {
 
   const { name, email, company, plan, description } = body
 
-  if (!name?.trim() || !email?.trim() || !plan || !description?.trim()) {
-    return NextResponse.json({ error: 'name, email, plan, and description are required.' }, { status: 400 })
+  if (!name?.trim() || !email?.trim() || !plan) {
+    return NextResponse.json({ error: 'name, email, and plan are required.' }, { status: 400 })
   }
 
   if (!VALID_PLANS.includes(plan as Plan)) {
