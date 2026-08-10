@@ -84,10 +84,10 @@ export async function POST(
     return NextResponse.json({ error: 'Failed to record signature.' }, { status: 500 })
   }
 
-  // Notify admin
+  // Notify admin (non-fatal if email fails)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const client = Array.isArray(contract.clients) ? (contract.clients as any[])[0] : contract.clients
-  await resend.emails.send({
+  const { error: adminEmailError } = await resend.emails.send({
     from: 'PurePulse <contracts@purepulse.one>',
     to: 'contact@purepulse.one',
     subject: `✅ Contract signed by ${signed_by.trim()}`,
@@ -103,6 +103,9 @@ export async function POST(
       </div>
     `,
   })
+  if (adminEmailError) {
+    console.error('[sign] admin email error:', adminEmailError)
+  }
 
   return NextResponse.json({ ok: true, signed_at: signedAt })
 }
