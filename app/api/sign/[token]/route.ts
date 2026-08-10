@@ -81,7 +81,7 @@ export async function POST(
 
   if (updateError) {
     console.error('[sign] update error:', JSON.stringify(updateError))
-    return NextResponse.json({ error: 'Failed to record signature.', detail: updateError.message, code: updateError.code }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to record signature.' }, { status: 500 })
   }
 
   // Notify admin
