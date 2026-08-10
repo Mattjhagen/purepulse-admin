@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { getStripe, DEPOSIT_CENTS, PLAN_CENTS, PLAN_LABELS } from '@/lib/stripe'
+import { getStripe, DEPOSIT_CENTS, PLAN_CENTS, PLAN_LABELS, getPlanPriceId, getDepositPriceId } from '@/lib/stripe'
 import type { Plan } from '@/lib/types'
 
 function adminSupabase() {
@@ -42,11 +42,22 @@ export async function POST(
   const planCents = PLAN_CENTS[plan] ?? Math.round(contract.monthly_rate * 100)
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://login.purepulse.one'
 
-  // Charge deposit + first month together. Save card for future subscription billing.
+  const planPriceId = getPlanPriceId(plan)
+  const depositPriceId = getDepositPriceId()
+
+  if (!planPriceId || !depositPriceId) {
+    return NextResponse.json(
+      { error: 'Stripe price configuration missing. Contact support.' },
+      { status: 500 }
+    )
+  }
+
   const firstInvoiceCents = DEPOSIT_CENTS + planCents
 
+  // Subscription mode: Stripe charges deposit + month 1 today on the first invoice,
+  // then auto-bills the recurring plan price every month from month 2.
   const session = await getStripe().checkout.sessions.create({
-    mode: 'payment',
+    mode: 'subscription',
     customer_email: client?.email,
     client_reference_id: contract.id,
     metadata: {
@@ -57,31 +68,17 @@ export async function POST(
     },
     line_items: [
       {
-        price_data: {
-          currency: 'usd',
-          product_data: {
-            name: `PurePulse Project Deposit`,
-            description: 'One-time non-refundable deposit to begin your website build',
-          },
-          unit_amount: DEPOSIT_CENTS,
-        },
+        // One-time deposit — charged on first invoice only
+        price: depositPriceId,
         quantity: 1,
       },
       {
-        price_data: {
-          currency: 'usd',
-          product_data: {
-            name: `PurePulse ${planLabel} Plan — Month 1`,
-            description: `First month of your ${planLabel} web maintenance plan`,
-          },
-          unit_amount: planCents,
-        },
+        // Recurring plan price — becomes the subscription, billed monthly
+        price: planPriceId,
         quantity: 1,
       },
     ],
-    // Save the card for recurring monthly subscription billing after month 1
-    payment_intent_data: {
-      setup_future_usage: 'off_session',
+    subscription_data: {
       metadata: {
         contract_id: contract.id,
         plan,

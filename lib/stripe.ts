@@ -29,10 +29,14 @@ export const PLAN_LABELS: Record<Plan, string> = {
 
 export function getPlanPriceId(plan: Plan): string | null {
   const ids: Record<Plan, string | undefined> = {
-    starter: process.env.STRIPE_PRICE_STARTER,
-    growth:  process.env.STRIPE_PRICE_GROWTH,
-    premium: process.env.STRIPE_PRICE_PREMIUM,
+    starter:  process.env.STRIPE_PRICE_STARTER,
+    growth:   process.env.STRIPE_PRICE_GROWTH,
+    premium:  process.env.STRIPE_PRICE_PREMIUM,
     business: process.env.STRIPE_PRICE_BUSINESS,
   }
   return ids[plan] ?? null
+}
+
+export function getDepositPriceId(): string | null {
+  return process.env.STRIPE_PRICE_DEPOSIT ?? null
 }
