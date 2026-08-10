@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
     const client = Array.isArray(contract.clients) ? (contract.clients as any[])[0] : contract.clients
 
     await resend.emails.send({
-      from: 'PurePulse <contracts@purepulse.one>',
+      from: 'PurePulse <contracts@login.purepulse.one>',
       to: 'contact@purepulse.one',
       subject: `💳 Payment received — ${client?.name ?? 'Client'}`,
       html: `
@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
 
     if (client?.email) {
       await resend.emails.send({
-        from: 'PurePulse <contracts@purepulse.one>',
+        from: 'PurePulse <contracts@login.purepulse.one>',
         to: client.email,
         subject: `You're all set — PurePulse project confirmed`,
         html: `

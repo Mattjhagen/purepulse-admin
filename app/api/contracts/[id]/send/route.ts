@@ -52,7 +52,7 @@ export async function POST(
 
   // Send email
   const { error: emailError } = await resend.emails.send({
-    from: 'PurePulse <contracts@purepulse.one>',
+    from: 'PurePulse <contracts@login.purepulse.one>',
     to: client.email,
     subject: `Please sign your PurePulse Web Services Agreement`,
     html: `
