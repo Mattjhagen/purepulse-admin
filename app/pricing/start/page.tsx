@@ -14,7 +14,6 @@ function StartForm() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [company, setCompany] = useState('')
-  const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -30,7 +29,7 @@ function StartForm() {
       const res = await fetch('/api/pricing/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, company, plan, description }),
+        body: JSON.stringify({ name, email, company, plan }),
       })
       const data = await res.json()
       if (data.error) { setError(data.error); return }
@@ -80,8 +79,8 @@ function StartForm() {
 
           {/* Right: form */}
           <div style={s.formCard}>
-            <h1 style={s.h1}>Tell us about your project</h1>
-            <p style={s.sub}>We&apos;ll send you a contract to review and sign, then you&apos;ll complete payment.</p>
+            <h1 style={s.h1}>Get started</h1>
+            <p style={s.sub}>Enter your details and we&apos;ll generate your contract — sign it and complete payment in minutes.</p>
 
             <form onSubmit={handleSubmit} style={s.form}>
               <div style={s.row}>
@@ -115,17 +114,6 @@ function StartForm() {
                   value={company}
                   onChange={e => setCompany(e.target.value)}
                   placeholder="Acme Corp (optional)"
-                />
-              </div>
-
-              <div style={s.field}>
-                <label style={s.label}>Tell us about your website *</label>
-                <textarea
-                  style={{ ...s.input, minHeight: 120, resize: 'vertical' }}
-                  required
-                  value={description}
-                  onChange={e => setDescription(e.target.value)}
-                  placeholder="What kind of site do you need? What does your business do? Any existing site or specific goals?"
                 />
               </div>
 
