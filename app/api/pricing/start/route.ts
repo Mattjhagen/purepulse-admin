@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
   const firstName = name.trim().split(' ')[0]
 
   const { error: emailError } = await resend.emails.send({
-    from: 'PurePulse <contracts@purepulse.one>',
+    from: 'PurePulse <contracts@login.purepulse.one>',
     to: email.trim(),
     subject: `Your PurePulse contract is ready to sign`,
     html: `

@@ -89,7 +89,7 @@ export async function POST(
   const client = Array.isArray(contract.clients) ? (contract.clients as any[])[0] : contract.clients
   try {
     const { error: adminEmailError } = await resend.emails.send({
-      from: 'PurePulse <contracts@purepulse.one>',
+      from: 'PurePulse <contracts@login.purepulse.one>',
       to: 'contact@purepulse.one',
       subject: `✅ Contract signed by ${signed_by.trim()}`,
       html: `
