@@ -80,6 +80,7 @@ export async function POST(
     .eq('id', contract.id)
 
   if (updateError) {
+    console.error('[sign] update error:', JSON.stringify(updateError))
     return NextResponse.json({ error: 'Failed to record signature.' }, { status: 500 })
   }
 
