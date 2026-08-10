@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { getStripe, PLAN_CENTS, PLAN_LABELS, getPlanPriceId } from '@/lib/stripe'
+import { getStripe } from '@/lib/stripe'
 import { Resend } from 'resend'
 import type Stripe from 'stripe'
-import type { Plan } from '@/lib/types'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -30,13 +29,11 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = adminSupabase()
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://login.purepulse.one'
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session
     const contractId = session.metadata?.contract_id
-    const plan = session.metadata?.plan as Plan | undefined
-    const planCents = parseInt(session.metadata?.plan_cents ?? '0', 10)
-
     if (!contractId) return NextResponse.json({ ok: true })
 
     const { data: contract } = await supabase
@@ -47,46 +44,9 @@ export async function POST(req: NextRequest) {
 
     if (!contract) return NextResponse.json({ ok: true })
 
+    // In subscription mode, Stripe automatically creates and returns the subscription ID.
     const customerId = session.customer as string | null
-    let subscriptionId: string | null = null
-
-    // Create recurring monthly subscription starting 30 days from now.
-    // The card saved via setup_future_usage is attached to the customer.
-    if (customerId && plan && planCents > 0) {
-      try {
-        const paymentIntent = await getStripe().paymentIntents.retrieve(
-          session.payment_intent as string
-        )
-        const paymentMethodId = paymentIntent.payment_method as string | null
-        const thirtyDaysFromNow = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60
-        const priceId = getPlanPriceId(plan)
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const subscription = await (getStripe().subscriptions.create as any)({
-          customer: customerId,
-          items: priceId
-            ? [{ price: priceId }]
-            : [
-                {
-                  price_data: {
-                    currency: 'usd',
-                    product_data: { name: `PurePulse ${PLAN_LABELS[plan] ?? plan} Plan` },
-                    unit_amount: planCents,
-                    recurring: { interval: 'month' },
-                  },
-                },
-              ],
-          billing_cycle_anchor: thirtyDaysFromNow,
-          proration_behavior: 'none',
-          default_payment_method: paymentMethodId ?? undefined,
-          metadata: { contract_id: contractId, plan },
-        })
-        subscriptionId = subscription.id
-      } catch (err) {
-        // Non-fatal: subscription creation failure is logged but doesn't block the deposit confirmation
-        console.error('Failed to create subscription after checkout:', err)
-      }
-    }
+    const subscriptionId = session.subscription as string | null
 
     await supabase
       .from('contracts')
@@ -104,7 +64,7 @@ export async function POST(req: NextRequest) {
     const client = Array.isArray(contract.clients) ? (contract.clients as any[])[0] : contract.clients
 
     try {
-      const { error: adminEmailError } = await resend.emails.send({
+      const { error: adminEmailErr } = await resend.emails.send({
         from: 'PurePulse <contracts@login.purepulse.one>',
         to: 'contact@purepulse.one',
         subject: `💳 Payment received — ${client?.name ?? 'Client'}`,
@@ -113,22 +73,22 @@ export async function POST(req: NextRequest) {
             <h2 style="margin:0 0 16px;">Payment received</h2>
             <p style="color:#555;margin:0 0 8px;"><strong>${client?.name ?? 'Client'}</strong> (${client?.email ?? ''}) completed the deposit payment.</p>
             <p style="color:#555;margin:0 0 8px;">Plan: <strong>${contract.plan}</strong></p>
-            ${subscriptionId ? `<p style="color:#555;margin:0 0 24px;">Stripe subscription ID: <code>${subscriptionId}</code></p>` : '<p style="color:#d97706;margin:0 0 24px;">⚠ Subscription not created automatically — set up manually in Stripe.</p>'}
-            <a href="${process.env.NEXT_PUBLIC_APP_URL ?? 'https://login.purepulse.one'}/contracts/${contractId}"
+            ${subscriptionId ? `<p style="color:#555;margin:0 0 24px;">Subscription ID: <code>${subscriptionId}</code></p>` : ''}
+            <a href="${appUrl}/contracts/${contractId}"
                style="display:inline-block;background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">
               View Contract →
             </a>
           </div>
         `,
       })
-      if (adminEmailError) console.error('[stripe webhook] admin email error:', adminEmailError)
-    } catch (emailErr) {
-      console.error('[stripe webhook] admin email threw:', emailErr)
+      if (adminEmailErr) console.error('[stripe webhook] admin email error:', adminEmailErr)
+    } catch (err) {
+      console.error('[stripe webhook] admin email threw:', err)
     }
 
     if (client?.email) {
       try {
-        const { error: clientEmailError } = await resend.emails.send({
+        const { error: clientEmailErr } = await resend.emails.send({
           from: 'PurePulse <contracts@login.purepulse.one>',
           to: client.email,
           subject: `You're all set — PurePulse project confirmed`,
@@ -156,9 +116,9 @@ export async function POST(req: NextRequest) {
             </div>
           `,
         })
-        if (clientEmailError) console.error('[stripe webhook] client email error:', clientEmailError)
-      } catch (emailErr) {
-        console.error('[stripe webhook] client email threw:', emailErr)
+        if (clientEmailErr) console.error('[stripe webhook] client email error:', clientEmailErr)
+      } catch (err) {
+        console.error('[stripe webhook] client email threw:', err)
       }
     }
   }
