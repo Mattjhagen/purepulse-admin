@@ -84,25 +84,32 @@ export async function POST(
     return NextResponse.json({ error: 'Failed to record signature.' }, { status: 500 })
   }
 
-  // Notify admin
+  // Notify admin (non-fatal if email fails)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const client = Array.isArray(contract.clients) ? (contract.clients as any[])[0] : contract.clients
-  await resend.emails.send({
-    from: 'PurePulse <contracts@purepulse.one>',
-    to: 'contact@purepulse.one',
-    subject: `✅ Contract signed by ${signed_by.trim()}`,
-    html: `
-      <div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;color:#111;">
-        <h2 style="margin:0 0 16px;">Contract signed</h2>
-        <p style="color:#555;margin:0 0 8px;"><strong>${signed_by.trim()}</strong> (${client?.email ?? 'unknown'}) signed the contract.</p>
-        <p style="color:#555;margin:0 0 24px;">Signed at: ${new Date(signedAt).toLocaleString('en-US', { timeZone: 'America/Chicago' })} CT</p>
-        <a href="https://purepulseadmin.netlify.app/contracts/${contract.id}"
-           style="display:inline-block;background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">
-          View Contract →
-        </a>
-      </div>
-    `,
-  })
+  try {
+    const { error: adminEmailError } = await resend.emails.send({
+      from: 'PurePulse <contracts@purepulse.one>',
+      to: 'contact@purepulse.one',
+      subject: `✅ Contract signed by ${signed_by.trim()}`,
+      html: `
+        <div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;color:#111;">
+          <h2 style="margin:0 0 16px;">Contract signed</h2>
+          <p style="color:#555;margin:0 0 8px;"><strong>${signed_by.trim()}</strong> (${client?.email ?? 'unknown'}) signed the contract.</p>
+          <p style="color:#555;margin:0 0 24px;">Signed at: ${new Date(signedAt).toLocaleString('en-US', { timeZone: 'America/Chicago' })} CT</p>
+          <a href="https://purepulseadmin.netlify.app/contracts/${contract.id}"
+             style="display:inline-block;background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">
+            View Contract →
+          </a>
+        </div>
+      `,
+    })
+    if (adminEmailError) {
+      console.error('[sign] admin email error:', adminEmailError)
+    }
+  } catch (emailErr) {
+    console.error('[sign] admin email threw:', emailErr)
+  }
 
   return NextResponse.json({ ok: true, signed_at: signedAt })
 }
