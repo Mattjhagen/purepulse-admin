@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const ALLOWED_ORIGINS = ['https://purepulse.one', 'https://purepulseadmin.netlify.app', 'http://localhost:3000']
+const ALLOWED_ORIGINS = ['https://purepulse.one', 'https://admin.purepulse.one', 'http://localhost:3000']
 
 function cors(origin: string | null) {
   const allowed = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]

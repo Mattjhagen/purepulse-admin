@@ -40,7 +40,7 @@ export async function POST(
   const plan = contract.plan as Plan
   const planLabel = PLAN_LABELS[plan] ?? plan
   const planCents = PLAN_CENTS[plan] ?? Math.round(contract.monthly_rate * 100)
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://purepulseadmin.netlify.app'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://admin.purepulse.one'
 
   // Charge deposit + first month together. Save card for future subscription billing.
   const firstInvoiceCents = DEPOSIT_CENTS + planCents
