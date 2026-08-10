@@ -38,7 +38,7 @@ export async function POST(
 
   // Generate a signing token
   const token = crypto.randomUUID()
-  const signingUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://admin.purepulse.one'}/sign/${token}`
+  const signingUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://login.purepulse.one'}/sign/${token}`
 
   // Save token + mark sent
   const { error: updateError } = await supabase
