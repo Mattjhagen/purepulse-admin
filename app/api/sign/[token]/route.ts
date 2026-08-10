@@ -97,7 +97,7 @@ export async function POST(
           <h2 style="margin:0 0 16px;">Contract signed</h2>
           <p style="color:#555;margin:0 0 8px;"><strong>${signed_by.trim()}</strong> (${client?.email ?? 'unknown'}) signed the contract.</p>
           <p style="color:#555;margin:0 0 24px;">Signed at: ${new Date(signedAt).toLocaleString('en-US', { timeZone: 'America/Chicago' })} CT</p>
-          <a href="https://purepulseadmin.netlify.app/contracts/${contract.id}"
+          <a href="${process.env.NEXT_PUBLIC_APP_URL ?? 'https://admin.purepulse.one'}/contracts/${contract.id}"
              style="display:inline-block;background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">
             View Contract →
           </a>

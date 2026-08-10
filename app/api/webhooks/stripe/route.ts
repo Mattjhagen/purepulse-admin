@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
           <p style="color:#555;margin:0 0 8px;"><strong>${client?.name ?? 'Client'}</strong> (${client?.email ?? ''}) completed the deposit payment.</p>
           <p style="color:#555;margin:0 0 8px;">Plan: <strong>${contract.plan}</strong></p>
           ${subscriptionId ? `<p style="color:#555;margin:0 0 24px;">Stripe subscription ID: <code>${subscriptionId}</code></p>` : '<p style="color:#d97706;margin:0 0 24px;">⚠ Subscription not created automatically — set up manually in Stripe.</p>'}
-          <a href="${process.env.NEXT_PUBLIC_APP_URL ?? 'https://purepulseadmin.netlify.app'}/contracts/${contractId}"
+          <a href="${process.env.NEXT_PUBLIC_APP_URL ?? 'https://admin.purepulse.one'}/contracts/${contractId}"
              style="display:inline-block;background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">
             View Contract →
           </a>
