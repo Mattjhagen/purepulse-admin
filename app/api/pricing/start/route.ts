@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
 
   // Send sign link email
   const resend = new Resend(process.env.RESEND_API_KEY)
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://admin.purepulse.one'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://login.purepulse.one'
   const signingUrl = `${appUrl}/sign/${token}`
   const firstName = name.trim().split(' ')[0]
 
