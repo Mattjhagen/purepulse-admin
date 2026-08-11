@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
 
     try {
       const { error: adminEmailErr } = await resend.emails.send({
-        from: 'PurePulse <contracts@login.purepulse.one>',
+        from: 'PurePulse Leads <matty@purepulse.one>',
         to: 'matty@purepulse.one',
         subject: `💳 Payment received — ${client?.name ?? 'Client'}`,
         html: `
@@ -87,32 +87,94 @@ export async function POST(req: NextRequest) {
     }
 
     if (client?.email) {
+      // Generate portal signup link
+      let portalSignupUrl = 'https://login.purepulse.one/portal'
+      try {
+        const { data: linkData } = await supabase.auth.admin.generateLink({
+          type: 'signup',
+          email: client.email,
+          options: {
+            redirectTo: 'https://login.purepulse.one/portal',
+            data: { full_name: client.name, role: 'client' },
+          },
+        })
+        if (linkData?.properties?.action_link) {
+          portalSignupUrl = linkData.properties.action_link
+        }
+      } catch (err) {
+        console.error('[stripe webhook] portal signup link error:', err)
+      }
+
+      // Get Stripe invoice PDF URL
+      let stripeInvoiceUrl = ''
+      try {
+        if (session.invoice) {
+          const stripeInvoice = await getStripe().invoices.retrieve(session.invoice as string)
+          stripeInvoiceUrl = stripeInvoice.invoice_pdf ?? ''
+        }
+      } catch (err) {
+        console.error('[stripe webhook] invoice PDF error:', err)
+      }
+
       try {
         const { error: clientEmailErr } = await resend.emails.send({
-          from: 'PurePulse <contracts@login.purepulse.one>',
+          from: 'Matty at PurePulse <matty@purepulse.one>',
           to: client.email,
           subject: `You're all set — PurePulse project confirmed`,
           html: `
-            <div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;color:#111;">
-              <div style="margin-bottom:32px;">
-                <span style="font-size:1.25rem;font-weight:700;letter-spacing:-0.02em;">PurePulse</span>
+            <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+              <div style="background:#07070D;padding:24px 32px;border-radius:12px 12px 0 0;text-align:center">
+                <span style="font-size:20px;font-weight:800;color:#F4F4FF">Pure<span style="color:#A066FF">Pulse</span></span>
               </div>
-              <h2 style="margin:0 0 12px;">You're officially on the books 🎉</h2>
-              <p style="color:#555;line-height:1.6;margin:0 0 8px;">Hi ${client.name},</p>
-              <p style="color:#555;line-height:1.6;margin:0 0 24px;">
-                Your deposit payment was received and your project is now confirmed. We'll be in touch within 1 business day
-                to schedule your kick-off and gather any remaining content.
-              </p>
-              <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:20px 24px;margin-bottom:24px;">
-                <p style="margin:0 0 6px;font-size:0.8125rem;color:#9ca3af;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Your Plan</p>
-                <p style="margin:0;font-weight:700;font-size:1.125rem;text-transform:capitalize;">${contract.plan}</p>
+              <div style="padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px">
+                <h2 style="margin:0 0 12px;color:#07070D">You're officially on the books 🎉</h2>
+                <p style="color:#555;line-height:1.7;margin:0 0 8px">Hi ${client.name},</p>
+                <p style="color:#555;line-height:1.7;margin:0 0 24px">
+                  Your deposit payment was received and your <strong>${contract.plan}</strong> project is now confirmed.
+                  We'll be in touch within 1 business day to schedule your kick-off call.
+                </p>
+
+                <div style="background:#f9f9f9;border-radius:10px;padding:20px 24px;margin-bottom:24px">
+                  <p style="margin:0 0 4px;font-size:12px;color:#999;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">Your Plan</p>
+                  <p style="margin:0;font-weight:700;font-size:18px;text-transform:capitalize">${contract.plan}</p>
+                </div>
+
+                ${stripeInvoiceUrl ? `
+                <div style="margin-bottom:20px">
+                  <a href="${stripeInvoiceUrl}" style="display:inline-block;background:#f9f9f9;border:1px solid #e5e7eb;color:#111;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+                    📄 Download Your Invoice
+                  </a>
+                </div>` : ''}
+
+                <div style="background:#f8f8ff;border-radius:12px;padding:24px;margin:24px 0;border:1px solid #e8e4ff">
+                  <h3 style="margin:0 0 8px;color:#07070D;font-size:16px">📋 Set up your client portal</h3>
+                  <p style="margin:0 0 16px;color:#555;font-size:14px;line-height:1.6">
+                    Track your project progress, send us messages, view invoices, and submit support tickets — all in one place.
+                    Click below to create your account with a password.
+                  </p>
+                  <a href="${portalSignupUrl}" style="display:inline-block;background:#7B2FFF;color:#fff;padding:12px 28px;border-radius:100px;font-weight:700;text-decoration:none;font-size:14px">
+                    Create Your Portal Account →
+                  </a>
+                  <p style="margin:12px 0 0;color:#999;font-size:12px">Use this email: <strong>${client.email}</strong></p>
+                </div>
+
+                <div style="background:#f9f9f9;border-radius:10px;padding:16px 20px;margin-bottom:24px">
+                  <p style="margin:0 0 4px;font-size:12px;color:#999;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">What happens next</p>
+                  <ol style="margin:8px 0 0;padding-left:20px;color:#374151;line-height:2;font-size:14px">
+                    <li>Create your portal account above</li>
+                    <li>We'll reach out within 1 business day to schedule kick-off</li>
+                    <li>Content collection &amp; discovery call</li>
+                    <li>Build begins — delivery in 2–4 weeks</li>
+                  </ol>
+                </div>
+
+                <p style="color:#555;line-height:1.7">Questions? Just reply to this email.</p>
+                <p style="color:#555">— Matty<br><span style="font-size:13px;color:#999">PurePulse · Web Design &amp; Development</span></p>
+                <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0">
+                <p style="font-size:12px;color:#999;margin:0">
+                  <a href="${appUrl}/sign/${contractId}" style="color:#999">View your signed contract</a>
+                </p>
               </div>
-              <p style="color:#999;font-size:0.8125rem;line-height:1.6;margin:0 0 8px;">
-                Questions? Reply to this email or reach us at
-                <a href="mailto:contact@purepulse.one" style="color:#555;">contact@purepulse.one</a>.
-              </p>
-              <hr style="border:none;border-top:1px solid #e5e7eb;margin:32px 0 16px;">
-              <p style="color:#bbb;font-size:0.75rem;margin:0;">PurePulse · Web Design &amp; Maintenance · purepulse.one</p>
             </div>
           `,
         })
