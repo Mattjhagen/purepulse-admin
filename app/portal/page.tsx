@@ -339,7 +339,7 @@ export default function CustomerPortalPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {!!c.page_title && <p style={{ fontWeight: 700 }}>{String(c.page_title)}</p>}
             {!!c.meta_description && <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{String(c.meta_description)}</p>}
-            {c.h1 && <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>H1: {String(c.h1)}</p>}
+            {!!c.h1 && <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>H1: {String(c.h1)}</p>}
             {Array.isArray(c.focus_keywords) && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
                 {(c.focus_keywords as string[]).map((k, i) => (
