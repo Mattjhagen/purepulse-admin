@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { getStripe } from '@/lib/stripe'
 import { requireAdmin } from '@/lib/require-admin'
 import { Resend } from 'resend'
+import type Stripe from 'stripe'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -34,27 +35,32 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   const stripe = getStripe()
   let accountId = referral.stripe_account_id as string | null
+  let link: Stripe.AccountLink
 
-  if (!accountId) {
-    const account = await stripe.accounts.create({
-      type: 'express',
-      email: referral.email ?? undefined,
-      business_type: 'individual',
-      capabilities: { transfers: { requested: true } },
+  try {
+    if (!accountId) {
+      const account = await stripe.accounts.create({
+        type: 'express',
+        email: referral.email ?? undefined,
+        business_type: 'individual',
+        capabilities: { transfers: { requested: true } },
+      })
+      accountId = account.id
+      await supabase.from('referrals').update({
+        stripe_account_id: accountId,
+        updated_at: new Date().toISOString(),
+      }).eq('id', id)
+    }
+
+    link = await stripe.accountLinks.create({
+      account: accountId,
+      refresh_url: `${appUrl}/referrals/connect/${id}`,
+      return_url: `${appUrl}/referrals/connect/${id}`,
+      type: 'account_onboarding',
     })
-    accountId = account.id
-    await supabase.from('referrals').update({
-      stripe_account_id: accountId,
-      updated_at: new Date().toISOString(),
-    }).eq('id', id)
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Stripe Connect setup failed.' }, { status: 500 })
   }
-
-  const link = await stripe.accountLinks.create({
-    account: accountId,
-    refresh_url: `${appUrl}/referrals/connect/${id}`,
-    return_url: `${appUrl}/referrals/connect/${id}`,
-    type: 'account_onboarding',
-  })
 
   let emailed = false
   if (referral.email) {
