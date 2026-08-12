@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase'
 import { useParams, useRouter } from 'next/navigation'
 import {
   Sparkles, ArrowLeft, Send, RotateCcw, Check, Edit2,
-  Zap, ChevronDown, X, AlertCircle, Eye,
+  Zap, ChevronDown, X, AlertCircle, Eye, FileText, ChevronUp,
 } from 'lucide-react'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -48,7 +48,15 @@ interface Brief {
   ai_summary: string | null
   business_name: string | null
   industry: string | null
+  location: string | null
+  target_audience: string | null
+  unique_value_prop: string | null
+  tone: string[]
+  competitors: string[]
+  goals: string[]
 }
+
+const TONE_OPTIONS = ['Professional', 'Casual', 'Friendly', 'Bold', 'Authoritative', 'Playful', 'Inspirational', 'Educational']
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -188,6 +196,12 @@ export default function CampaignDetailPage() {
   const [loading,      setLoading]      = useState(true)
   const [generating,   setGenerating]   = useState(false)
 
+  // brief form
+  const [briefOpen,   setBriefOpen]   = useState(false)
+  const [briefForm,   setBriefForm]   = useState({ business_name: '', industry: '', location: '', target_audience: '', unique_value_prop: '', tone: [] as string[], competitors: '', goals: '' })
+  const [briefSaving, setBriefSaving] = useState(false)
+  const [briefMsg,    setBriefMsg]    = useState<string | null>(null)
+
   // filters
   const [mFilter, setMFilter] = useState<'all' | string>('all')
   const [sFilter, setSFilter] = useState<'all' | DelivStatus>('all')
@@ -214,7 +228,7 @@ export default function CampaignDetailPage() {
         .single(),
       supabase
         .from('campaign_briefs')
-        .select('ai_summary, business_name, industry')
+        .select('ai_summary, business_name, industry, location, target_audience, unique_value_prop, tone, competitors, goals')
         .eq('campaign_id', campaignId)
         .maybeSingle(),
       supabase
@@ -238,7 +252,20 @@ export default function CampaignDetailPage() {
         clients: Array.isArray(raw.clients) ? raw.clients[0] ?? null : raw.clients,
       })
     }
-    if (briefRes.data) setBrief(briefRes.data as Brief)
+    if (briefRes.data) {
+      const b = briefRes.data as Brief
+      setBrief(b)
+      setBriefForm({
+        business_name:    b.business_name    ?? '',
+        industry:         b.industry         ?? '',
+        location:         b.location         ?? '',
+        target_audience:  b.target_audience  ?? '',
+        unique_value_prop: b.unique_value_prop ?? '',
+        tone:             b.tone             ?? [],
+        competitors:      (b.competitors ?? []).join('\n'),
+        goals:            (b.goals       ?? []).join('\n'),
+      })
+    }
     if (milestonesRes.data) setMilestones(milestonesRes.data as Milestone[])
     if (deliverablesRes.data) setDeliverables(deliverablesRes.data as Deliverable[])
 
@@ -256,6 +283,33 @@ export default function CampaignDetailPage() {
       if (res.ok) await loadData()
     } finally {
       setGenerating(false)
+    }
+  }
+
+  async function handleSaveBrief() {
+    setBriefSaving(true)
+    setBriefMsg(null)
+    try {
+      const payload = {
+        ...briefForm,
+        competitors: briefForm.competitors.split('\n').map(s => s.trim()).filter(Boolean),
+        goals:       briefForm.goals.split('\n').map(s => s.trim()).filter(Boolean),
+      }
+      const res = await fetch(`/api/campaigns/${campaignId}/brief-summary`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const json = await res.json()
+      if (res.ok) {
+        setBriefMsg('Brief saved — AI summary updated.')
+        await loadData()
+        setTimeout(() => setBriefMsg(null), 4000)
+      } else {
+        setBriefMsg(json.error ?? 'Failed to save brief.')
+      }
+    } finally {
+      setBriefSaving(false)
     }
   }
 
@@ -362,19 +416,146 @@ export default function CampaignDetailPage() {
         </button>
       </div>
 
-      {/* ── Brief summary ───────────────────────────────────────────────── */}
-      {!!brief?.ai_summary && (
-        <div style={{
-          background: 'linear-gradient(135deg, #1a0a2e 0%, #0d0f1a 100%)',
-          border: '1px solid #3730a344', borderRadius: 10, padding: '1rem 1.25rem',
-          marginBottom: '1.5rem', fontSize: '0.875rem', color: '#c4b5fd', lineHeight: 1.7,
-        }}>
-          <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#818cf8', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.375rem' }}>
-            AI Brand Brief
-          </span>
-          {brief.ai_summary}
-        </div>
-      )}
+      {/* ── Brand Brief ─────────────────────────────────────────────────── */}
+      <div className="card" style={{ marginBottom: '1.5rem', padding: 0, overflow: 'hidden' }}>
+        {/* Collapsible header */}
+        <button
+          onClick={() => setBriefOpen(o => !o)}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: '0.75rem',
+            padding: '1rem 1.25rem', background: 'none', border: 'none', cursor: 'pointer',
+            color: 'var(--text)', textAlign: 'left',
+          }}
+        >
+          <FileText size={16} style={{ color: '#818cf8', flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>
+            <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>Brand Brief</span>
+            {!briefOpen && brief?.ai_summary && (
+              <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-muted)', marginTop: '0.2rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60ch' }}>
+                {brief.ai_summary}
+              </p>
+            )}
+            {!briefOpen && !brief?.ai_summary && (
+              <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                Fill in client details to generate an AI brand brief
+              </p>
+            )}
+          </div>
+          {briefOpen ? <ChevronUp size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} /> : <ChevronDown size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />}
+        </button>
+
+        {briefOpen && (
+          <div style={{ borderTop: '1px solid var(--border)', padding: '1.25rem' }}>
+            {/* AI Summary */}
+            {brief?.ai_summary && (
+              <div style={{
+                background: 'linear-gradient(135deg, #1a0a2e 0%, #0d0f1a 100%)',
+                border: '1px solid #3730a344', borderRadius: 8, padding: '0.875rem 1rem',
+                marginBottom: '1.25rem', fontSize: '0.8125rem', color: '#c4b5fd', lineHeight: 1.7,
+              }}>
+                <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#818cf8', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.375rem' }}>
+                  AI Brand Brief
+                </span>
+                {brief.ai_summary}
+              </div>
+            )}
+
+            {/* Form */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' }}>
+              {[
+                { key: 'business_name', label: 'Business Name' },
+                { key: 'industry',      label: 'Industry' },
+                { key: 'location',      label: 'Location' },
+                { key: 'target_audience', label: 'Target Audience' },
+              ].map(({ key, label }) => (
+                <div key={key}>
+                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>{label}</label>
+                  <input
+                    value={briefForm[key as keyof typeof briefForm] as string}
+                    onChange={e => setBriefForm(p => ({ ...p, [key]: e.target.value }))}
+                    style={{ width: '100%', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 6, padding: '0.5rem 0.75rem', fontSize: '0.875rem', color: 'var(--text)', boxSizing: 'border-box' }}
+                  />
+                </div>
+              ))}
+
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Unique Value Proposition</label>
+                <textarea
+                  value={briefForm.unique_value_prop}
+                  onChange={e => setBriefForm(p => ({ ...p, unique_value_prop: e.target.value }))}
+                  rows={2}
+                  style={{ width: '100%', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 6, padding: '0.5rem 0.75rem', fontSize: '0.875rem', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Goals (one per line)</label>
+                <textarea
+                  value={briefForm.goals}
+                  onChange={e => setBriefForm(p => ({ ...p, goals: e.target.value }))}
+                  rows={3}
+                  placeholder="Brand awareness&#10;Generate leads&#10;Grow social media"
+                  style={{ width: '100%', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 6, padding: '0.5rem 0.75rem', fontSize: '0.875rem', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Competitors (one per line)</label>
+                <textarea
+                  value={briefForm.competitors}
+                  onChange={e => setBriefForm(p => ({ ...p, competitors: e.target.value }))}
+                  rows={3}
+                  placeholder="Competitor A&#10;Competitor B"
+                  style={{ width: '100%', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 6, padding: '0.5rem 0.75rem', fontSize: '0.875rem', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>Brand Tone</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+                  {TONE_OPTIONS.map(t => {
+                    const active = briefForm.tone.includes(t)
+                    return (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setBriefForm(p => ({ ...p, tone: active ? p.tone.filter(x => x !== t) : [...p.tone, t] }))}
+                        style={{
+                          padding: '4px 12px', borderRadius: 20, fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer',
+                          background: active ? '#7B2FFF22' : 'transparent',
+                          border: active ? '1px solid #7B2FFF' : '1px solid var(--border)',
+                          color: active ? '#a78bfa' : 'var(--text-muted)',
+                          transition: 'all 0.12s',
+                        }}
+                      >
+                        {t}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {briefMsg && (
+              <p style={{ marginTop: '1rem', fontSize: '0.8125rem', color: briefMsg.startsWith('Brief saved') ? '#34d399' : '#f87171' }}>
+                {briefMsg}
+              </p>
+            )}
+
+            <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.75rem' }}>
+              <button
+                onClick={handleSaveBrief}
+                disabled={briefSaving}
+                className="btn btn-primary"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              >
+                <Sparkles size={14} />
+                {briefSaving ? 'Generating…' : 'Save & Generate Brief'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* ── Filters ─────────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
