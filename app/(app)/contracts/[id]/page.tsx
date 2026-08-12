@@ -3,7 +3,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Client } from '@/lib/types'
 import { formatDate, formatMoney, statusBadgeClass, planBadgeClass, planLabel } from '@/lib/utils'
-import { ChevronLeft, Printer, Send, CheckCircle, XCircle, Edit3, Save, Mail, Link2, Copy, AlertTriangle, Calendar } from 'lucide-react'
+import { generateContractContent } from '@/lib/contract-template'
+import { ChevronLeft, Printer, Send, CheckCircle, XCircle, Edit3, Save, Mail, Link2, Copy, AlertTriangle, Calendar, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 import { use } from 'react'
 
@@ -42,6 +43,10 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   const [sendMsg, setSendMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [copiedLink, setCopiedLink] = useState(false)
   const [showTerminate, setShowTerminate] = useState(false)
+  const [renewing, setRenewing] = useState(false)
+  const [origin, setOrigin] = useState('')
+
+  useEffect(() => { setOrigin(window.location.origin) }, [])
 
   const load = useCallback(async () => {
     const { data } = await supabase.from('contracts').select('*, clients(*)').eq('id', id).single()
@@ -80,10 +85,29 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   }
 
   function copySigningLink() {
-    const url = `${window.location.origin}/sign/${contract.signature_token}`
+    const url = `${origin}/sign/${contract.signature_token}`
     navigator.clipboard.writeText(url)
     setCopiedLink(true)
     setTimeout(() => setCopiedLink(false), 2000)
+  }
+
+  async function renewContract() {
+    if (!client) return
+    setRenewing(true)
+    const newStart = new Date().toISOString().split('T')[0]
+    const newContent = generateContractContent(client, contract.plan, contract.hourly_rate, newStart)
+    const { data: newContract } = await supabase.from('contracts').insert({
+      client_id: contract.client_id,
+      title: contract.title,
+      plan: contract.plan,
+      monthly_rate: contract.monthly_rate,
+      hourly_rate: contract.hourly_rate,
+      start_date: newStart,
+      content: newContent,
+      status: 'draft',
+    }).select('id').single()
+    setRenewing(false)
+    if (newContract) window.location.href = `/contracts/${newContract.id}`
   }
 
   if (loading) return <div style={{ textAlign: 'center', padding: '4rem' }}><span className="spinner" style={{ margin: '0 auto' }} /></div>
@@ -101,7 +125,8 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   const endDate = contract.end_date ? new Date(contract.end_date) : null
   const daysUntilExpiry = endDate ? Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : null
   const isExpiringSoon = daysUntilExpiry !== null && daysUntilExpiry >= 0 && daysUntilExpiry <= 30 && isSigned
-  const isOverdue = daysUntilExpiry !== null && daysUntilExpiry < 0 && isSigned
+  const isPastEnd = daysUntilExpiry !== null && daysUntilExpiry < 0 && isSigned
+  const canRenew = isTerminated || isExpiringSoon || isPastEnd
 
   return (
     <>
@@ -112,26 +137,39 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
         <Link href="/contracts" className="btn btn-ghost btn-sm"><ChevronLeft size={14} /> Contracts</Link>
         <span className={statusBadgeClass(contract.status)}>{contract.status}</span>
         <span className={planBadgeClass(contract.plan)}>{planLabel(contract.plan)}</span>
+        {isExpiringSoon && daysUntilExpiry !== null && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', color: '#f59e0b', fontWeight: 700 }}>
+            <AlertTriangle size={12} /> {daysUntilExpiry}d until expiry
+          </span>
+        )}
+        {isPastEnd && daysUntilExpiry !== null && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', color: '#ef4444', fontWeight: 700 }}>
+            <AlertTriangle size={12} /> Ended {Math.abs(daysUntilExpiry)}d ago
+          </span>
+        )}
       </div>
 
       {/* Expiry warning */}
-      {(isExpiringSoon || isOverdue) && (
-        <div className="no-print" style={{ marginBottom: '1rem', padding: '12px 16px', borderRadius: 8, background: isOverdue ? 'rgba(239,68,68,0.08)' : 'rgba(245,158,11,0.08)', border: `1px solid ${isOverdue ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.25)'}`, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <Calendar size={15} color={isOverdue ? '#ef4444' : '#f59e0b'} />
-          <span style={{ fontSize: '0.875rem', color: isOverdue ? '#ef4444' : 'var(--text-muted)' }}>
-            {isOverdue
+      {(isExpiringSoon || isPastEnd) && (
+        <div className="no-print" style={{ marginBottom: '1rem', padding: '12px 16px', borderRadius: 8, background: isPastEnd ? 'rgba(239,68,68,0.08)' : 'rgba(245,158,11,0.08)', border: `1px solid ${isPastEnd ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.25)'}`, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <Calendar size={15} color={isPastEnd ? '#ef4444' : '#f59e0b'} />
+          <span style={{ fontSize: '0.875rem', color: isPastEnd ? '#ef4444' : 'var(--text-muted)', flex: 1 }}>
+            {isPastEnd
               ? `Contract ended ${Math.abs(daysUntilExpiry!)} day${Math.abs(daysUntilExpiry!) !== 1 ? 's' : ''} ago — consider renewing.`
               : `Expires in ${daysUntilExpiry} day${daysUntilExpiry !== 1 ? 's' : ''} on ${endDate!.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.`}
           </span>
+          <button className="btn btn-ghost btn-sm" onClick={renewContract} disabled={renewing}>
+            {renewing ? <span className="spinner" style={{ width: 12, height: 12 }} /> : <><RefreshCw size={12} /> Renew</>}
+          </button>
         </div>
       )}
 
       {/* Signing link banner */}
-      {hasSigningLink && (
+      {hasSigningLink && origin && (
         <div className="no-print" style={{ marginBottom: '1rem', padding: '12px 16px', borderRadius: 8, background: 'rgba(123,47,255,0.08)', border: '1px solid rgba(123,47,255,0.2)', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
           <Link2 size={15} style={{ color: '#7B2FFF', flexShrink: 0 }} />
           <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {window?.location?.origin ?? ''}/sign/{contract.signature_token}
+            {origin}/sign/{contract.signature_token}
           </span>
           <button
             className="btn btn-ghost btn-sm"
@@ -201,9 +239,15 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
           </button>
         )}
 
-        {(contract.status === 'signed') && (
+        {contract.status === 'signed' && (
           <button className="btn btn-ghost" onClick={() => updateStatus('active')}>
             <CheckCircle size={14} /> Mark active
+          </button>
+        )}
+
+        {canRenew && (
+          <button className="btn btn-ghost" onClick={renewContract} disabled={renewing}>
+            {renewing ? <span className="spinner" /> : <><RefreshCw size={14} /> Renew</>}
           </button>
         )}
 
@@ -237,7 +281,7 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
           {contract.end_date && (
             <div>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>End Date</p>
-              <p style={{ fontWeight: 600 }}>{formatDate(contract.end_date)}</p>
+              <p style={{ fontWeight: 600, color: isPastEnd ? '#ef4444' : isExpiringSoon ? '#f59e0b' : 'inherit' }}>{formatDate(contract.end_date)}</p>
             </div>
           )}
           {contract.signed_at && (
