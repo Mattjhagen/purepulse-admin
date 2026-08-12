@@ -13,7 +13,7 @@ export default async function InboxPage() {
   const unread = (emails ?? []).filter((e: { read_at: string | null }) => !e.read_at).length
 
   return (
-    <div className="max-w-4xl mx-auto p-8">
+    <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Inbox</h1>
