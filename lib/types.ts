@@ -27,6 +27,10 @@ export interface Client {
   status: ClientStatus
   notes?: string
   referral_code?: string | null
+  suspended?: boolean
+  suspended_at?: string | null
+  suspension_reason?: string | null
+  warning_sent_at?: string | null
   created_at: string
   updated_at: string
 }
