@@ -271,12 +271,12 @@ export default function CustomerPortalPage() {
       case 'social_post':
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {c.caption && <p style={{ lineHeight: 1.7, color: 'var(--text)' }}>{String(c.caption)}</p>}
+            {!!c.caption && <p style={{ lineHeight: 1.7, color: 'var(--text)' }}>{String(c.caption)}</p>}
             {Array.isArray(c.hashtags) && c.hashtags.length > 0 && (
               <p style={{ color: '#7B2FFF', fontSize: '0.875rem' }}>{(c.hashtags as string[]).map(h => `#${h}`).join(' ')}</p>
             )}
-            {c.cta && <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>CTA: {String(c.cta)}</p>}
-            {c.visual_direction && (
+            {!!c.cta && <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>CTA: {String(c.cta)}</p>}
+            {!!c.visual_direction && (
               <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.625rem 0.875rem', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
                 Visual: {String(c.visual_direction)}
               </div>
@@ -286,9 +286,9 @@ export default function CustomerPortalPage() {
       case 'blog_post':
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {c.headline && <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>{String(c.headline)}</h3>}
-            {c.subheadline && <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>{String(c.subheadline)}</p>}
-            {c.intro && <p style={{ lineHeight: 1.7 }}>{String(c.intro)}</p>}
+            {!!c.headline && <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>{String(c.headline)}</h3>}
+            {!!c.subheadline && <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>{String(c.subheadline)}</p>}
+            {!!c.intro && <p style={{ lineHeight: 1.7 }}>{String(c.intro)}</p>}
             {Array.isArray(c.outline) && c.outline.length > 0 && (
               <div>
                 <p style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.375rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Outline</p>
@@ -297,24 +297,24 @@ export default function CustomerPortalPage() {
                 </ol>
               </div>
             )}
-            {c.cta && <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>CTA: {String(c.cta)}</p>}
+            {!!c.cta && <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>CTA: {String(c.cta)}</p>}
           </div>
         )
       case 'webpage':
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {c.headline && <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>{String(c.headline)}</h3>}
-            {c.subheadline && <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>{String(c.subheadline)}</p>}
-            {c.body && <p style={{ lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{String(c.body)}</p>}
-            {c.cta && <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>CTA: {String(c.cta)}</p>}
+            {!!c.headline && <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>{String(c.headline)}</h3>}
+            {!!c.subheadline && <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>{String(c.subheadline)}</p>}
+            {!!c.body && <p style={{ lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{String(c.body)}</p>}
+            {!!c.cta && <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>CTA: {String(c.cta)}</p>}
           </div>
         )
       case 'ad_copy':
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {c.headline && <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>{String(c.headline)}</h3>}
-            {c.description && <p style={{ lineHeight: 1.7 }}>{String(c.description)}</p>}
-            {c.cta && <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#7B2FFF' }}>CTA: {String(c.cta)}</p>}
+            {!!c.headline && <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>{String(c.headline)}</h3>}
+            {!!c.description && <p style={{ lineHeight: 1.7 }}>{String(c.description)}</p>}
+            {!!c.cta && <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#7B2FFF' }}>CTA: {String(c.cta)}</p>}
             {Array.isArray(c.keywords) && c.keywords.length > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
                 {(c.keywords as string[]).map((k, i) => (
@@ -327,19 +327,19 @@ export default function CustomerPortalPage() {
       case 'email':
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {c.subject && <p style={{ fontWeight: 700, margin: 0 }}>Subject: {String(c.subject)}</p>}
-            {c.preview_text && <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: 0 }}>Preview: {String(c.preview_text)}</p>}
-            {c.headline && <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>{String(c.headline)}</h3>}
-            {c.body && <p style={{ lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{String(c.body)}</p>}
-            {c.cta && <p style={{ fontSize: '0.875rem', color: '#7B2FFF', fontWeight: 600 }}>CTA: {String(c.cta)}</p>}
+            {!!c.subject && <p style={{ fontWeight: 700, margin: 0 }}>Subject: {String(c.subject)}</p>}
+            {!!c.preview_text && <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: 0 }}>Preview: {String(c.preview_text)}</p>}
+            {!!c.headline && <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>{String(c.headline)}</h3>}
+            {!!c.body && <p style={{ lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{String(c.body)}</p>}
+            {!!c.cta && <p style={{ fontSize: '0.875rem', color: '#7B2FFF', fontWeight: 600 }}>CTA: {String(c.cta)}</p>}
           </div>
         )
       case 'seo_report':
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {c.page_title && <p style={{ fontWeight: 700 }}>{String(c.page_title)}</p>}
-            {c.meta_description && <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{String(c.meta_description)}</p>}
-            {c.h1 && <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>H1: {String(c.h1)}</p>}
+            {!!c.page_title && <p style={{ fontWeight: 700 }}>{String(c.page_title)}</p>}
+            {!!c.meta_description && <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{String(c.meta_description)}</p>}
+            {!!c.h1 && <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>H1: {String(c.h1)}</p>}
             {Array.isArray(c.focus_keywords) && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
                 {(c.focus_keywords as string[]).map((k, i) => (
@@ -357,7 +357,7 @@ export default function CustomerPortalPage() {
       case 'strategy_doc':
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {c.executive_summary && <p style={{ lineHeight: 1.7 }}>{String(c.executive_summary)}</p>}
+            {!!c.executive_summary && <p style={{ lineHeight: 1.7 }}>{String(c.executive_summary)}</p>}
             {Array.isArray(c.goals) && c.goals.length > 0 && (
               <div>
                 <p style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.375rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Goals</p>
@@ -381,7 +381,7 @@ export default function CustomerPortalPage() {
       case 'analytics_report':
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {c.summary && <p style={{ lineHeight: 1.7 }}>{String(c.summary)}</p>}
+            {!!c.summary && <p style={{ lineHeight: 1.7 }}>{String(c.summary)}</p>}
             {Array.isArray(c.highlights) && c.highlights.length > 0 && (
               <div>
                 <p style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.375rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Highlights</p>
