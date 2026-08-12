@@ -20,5 +20,8 @@ export default async function RefPage({ params }: { params: Promise<{ code: stri
     await supabase.from('referral_clicks').insert({ referral_id: referral.id })
   }
 
-  redirect(`${siteUrl}?ref=${code}`)
+  // purepulse.one's root is a splash page that doesn't forward query params
+  // to home.html (where the lead form + referral capture live), so land
+  // referred visitors directly on home.html instead.
+  redirect(`${siteUrl}/home.html?ref=${code}`)
 }

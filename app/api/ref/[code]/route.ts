@@ -24,5 +24,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ code
     })
   }
 
-  return NextResponse.redirect(`${redirectTo}?ref=${code}`)
+  // purepulse.one's root is a splash page that doesn't forward query params
+  // to home.html (where the lead form + referral capture live), so land
+  // referred visitors directly on home.html instead.
+  return NextResponse.redirect(`${redirectTo}/home.html?ref=${code}`)
 }
