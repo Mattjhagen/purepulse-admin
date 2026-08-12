@@ -2,9 +2,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { formatDate, statusBadgeClass } from '@/lib/utils'
-import { Plus, X, LogOut, CheckCircle, Circle, Clock, MessageCircle, FileText, CreditCard, LifeBuoy, Sparkles, ThumbsUp, RotateCcw, ChevronDown, ChevronRight } from 'lucide-react'
+import { Plus, X, LogOut, CheckCircle, Circle, Clock, MessageCircle, FileText, CreditCard, LifeBuoy, Sparkles, ThumbsUp, RotateCcw, ChevronDown, ChevronRight, ClipboardList, Pencil } from 'lucide-react'
 
-type Tab = 'progress' | 'campaign' | 'messages' | 'invoices' | 'tickets'
+type Tab = 'progress' | 'campaign' | 'brief' | 'messages' | 'invoices' | 'tickets'
 
 type Stage = { id: string; name: string; status: 'pending' | 'in_progress' | 'complete'; note?: string; completed_at?: string; sort_order: number }
 type Message = { id: string; sender: 'admin' | 'client'; sender_name: string; body: string; created_at: string }
@@ -43,6 +43,32 @@ type Campaign = {
   milestones: Milestone[]
 }
 
+type CampaignBrief = {
+  id: string
+  campaign_id: string
+  business_name: string | null
+  industry: string | null
+  location: string | null
+  target_audience: string | null
+  unique_value_prop: string | null
+  tone: string[]
+  competitors: string[]
+  goals: string[]
+  ai_summary: string | null
+}
+
+const TONE_OPTIONS = ['professional', 'friendly', 'bold', 'playful', 'minimal', 'luxury', 'educational', 'humorous']
+const GOAL_OPTIONS = [
+  'Grow brand awareness',
+  'Generate leads',
+  'Drive sales',
+  'Improve SEO rankings',
+  'Grow social following',
+  'Launch a new product or service',
+  'Build email list',
+  'Increase website traffic',
+]
+
 export default function CustomerPortalPage() {
   const supabase = createClient()
   const [session, setSession] = useState<{ user: { email?: string; id: string } } | null>(null)
@@ -72,6 +98,23 @@ export default function CustomerPortalPage() {
   const [revisionDeliverable, setRevisionDeliverable] = useState<Deliverable | null>(null)
   const [revisionNotes, setRevisionNotes] = useState('')
   const [submittingApproval, setSubmittingApproval] = useState<string | null>(null)
+
+  // Brief state
+  const [brief, setBrief] = useState<CampaignBrief | null>(null)
+  const [briefEditing, setBriefEditing] = useState(false)
+  const [briefSubmitting, setBriefSubmitting] = useState(false)
+  const [briefSuccess, setBriefSuccess] = useState(false)
+  // Form fields
+  const [bfBusinessName, setBfBusinessName] = useState('')
+  const [bfIndustry, setBfIndustry] = useState('')
+  const [bfLocation, setBfLocation] = useState('')
+  const [bfTargetAudience, setBfTargetAudience] = useState('')
+  const [bfUniqueValueProp, setBfUniqueValueProp] = useState('')
+  const [bfTone, setBfTone] = useState<string[]>([])
+  const [bfGoals, setBfGoals] = useState<string[]>([])
+  const [bfCompetitors, setBfCompetitors] = useState<string[]>([])
+  const [bfCompetitorInput, setBfCompetitorInput] = useState('')
+  const [bfNotes, setBfNotes] = useState('')
 
   // New ticket
   const [showNewTicket, setShowNewTicket] = useState(false)
@@ -123,6 +166,27 @@ export default function CustomerPortalPage() {
 
     if (camp && camp.length > 0) {
       const campIds = camp.map(c => c.id)
+
+      // Load brief for the first campaign
+      const { data: briefData } = await supabase
+        .from('campaign_briefs')
+        .select('*')
+        .eq('campaign_id', campIds[0])
+        .single()
+      if (briefData) {
+        setBrief(briefData as CampaignBrief)
+        // Pre-fill form fields
+        setBfBusinessName(briefData.business_name ?? '')
+        setBfIndustry(briefData.industry ?? '')
+        setBfLocation(briefData.location ?? '')
+        setBfTargetAudience(briefData.target_audience ?? '')
+        setBfUniqueValueProp(briefData.unique_value_prop ?? '')
+        setBfTone(briefData.tone ?? [])
+        setBfGoals(briefData.goals ?? [])
+        setBfCompetitors(briefData.competitors ?? [])
+      } else {
+        setBrief(null)
+      }
       const { data: milestones } = await supabase
         .from('milestones')
         .select('id,campaign_id,title,description,status,sort_order,due_date')
@@ -249,9 +313,56 @@ export default function CustomerPortalPage() {
     setSendingMessage(false)
   }
 
+  function toggleTone(t: string) {
+    setBfTone(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])
+  }
+  function toggleGoal(g: string) {
+    setBfGoals(prev => prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g])
+  }
+  function addCompetitor() {
+    const val = bfCompetitorInput.trim()
+    if (val && !bfCompetitors.includes(val)) setBfCompetitors(prev => [...prev, val])
+    setBfCompetitorInput('')
+  }
+  function removeCompetitor(c: string) {
+    setBfCompetitors(prev => prev.filter(x => x !== c))
+  }
+
+  async function submitBrief(e: React.FormEvent) {
+    e.preventDefault()
+    if (!campaigns[0]) return
+    setBriefSubmitting(true)
+    setBriefSuccess(false)
+
+    const payload = {
+      business_name: bfBusinessName,
+      industry: bfIndustry,
+      location: bfLocation,
+      target_audience: bfTargetAudience,
+      unique_value_prop: bfUniqueValueProp,
+      tone: bfTone,
+      goals: bfGoals,
+      competitors: bfCompetitors,
+      notes: bfNotes,
+    }
+
+    const res = await fetch(`/api/campaigns/${campaigns[0].id}/brief-summary`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+
+    if (res.ok) {
+      setBriefSuccess(true)
+      setBriefEditing(false)
+      await loadData()
+    }
+    setBriefSubmitting(false)
+  }
+
   async function handleSignOut() {
     await supabase.auth.signOut()
-    setSession(null); setClientId(null); setStages([]); setMessages([]); setInvoices([]); setTickets([]); setCampaigns([])
+    setSession(null); setClientId(null); setStages([]); setMessages([]); setInvoices([]); setTickets([]); setCampaigns([]); setBrief(null); setBriefSuccess(false)
   }
 
   function toggleMilestone(id: string) {
@@ -459,6 +570,7 @@ export default function CustomerPortalPage() {
   const tabs: { id: Tab; label: string; icon: React.ReactNode; count?: number }[] = [
     { id: 'progress', label: 'Progress', icon: <CheckCircle size={16} /> },
     { id: 'campaign', label: 'Campaign', icon: <Sparkles size={16} />, count: pendingReviewCount || undefined },
+    { id: 'brief', label: 'Brief', icon: <ClipboardList size={16} />, count: campaigns.length > 0 && !brief ? 1 : undefined },
     { id: 'messages', label: 'Messages', icon: <MessageCircle size={16} />, count: messages.filter(m => m.sender === 'admin').length },
     { id: 'invoices', label: 'Invoices', icon: <CreditCard size={16} />, count: invoices.filter(i => i.status === 'sent' || i.status === 'overdue').length },
     { id: 'tickets', label: 'Tickets', icon: <LifeBuoy size={16} />, count: tickets.filter(t => t.status === 'open').length },
@@ -677,6 +789,229 @@ export default function CustomerPortalPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* BRIEF TAB */}
+            {tab === 'brief' && (
+              <div>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '2rem' }}>
+                  <div>
+                    <h1 style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.04em', marginBottom: '0.5rem' }}>Brand Brief</h1>
+                    <p style={{ color: 'var(--text-muted)' }}>
+                      {brief ? 'Your brand brief is on file and guides all AI-generated content.' : 'Help us understand your business so we can create content that hits.'}
+                    </p>
+                  </div>
+                  {brief && !briefEditing && (
+                    <button className="btn btn-ghost btn-sm" onClick={() => setBriefEditing(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                      <Pencil size={14} /> Edit
+                    </button>
+                  )}
+                </div>
+
+                {campaigns.length === 0 ? (
+                  <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
+                    <ClipboardList size={32} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
+                    <p style={{ color: 'var(--text-muted)' }}>Your campaign brief will be available once your campaign is set up.</p>
+                  </div>
+                ) : brief && !briefEditing ? (
+                  // READ VIEW
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {briefSuccess && (
+                      <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 'var(--radius-sm)', padding: '0.875rem 1rem', color: '#22c55e', fontSize: '0.875rem' }}>
+                        Brief saved! Your AI brand summary has been updated.
+                      </div>
+                    )}
+
+                    {brief.ai_summary && (
+                      <div style={{ background: 'rgba(123,47,255,0.06)', border: '1px solid rgba(123,47,255,0.2)', borderRadius: 'var(--radius)', padding: '1.25rem 1.5rem' }}>
+                        <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#7B2FFF', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.625rem' }}>AI Brand Summary</p>
+                        <p style={{ lineHeight: 1.75, color: 'var(--text)' }}>{brief.ai_summary}</p>
+                      </div>
+                    )}
+
+                    <div className="card" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+                      {[
+                        { label: 'Business name', value: brief.business_name },
+                        { label: 'Industry', value: brief.industry },
+                        { label: 'Location', value: brief.location },
+                      ].map(({ label, value }) => value ? (
+                        <div key={label}>
+                          <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>{label}</p>
+                          <p>{value}</p>
+                        </div>
+                      ) : null)}
+                    </div>
+
+                    {brief.target_audience && (
+                      <div className="card">
+                        <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.375rem' }}>Target audience</p>
+                        <p style={{ lineHeight: 1.65 }}>{brief.target_audience}</p>
+                      </div>
+                    )}
+
+                    {brief.unique_value_prop && (
+                      <div className="card">
+                        <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.375rem' }}>What makes you different</p>
+                        <p style={{ lineHeight: 1.65 }}>{brief.unique_value_prop}</p>
+                      </div>
+                    )}
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                      {brief.tone?.length > 0 && (
+                        <div className="card">
+                          <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.625rem' }}>Brand tone</p>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+                            {brief.tone.map(t => (
+                              <span key={t} style={{ background: 'rgba(123,47,255,0.1)', color: '#7B2FFF', borderRadius: '100px', padding: '2px 10px', fontSize: '0.8125rem', textTransform: 'capitalize' }}>{t}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {brief.goals?.length > 0 && (
+                        <div className="card">
+                          <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.625rem' }}>Goals</p>
+                          <ul style={{ paddingLeft: '1.125rem', margin: 0, lineHeight: 2, fontSize: '0.875rem' }}>
+                            {brief.goals.map(g => <li key={g}>{g}</li>)}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+
+                    {brief.competitors?.length > 0 && (
+                      <div className="card">
+                        <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.625rem' }}>Competitors</p>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+                          {brief.competitors.map(c => (
+                            <span key={c} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', borderRadius: '100px', padding: '2px 10px', fontSize: '0.8125rem' }}>{c}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  // FORM VIEW
+                  <form onSubmit={submitBrief} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    {/* Section 1 – Business basics */}
+                    <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <p style={{ fontWeight: 700, fontSize: '0.9375rem', marginBottom: '0.25rem' }}>Business basics</p>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                        <div className="form-group">
+                          <label>Business name *</label>
+                          <input className="input" required value={bfBusinessName} onChange={e => setBfBusinessName(e.target.value)} placeholder="Acme Plumbing Co." />
+                        </div>
+                        <div className="form-group">
+                          <label>Industry *</label>
+                          <input className="input" required value={bfIndustry} onChange={e => setBfIndustry(e.target.value)} placeholder="Home services, retail, restaurant…" />
+                        </div>
+                      </div>
+                      <div className="form-group">
+                        <label>Location</label>
+                        <input className="input" value={bfLocation} onChange={e => setBfLocation(e.target.value)} placeholder="City, State — or 'nationwide'" />
+                      </div>
+                    </div>
+
+                    {/* Section 2 – Audience & positioning */}
+                    <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <p style={{ fontWeight: 700, fontSize: '0.9375rem', marginBottom: '0.25rem' }}>Audience & positioning</p>
+                      <div className="form-group">
+                        <label>Who is your target customer? *</label>
+                        <textarea className="input" required value={bfTargetAudience} onChange={e => setBfTargetAudience(e.target.value)} style={{ minHeight: '80px' }} placeholder="e.g. Homeowners aged 30–55 in the suburbs who value quality over price and want a trustworthy contractor" />
+                      </div>
+                      <div className="form-group">
+                        <label>What makes you different from competitors? *</label>
+                        <textarea className="input" required value={bfUniqueValueProp} onChange={e => setBfUniqueValueProp(e.target.value)} style={{ minHeight: '80px' }} placeholder="e.g. We're the only plumber in town with same-day guarantees and upfront pricing — no surprises" />
+                      </div>
+                    </div>
+
+                    {/* Section 3 – Brand tone */}
+                    <div className="card">
+                      <p style={{ fontWeight: 700, fontSize: '0.9375rem', marginBottom: '0.875rem' }}>Brand tone</p>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1rem' }}>Select all that match your brand voice.</p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        {TONE_OPTIONS.map(t => {
+                          const active = bfTone.includes(t)
+                          return (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => toggleTone(t)}
+                              style={{ padding: '6px 14px', borderRadius: '100px', fontSize: '0.875rem', fontWeight: 500, cursor: 'pointer', background: active ? 'rgba(123,47,255,0.15)' : 'rgba(255,255,255,0.04)', border: active ? '1px solid rgba(123,47,255,0.5)' : '1px solid var(--border)', color: active ? '#7B2FFF' : 'var(--text)', textTransform: 'capitalize', transition: 'all 0.15s' }}
+                            >
+                              {t}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Section 4 – Goals */}
+                    <div className="card">
+                      <p style={{ fontWeight: 700, fontSize: '0.9375rem', marginBottom: '0.875rem' }}>Marketing goals</p>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1rem' }}>What do you most want to achieve in the next 12 months?</p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {GOAL_OPTIONS.map(g => {
+                          const active = bfGoals.includes(g)
+                          return (
+                            <label key={g} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', padding: '0.625rem 0.875rem', borderRadius: 'var(--radius-sm)', background: active ? 'rgba(123,47,255,0.06)' : 'transparent', border: active ? '1px solid rgba(123,47,255,0.2)' : '1px solid transparent', transition: 'all 0.15s' }}>
+                              <input type="checkbox" checked={active} onChange={() => toggleGoal(g)} style={{ accentColor: '#7B2FFF', width: '16px', height: '16px', flexShrink: 0 }} />
+                              <span style={{ fontSize: '0.9rem' }}>{g}</span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Section 5 – Competitors */}
+                    <div className="card">
+                      <p style={{ fontWeight: 700, fontSize: '0.9375rem', marginBottom: '0.375rem' }}>Competitors</p>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1rem' }}>Who are your main competitors? (optional)</p>
+                      <div style={{ display: 'flex', gap: '0.625rem', marginBottom: '0.75rem' }}>
+                        <input
+                          className="input"
+                          style={{ flex: 1 }}
+                          value={bfCompetitorInput}
+                          onChange={e => setBfCompetitorInput(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCompetitor() } }}
+                          placeholder="Competitor name — press Enter to add"
+                        />
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={addCompetitor}>Add</button>
+                      </div>
+                      {bfCompetitors.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+                          {bfCompetitors.map(c => (
+                            <span key={c} style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', borderRadius: '100px', padding: '2px 10px 2px 12px', fontSize: '0.8125rem' }}>
+                              {c}
+                              <button type="button" onClick={() => removeCompetitor(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 0 }}><X size={12} /></button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Section 6 – Additional notes */}
+                    <div className="card">
+                      <p style={{ fontWeight: 700, fontSize: '0.9375rem', marginBottom: '0.375rem' }}>Anything else?</p>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '0.875rem' }}>Awards, origin story, must-avoids, seasonal focus — whatever helps us tell your story.</p>
+                      <textarea className="input" value={bfNotes} onChange={e => setBfNotes(e.target.value)} style={{ minHeight: '90px' }} placeholder="e.g. We've been family-owned since 1987. We don't want to mention competitors by name…" />
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', alignItems: 'center' }}>
+                      {briefEditing && (
+                        <button type="button" className="btn btn-ghost" onClick={() => setBriefEditing(false)}>Cancel</button>
+                      )}
+                      <button type="submit" className="btn btn-primary" disabled={briefSubmitting} style={{ minWidth: '160px', justifyContent: 'center' }}>
+                        {briefSubmitting ? (
+                          <><span className="spinner" /> Generating summary…</>
+                        ) : brief ? 'Save changes' : 'Submit brief'}
+                      </button>
+                    </div>
+
+                    <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
+                      After submitting, we&apos;ll generate an AI brand summary that guides all your content.
+                    </p>
+                  </form>
+                )}
               </div>
             )}
 
