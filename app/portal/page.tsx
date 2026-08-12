@@ -10,6 +10,7 @@ type Stage = { id: string; name: string; status: 'pending' | 'in_progress' | 'co
 type Message = { id: string; sender: 'admin' | 'client'; sender_name: string; body: string; created_at: string }
 type Invoice = { id: string; invoice_number: string; status: string; issue_date: string; due_date: string; total: number; stripe_payment_link?: string }
 type Ticket = { id: string; subject: string; description: string; status: string; priority: string; created_at: string }
+type TicketComment = { id: string; ticket_id: string; is_client: boolean; body: string; created_at: string }
 
 export default function CustomerPortalPage() {
   const supabase = createClient()
@@ -28,6 +29,10 @@ export default function CustomerPortalPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [tickets, setTickets] = useState<Ticket[]>([])
+  const [ticketComments, setTicketComments] = useState<Record<string, TicketComment[]>>({})
+  const [openTicketId, setOpenTicketId] = useState<string | null>(null)
+  const [ticketReply, setTicketReply] = useState('')
+  const [sendingTicketReply, setSendingTicketReply] = useState(false)
   const [loading, setLoading] = useState(false)
 
   // New ticket
@@ -69,6 +74,14 @@ export default function CustomerPortalPage() {
     setMessages(m ?? [])
     setInvoices(inv ?? [])
     setTickets(t ?? [])
+
+    if (t && t.length > 0) {
+      const { data: tc } = await supabase.from('ticket_comments').select('id,ticket_id,is_client,body,created_at').in('ticket_id', t.map(x => x.id)).order('created_at')
+      const grouped: Record<string, TicketComment[]> = {}
+      for (const c of tc ?? []) { (grouped[c.ticket_id] ??= []).push(c) }
+      setTicketComments(grouped)
+    }
+
     setLoading(false)
   }, [session, supabase])
 
@@ -101,6 +114,16 @@ export default function CustomerPortalPage() {
     setTicketSubject(''); setTicketDesc(''); setShowNewTicket(false)
     await loadData()
     setSubmittingTicket(false)
+  }
+
+  async function sendTicketReply(e: React.FormEvent, ticketId: string) {
+    e.preventDefault()
+    if (!ticketReply.trim()) return
+    setSendingTicketReply(true)
+    await supabase.from('ticket_comments').insert({ ticket_id: ticketId, user_id: session?.user.id, is_client: true, body: ticketReply.trim() })
+    setTicketReply('')
+    await loadData()
+    setSendingTicketReply(false)
   }
 
   async function sendMessage(e: React.FormEvent) {
@@ -310,21 +333,52 @@ export default function CustomerPortalPage() {
                   <div className="empty-state"><p>No tickets yet. Submit one if you need help!</p></div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {tickets.map(t => (
-                      <div key={t.id} className="card">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
-                          <div style={{ flex: 1 }}>
-                            <p style={{ fontWeight: 600, marginBottom: '0.375rem' }}>{t.subject}</p>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '0.75rem' }}>{t.description}</p>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Opened {formatDate(t.created_at)}</p>
+                    {tickets.map(t => {
+                      const isOpen = openTicketId === t.id
+                      const thread = ticketComments[t.id] ?? []
+                      return (
+                        <div key={t.id} className="card" style={{ cursor: 'pointer' }} onClick={() => setOpenTicketId(isOpen ? null : t.id)}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
+                            <div style={{ flex: 1 }}>
+                              <p style={{ fontWeight: 600, marginBottom: '0.375rem' }}>{t.subject}</p>
+                              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '0.75rem' }}>{t.description}</p>
+                              <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
+                                Opened {formatDate(t.created_at)}
+                                {thread.length > 0 && ` · ${thread.length} repl${thread.length === 1 ? 'y' : 'ies'}`}
+                              </p>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem', alignItems: 'flex-end' }}>
+                              <span className={statusBadgeClass(t.status)}>{t.status.replace('_', ' ')}</span>
+                              <span className={t.priority === 'urgent' ? 'badge badge-red' : t.priority === 'high' ? 'badge badge-amber' : 'badge badge-white'}>{t.priority}</span>
+                            </div>
                           </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem', alignItems: 'flex-end' }}>
-                            <span className={statusBadgeClass(t.status)}>{t.status.replace('_', ' ')}</span>
-                            <span className={t.priority === 'urgent' ? 'badge badge-red' : t.priority === 'high' ? 'badge badge-amber' : 'badge badge-white'}>{t.priority}</span>
-                          </div>
+
+                          {isOpen && (
+                            <div onClick={e => e.stopPropagation()} style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border)' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
+                                {thread.length === 0 ? (
+                                  <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>No replies yet.</p>
+                                ) : thread.map(c => (
+                                  <div key={c.id} style={{ display: 'flex', justifyContent: c.is_client ? 'flex-end' : 'flex-start' }}>
+                                    <div style={{ maxWidth: '80%', background: c.is_client ? 'var(--accent-primary, #7B2FFF)' : 'var(--card)', border: '1px solid var(--border)', borderRadius: c.is_client ? '16px 16px 4px 16px' : '16px 16px 16px 4px', padding: '0.625rem 0.875rem' }}>
+                                      <p style={{ fontSize: '0.75rem', fontWeight: 600, color: c.is_client ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)', marginBottom: '0.2rem' }}>{c.is_client ? 'You' : 'Matty'}</p>
+                                      <p style={{ color: c.is_client ? '#fff' : 'var(--text)', fontSize: '0.875rem', lineHeight: 1.5 }}>{c.body}</p>
+                                      <p style={{ fontSize: '0.7rem', color: c.is_client ? 'rgba(255,255,255,0.5)' : 'var(--text-muted)', marginTop: '0.2rem' }}>{formatDate(c.created_at)}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              <form onSubmit={e => sendTicketReply(e, t.id)} style={{ display: 'flex', gap: '0.625rem' }}>
+                                <input className="input" style={{ flex: 1 }} value={ticketReply} onChange={e => setTicketReply(e.target.value)} placeholder="Add a reply…" required />
+                                <button type="submit" className="btn btn-primary btn-sm" disabled={sendingTicketReply}>
+                                  {sendingTicketReply ? <span className="spinner" /> : 'Reply'}
+                                </button>
+                              </form>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </div>

@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Invoice, InvoiceLineItem, Client } from '@/lib/types'
 import { formatDate, formatMoney, statusBadgeClass } from '@/lib/utils'
-import { Printer, Plus, Trash2, ChevronLeft, Save, Send } from 'lucide-react'
+import { Printer, Plus, Trash2, ChevronLeft, Save, Send, Link2 } from 'lucide-react'
 import Link from 'next/link'
 import { use } from 'react'
 
@@ -15,6 +15,9 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [sendingLink, setSendingLink] = useState(false)
+  const [linkError, setLinkError] = useState('')
+  const [copied, setCopied] = useState(false)
 
   const load = useCallback(async () => {
     const [invRes, itemsRes] = await Promise.all([
@@ -88,6 +91,29 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     await load()
   }
 
+  async function sendInvoice() {
+    setLinkError('')
+    setSendingLink(true)
+    try {
+      const res = await fetch(`/api/invoices/${id}/pay-link`, { method: 'POST' })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error ?? 'Failed to generate payment link.')
+      await supabase.from('invoices').update({ status: 'sent', updated_at: new Date().toISOString() }).eq('id', id)
+      await load()
+    } catch (err) {
+      setLinkError(err instanceof Error ? err.message : 'Failed to generate payment link.')
+    } finally {
+      setSendingLink(false)
+    }
+  }
+
+  function copyLink() {
+    if (!invoice?.stripe_payment_link) return
+    navigator.clipboard.writeText(invoice.stripe_payment_link)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
   if (loading) return <div style={{ textAlign: 'center', padding: '4rem' }}><span className="spinner" style={{ margin: '0 auto' }} /></div>
   if (!invoice) return <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>Invoice not found.</div>
 
@@ -106,12 +132,31 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
       </div>
 
       {/* Actions */}
-      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
-        <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? <span className="spinner" /> : <><Save size={14} /> Save</>}</button>
-        <button className="btn btn-ghost" onClick={() => window.print()}><Printer size={14} /> Print / PDF</button>
-        {invoice.status === 'draft' && <button className="btn btn-success" onClick={() => updateStatus('sent')}><Send size={14} /> Mark Sent</button>}
-        {invoice.status === 'sent' && <button className="btn btn-success" onClick={() => updateStatus('paid')}>Mark Paid</button>}
-        {!['void', 'paid'].includes(invoice.status) && <button className="btn btn-danger" onClick={() => updateStatus('void')}>Void</button>}
+      <div style={{ marginBottom: '2rem' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? <span className="spinner" /> : <><Save size={14} /> Save</>}</button>
+          <button className="btn btn-ghost" onClick={() => window.print()}><Printer size={14} /> Print / PDF</button>
+          {invoice.status === 'draft' && (
+            <button className="btn btn-success" onClick={sendInvoice} disabled={sendingLink}>
+              {sendingLink ? <span className="spinner" /> : <><Send size={14} /> Mark Sent &amp; Generate Payment Link</>}
+            </button>
+          )}
+          {invoice.status === 'sent' && !invoice.stripe_payment_link && (
+            <button className="btn btn-ghost" onClick={sendInvoice} disabled={sendingLink}>
+              {sendingLink ? <span className="spinner" /> : <><Link2 size={14} /> Generate Payment Link</>}
+            </button>
+          )}
+          {invoice.status === 'sent' && <button className="btn btn-success" onClick={() => updateStatus('paid')}>Mark Paid Manually</button>}
+          {!['void', 'paid'].includes(invoice.status) && <button className="btn btn-danger" onClick={() => updateStatus('void')}>Void</button>}
+        </div>
+        {linkError && <p className="error-msg" style={{ marginTop: '0.5rem' }}>{linkError}</p>}
+        {invoice.stripe_payment_link && invoice.status !== 'paid' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.75rem', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+            <span>Payment link ready —</span>
+            <a href={invoice.stripe_payment_link} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text)', textDecoration: 'underline' }}>open</a>
+            <button className="btn btn-ghost btn-sm" onClick={copyLink} type="button">{copied ? 'Copied!' : 'Copy'}</button>
+          </div>
+        )}
       </div>
 
       {/* Invoice doc */}

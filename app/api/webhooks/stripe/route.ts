@@ -33,6 +33,21 @@ export async function POST(req: NextRequest) {
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session
+
+    const invoiceId = session.metadata?.invoice_id
+    if (invoiceId) {
+      await supabase
+        .from('invoices')
+        .update({
+          status: 'paid',
+          paid_at: new Date().toISOString(),
+          stripe_payment_intent_id: (session.payment_intent as string | null) ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', invoiceId)
+      return NextResponse.json({ ok: true })
+    }
+
     const contractId = session.metadata?.contract_id
     if (!contractId) return NextResponse.json({ ok: true })
 
