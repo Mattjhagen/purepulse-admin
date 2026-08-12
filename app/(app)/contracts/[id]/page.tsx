@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Client } from '@/lib/types'
 import { formatDate, formatMoney, statusBadgeClass, planBadgeClass, planLabel } from '@/lib/utils'
-import { ChevronLeft, Printer, Send, CheckCircle, XCircle, Edit3, Save, Mail, Link2, Copy, AlertTriangle } from 'lucide-react'
+import { ChevronLeft, Printer, Send, CheckCircle, XCircle, Edit3, Save, Mail, Link2, Copy, AlertTriangle, Calendar } from 'lucide-react'
 import Link from 'next/link'
 import { use } from 'react'
 
@@ -97,6 +97,12 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   const canSend = ['draft', 'sent'].includes(contract.status)
   const hasSigningLink = !!contract.signature_token && !isSigned && !isTerminated
 
+  const today = new Date()
+  const endDate = contract.end_date ? new Date(contract.end_date) : null
+  const daysUntilExpiry = endDate ? Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : null
+  const isExpiringSoon = daysUntilExpiry !== null && daysUntilExpiry >= 0 && daysUntilExpiry <= 30 && isSigned
+  const isOverdue = daysUntilExpiry !== null && daysUntilExpiry < 0 && isSigned
+
   return (
     <>
       <style>{`@media print { .no-print { display: none !important; } }`}</style>
@@ -107,6 +113,18 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
         <span className={statusBadgeClass(contract.status)}>{contract.status}</span>
         <span className={planBadgeClass(contract.plan)}>{planLabel(contract.plan)}</span>
       </div>
+
+      {/* Expiry warning */}
+      {(isExpiringSoon || isOverdue) && (
+        <div className="no-print" style={{ marginBottom: '1rem', padding: '12px 16px', borderRadius: 8, background: isOverdue ? 'rgba(239,68,68,0.08)' : 'rgba(245,158,11,0.08)', border: `1px solid ${isOverdue ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.25)'}`, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <Calendar size={15} color={isOverdue ? '#ef4444' : '#f59e0b'} />
+          <span style={{ fontSize: '0.875rem', color: isOverdue ? '#ef4444' : 'var(--text-muted)' }}>
+            {isOverdue
+              ? `Contract ended ${Math.abs(daysUntilExpiry!)} day${Math.abs(daysUntilExpiry!) !== 1 ? 's' : ''} ago — consider renewing.`
+              : `Expires in ${daysUntilExpiry} day${daysUntilExpiry !== 1 ? 's' : ''} on ${endDate!.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.`}
+          </span>
+        </div>
+      )}
 
       {/* Signing link banner */}
       {hasSigningLink && (
