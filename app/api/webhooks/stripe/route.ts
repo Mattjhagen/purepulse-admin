@@ -4,6 +4,8 @@ import { getStripe } from '@/lib/stripe'
 import { generatePortalLink } from '@/lib/portal-auth-link'
 import { Resend } from 'resend'
 import type Stripe from 'stripe'
+import { bootstrapCampaign } from '@/lib/campaign-bootstrap'
+import type { Plan } from '@/lib/types'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -78,6 +80,13 @@ export async function POST(req: NextRequest) {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const client = Array.isArray(contract.clients) ? (contract.clients as any[])[0] : contract.clients
+
+    // Bootstrap campaign + milestones (non-fatal)
+    try {
+      await bootstrapCampaign(supabase, contractId, contract.client_id, client?.name ?? 'Client', contract.plan as Plan)
+    } catch (err) {
+      console.error('[stripe webhook] campaign bootstrap threw:', err)
+    }
 
     try {
       const { error: adminEmailErr } = await resend.emails.send({

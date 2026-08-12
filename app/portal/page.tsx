@@ -1,16 +1,73 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { formatDate, statusBadgeClass } from '@/lib/utils'
-import { Plus, X, LogOut, CheckCircle, Circle, Clock, MessageCircle, FileText, CreditCard, LifeBuoy } from 'lucide-react'
+import { Plus, X, LogOut, CheckCircle, Circle, Clock, MessageCircle, FileText, CreditCard, LifeBuoy, Sparkles, ThumbsUp, RotateCcw, ChevronDown, ChevronRight, ClipboardList, Pencil } from 'lucide-react'
 
-type Tab = 'progress' | 'messages' | 'invoices' | 'tickets'
+type Tab = 'progress' | 'campaign' | 'brief' | 'messages' | 'invoices' | 'tickets'
 
 type Stage = { id: string; name: string; status: 'pending' | 'in_progress' | 'complete'; note?: string; completed_at?: string; sort_order: number }
 type Message = { id: string; sender: 'admin' | 'client'; sender_name: string; body: string; created_at: string }
 type Invoice = { id: string; invoice_number: string; status: string; issue_date: string; due_date: string; total: number; stripe_payment_link?: string }
 type Ticket = { id: string; subject: string; description: string; status: string; priority: string; created_at: string }
 type TicketComment = { id: string; ticket_id: string; is_client: boolean; body: string; created_at: string }
+
+type Deliverable = {
+  id: string
+  title: string
+  type: string
+  platform: string
+  status: string
+  ai_content: Record<string, unknown> | null
+  final_content: Record<string, unknown> | null
+  client_notes: string | null
+  revision_count: number
+  created_at: string
+}
+
+type Milestone = {
+  id: string
+  title: string
+  description: string | null
+  status: 'pending' | 'in_progress' | 'completed' | 'skipped'
+  sort_order: number
+  due_date: string | null
+  deliverables: Deliverable[]
+}
+
+type Campaign = {
+  id: string
+  name: string
+  plan: string
+  status: string
+  milestones: Milestone[]
+}
+
+type CampaignBrief = {
+  id: string
+  campaign_id: string
+  business_name: string | null
+  industry: string | null
+  location: string | null
+  target_audience: string | null
+  unique_value_prop: string | null
+  tone: string[]
+  competitors: string[]
+  goals: string[]
+  ai_summary: string | null
+}
+
+const TONE_OPTIONS = ['professional', 'friendly', 'bold', 'playful', 'minimal', 'luxury', 'educational', 'humorous']
+const GOAL_OPTIONS = [
+  'Grow brand awareness',
+  'Generate leads',
+  'Drive sales',
+  'Improve SEO rankings',
+  'Grow social following',
+  'Launch a new product or service',
+  'Build email list',
+  'Increase website traffic',
+]
 
 export default function CustomerPortalPage() {
   const supabase = createClient()
@@ -35,6 +92,30 @@ export default function CustomerPortalPage() {
   const [sendingTicketReply, setSendingTicketReply] = useState(false)
   const [loading, setLoading] = useState(false)
 
+  // Campaign data
+  const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [expandedMilestones, setExpandedMilestones] = useState<Set<string>>(new Set())
+  const [revisionDeliverable, setRevisionDeliverable] = useState<Deliverable | null>(null)
+  const [revisionNotes, setRevisionNotes] = useState('')
+  const [submittingApproval, setSubmittingApproval] = useState<string | null>(null)
+
+  // Brief state
+  const [brief, setBrief] = useState<CampaignBrief | null>(null)
+  const [briefEditing, setBriefEditing] = useState(false)
+  const [briefSubmitting, setBriefSubmitting] = useState(false)
+  const [briefSuccess, setBriefSuccess] = useState(false)
+  // Form fields
+  const [bfBusinessName, setBfBusinessName] = useState('')
+  const [bfIndustry, setBfIndustry] = useState('')
+  const [bfLocation, setBfLocation] = useState('')
+  const [bfTargetAudience, setBfTargetAudience] = useState('')
+  const [bfUniqueValueProp, setBfUniqueValueProp] = useState('')
+  const [bfTone, setBfTone] = useState<string[]>([])
+  const [bfGoals, setBfGoals] = useState<string[]>([])
+  const [bfCompetitors, setBfCompetitors] = useState<string[]>([])
+  const [bfCompetitorInput, setBfCompetitorInput] = useState('')
+  const [bfNotes, setBfNotes] = useState('')
+
   // New ticket
   const [showNewTicket, setShowNewTicket] = useState(false)
   const [ticketSubject, setTicketSubject] = useState('')
@@ -45,6 +126,7 @@ export default function CustomerPortalPage() {
   // New message
   const [newMessage, setNewMessage] = useState('')
   const [sendingMessage, setSendingMessage] = useState(false)
+  const msgBottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -63,11 +145,12 @@ export default function CustomerPortalPage() {
     const { data: client } = await supabase.from('clients').select('name').eq('id', pu.client_id).single()
     if (client) setClientName(client.name)
 
-    const [{ data: s }, { data: m }, { data: inv }, { data: t }] = await Promise.all([
+    const [{ data: s }, { data: m }, { data: inv }, { data: t }, { data: camp }] = await Promise.all([
       supabase.from('project_stages').select('*').eq('client_id', pu.client_id).order('sort_order'),
       supabase.from('client_messages').select('*').eq('client_id', pu.client_id).order('created_at'),
       supabase.from('invoices').select('id,invoice_number,status,issue_date,due_date,total,stripe_payment_link').eq('client_id', pu.client_id).order('issue_date', { ascending: false }),
       supabase.from('tickets').select('*').eq('client_id', pu.client_id).order('created_at', { ascending: false }),
+      supabase.from('campaigns').select('id,name,plan,status').eq('client_id', pu.client_id).eq('status', 'active').order('created_at'),
     ])
 
     setStages(s ?? [])
@@ -82,10 +165,98 @@ export default function CustomerPortalPage() {
       setTicketComments(grouped)
     }
 
+    if (camp && camp.length > 0) {
+      const campIds = camp.map(c => c.id)
+
+      // Load brief for the first campaign
+      const { data: briefData } = await supabase
+        .from('campaign_briefs')
+        .select('*')
+        .eq('campaign_id', campIds[0])
+        .single()
+      if (briefData) {
+        setBrief(briefData as CampaignBrief)
+        // Pre-fill form fields
+        setBfBusinessName(briefData.business_name ?? '')
+        setBfIndustry(briefData.industry ?? '')
+        setBfLocation(briefData.location ?? '')
+        setBfTargetAudience(briefData.target_audience ?? '')
+        setBfUniqueValueProp(briefData.unique_value_prop ?? '')
+        setBfTone(briefData.tone ?? [])
+        setBfGoals(briefData.goals ?? [])
+        setBfCompetitors(briefData.competitors ?? [])
+      } else {
+        setBrief(null)
+      }
+      const { data: milestones } = await supabase
+        .from('milestones')
+        .select('id,campaign_id,title,description,status,sort_order,due_date')
+        .in('campaign_id', campIds)
+        .order('sort_order')
+
+      const milestoneIds = (milestones ?? []).map(m => m.id)
+      let deliverablesByMilestone: Record<string, Deliverable[]> = {}
+
+      if (milestoneIds.length > 0) {
+        const { data: delivs } = await supabase
+          .from('deliverables')
+          .select('id,milestone_id,title,type,platform,status,ai_content,final_content,client_notes,revision_count,created_at')
+          .in('milestone_id', milestoneIds)
+          .in('status', ['in_review', 'revision_requested', 'approved', 'scheduled', 'published'])
+          .order('created_at')
+
+        for (const d of delivs ?? []) {
+          if (!d.milestone_id) continue
+          ;(deliverablesByMilestone[d.milestone_id] ??= []).push(d as Deliverable)
+        }
+      }
+
+      const builtCampaigns: Campaign[] = camp.map(c => ({
+        ...c,
+        milestones: (milestones ?? [])
+          .filter(m => m.campaign_id === c.id)
+          .map(m => ({
+            ...m,
+            deliverables: deliverablesByMilestone[m.id] ?? [],
+          })),
+      }))
+
+      setCampaigns(builtCampaigns)
+
+      // Auto-expand the first in_progress milestone
+      const firstActive = (milestones ?? []).find(m => m.status === 'in_progress')
+      if (firstActive) setExpandedMilestones(new Set([firstActive.id]))
+    }
+
     setLoading(false)
   }, [session, supabase])
 
   useEffect(() => { if (session) loadData() }, [session, loadData])
+
+  // Real-time: append new messages instantly when they arrive
+  useEffect(() => {
+    if (!clientId) return
+    const channel = supabase
+      .channel(`portal-messages:${clientId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'client_messages', filter: `client_id=eq.${clientId}` },
+        (payload) => {
+          setMessages(prev => {
+            const m = payload.new as Message
+            if (prev.some(x => x.id === m.id)) return prev
+            return [...prev, m]
+          })
+        }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [supabase, clientId])
+
+  // Scroll messages to bottom on new messages
+  useEffect(() => {
+    msgBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages.length])
 
   async function handleAuth(e: React.FormEvent) {
     e.preventDefault(); setAuthError(''); setAuthLoading(true)
@@ -104,6 +275,38 @@ export default function CustomerPortalPage() {
       }
     } catch (err) { setAuthError(err instanceof Error ? err.message : 'Auth failed') }
     setAuthLoading(false)
+  }
+
+  async function approveDeliverable(deliverable: Deliverable) {
+    setSubmittingApproval(deliverable.id)
+    await supabase.from('approvals').insert({
+      deliverable_id: deliverable.id,
+      decision: 'approved',
+      approved_by: clientName || session?.user.email || 'Client',
+    })
+    await supabase.from('deliverables').update({ status: 'approved' }).eq('id', deliverable.id)
+    await loadData()
+    setSubmittingApproval(null)
+  }
+
+  async function submitRevision() {
+    if (!revisionDeliverable) return
+    setSubmittingApproval(revisionDeliverable.id)
+    await supabase.from('approvals').insert({
+      deliverable_id: revisionDeliverable.id,
+      decision: 'revision_requested',
+      notes: revisionNotes,
+      approved_by: clientName || session?.user.email || 'Client',
+    })
+    await supabase.from('deliverables').update({
+      status: 'revision_requested',
+      client_notes: revisionNotes,
+      revision_count: (revisionDeliverable.revision_count ?? 0) + 1,
+    }).eq('id', revisionDeliverable.id)
+    setRevisionDeliverable(null)
+    setRevisionNotes('')
+    await loadData()
+    setSubmittingApproval(null)
   }
 
   async function submitTicket(e: React.FormEvent) {
@@ -130,16 +333,234 @@ export default function CustomerPortalPage() {
     e.preventDefault()
     if (!clientId || !newMessage.trim()) return
     setSendingMessage(true)
-    await supabase.from('client_messages').insert({ client_id: clientId, sender: 'client', sender_name: clientName || session?.user.email || 'Client', body: newMessage.trim() })
+    await fetch('/api/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: clientId,
+        sender: 'client',
+        sender_name: clientName || session?.user.email || 'Client',
+        body: newMessage.trim(),
+      }),
+    })
     setNewMessage('')
-    await loadData()
     setSendingMessage(false)
+    // Realtime will append the new message
+  }
+
+  function toggleTone(t: string) {
+    setBfTone(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])
+  }
+  function toggleGoal(g: string) {
+    setBfGoals(prev => prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g])
+  }
+  function addCompetitor() {
+    const val = bfCompetitorInput.trim()
+    if (val && !bfCompetitors.includes(val)) setBfCompetitors(prev => [...prev, val])
+    setBfCompetitorInput('')
+  }
+  function removeCompetitor(c: string) {
+    setBfCompetitors(prev => prev.filter(x => x !== c))
+  }
+
+  async function submitBrief(e: React.FormEvent) {
+    e.preventDefault()
+    if (!campaigns[0]) return
+    setBriefSubmitting(true)
+    setBriefSuccess(false)
+
+    const payload = {
+      business_name: bfBusinessName,
+      industry: bfIndustry,
+      location: bfLocation,
+      target_audience: bfTargetAudience,
+      unique_value_prop: bfUniqueValueProp,
+      tone: bfTone,
+      goals: bfGoals,
+      competitors: bfCompetitors,
+      notes: bfNotes,
+    }
+
+    const res = await fetch(`/api/campaigns/${campaigns[0].id}/brief-summary`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+
+    if (res.ok) {
+      setBriefSuccess(true)
+      setBriefEditing(false)
+      await loadData()
+    }
+    setBriefSubmitting(false)
   }
 
   async function handleSignOut() {
     await supabase.auth.signOut()
-    setSession(null); setClientId(null); setStages([]); setMessages([]); setInvoices([]); setTickets([])
+    setSession(null); setClientId(null); setStages([]); setMessages([]); setInvoices([]); setTickets([]); setCampaigns([]); setBrief(null); setBriefSuccess(false)
   }
+
+  function toggleMilestone(id: string) {
+    setExpandedMilestones(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function renderAiContent(deliverable: Deliverable) {
+    const content = deliverable.final_content ?? deliverable.ai_content
+    if (!content) return null
+    const c = content as Record<string, unknown>
+
+    switch (deliverable.type) {
+      case 'social_post':
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {!!c.caption && <p style={{ lineHeight: 1.7, color: 'var(--text)' }}>{String(c.caption)}</p>}
+            {Array.isArray(c.hashtags) && c.hashtags.length > 0 && (
+              <p style={{ color: '#7B2FFF', fontSize: '0.875rem' }}>{(c.hashtags as string[]).map(h => `#${h}`).join(' ')}</p>
+            )}
+            {!!c.cta && <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>CTA: {String(c.cta)}</p>}
+            {!!c.visual_direction && (
+              <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.625rem 0.875rem', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+                Visual: {String(c.visual_direction)}
+              </div>
+            )}
+          </div>
+        )
+      case 'blog_post':
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {!!c.headline && <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>{String(c.headline)}</h3>}
+            {!!c.subheadline && <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>{String(c.subheadline)}</p>}
+            {!!c.intro && <p style={{ lineHeight: 1.7 }}>{String(c.intro)}</p>}
+            {Array.isArray(c.outline) && c.outline.length > 0 && (
+              <div>
+                <p style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.375rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Outline</p>
+                <ol style={{ paddingLeft: '1.25rem', margin: 0, color: 'var(--text)', lineHeight: 2, fontSize: '0.9rem' }}>
+                  {(c.outline as string[]).map((item, i) => <li key={i}>{item}</li>)}
+                </ol>
+              </div>
+            )}
+            {!!c.cta && <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>CTA: {String(c.cta)}</p>}
+          </div>
+        )
+      case 'webpage':
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {!!c.headline && <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>{String(c.headline)}</h3>}
+            {!!c.subheadline && <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>{String(c.subheadline)}</p>}
+            {!!c.body && <p style={{ lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{String(c.body)}</p>}
+            {!!c.cta && <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>CTA: {String(c.cta)}</p>}
+          </div>
+        )
+      case 'ad_copy':
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {!!c.headline && <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>{String(c.headline)}</h3>}
+            {!!c.description && <p style={{ lineHeight: 1.7 }}>{String(c.description)}</p>}
+            {!!c.cta && <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#7B2FFF' }}>CTA: {String(c.cta)}</p>}
+            {Array.isArray(c.keywords) && c.keywords.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+                {(c.keywords as string[]).map((k, i) => (
+                  <span key={i} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', borderRadius: '100px', padding: '2px 10px', fontSize: '0.8125rem' }}>{k}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      case 'email':
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {!!c.subject && <p style={{ fontWeight: 700, margin: 0 }}>Subject: {String(c.subject)}</p>}
+            {!!c.preview_text && <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: 0 }}>Preview: {String(c.preview_text)}</p>}
+            {!!c.headline && <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>{String(c.headline)}</h3>}
+            {!!c.body && <p style={{ lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{String(c.body)}</p>}
+            {!!c.cta && <p style={{ fontSize: '0.875rem', color: '#7B2FFF', fontWeight: 600 }}>CTA: {String(c.cta)}</p>}
+          </div>
+        )
+      case 'seo_report':
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {!!c.page_title && <p style={{ fontWeight: 700 }}>{String(c.page_title)}</p>}
+            {!!c.meta_description && <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{String(c.meta_description)}</p>}
+            {!!c.h1 && <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>H1: {String(c.h1)}</p>}
+            {Array.isArray(c.focus_keywords) && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+                {(c.focus_keywords as string[]).map((k, i) => (
+                  <span key={i} style={{ background: 'rgba(123,47,255,0.1)', color: '#7B2FFF', borderRadius: '100px', padding: '2px 10px', fontSize: '0.8125rem' }}>{k}</span>
+                ))}
+              </div>
+            )}
+            {Array.isArray(c.recommendations) && c.recommendations.length > 0 && (
+              <ul style={{ paddingLeft: '1.25rem', margin: 0, color: 'var(--text)', lineHeight: 2, fontSize: '0.9rem' }}>
+                {(c.recommendations as string[]).map((r, i) => <li key={i}>{r}</li>)}
+              </ul>
+            )}
+          </div>
+        )
+      case 'strategy_doc':
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {!!c.executive_summary && <p style={{ lineHeight: 1.7 }}>{String(c.executive_summary)}</p>}
+            {Array.isArray(c.goals) && c.goals.length > 0 && (
+              <div>
+                <p style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.375rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Goals</p>
+                <ul style={{ paddingLeft: '1.25rem', margin: 0, lineHeight: 2, fontSize: '0.9rem' }}>
+                  {(c.goals as string[]).map((g, i) => <li key={i}>{g}</li>)}
+                </ul>
+              </div>
+            )}
+            {Array.isArray(c.content_pillars) && c.content_pillars.length > 0 && (
+              <div>
+                <p style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.375rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Content Pillars</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+                  {(c.content_pillars as string[]).map((p, i) => (
+                    <span key={i} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', borderRadius: '100px', padding: '2px 10px', fontSize: '0.8125rem' }}>{p}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      case 'analytics_report':
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {!!c.summary && <p style={{ lineHeight: 1.7 }}>{String(c.summary)}</p>}
+            {Array.isArray(c.highlights) && c.highlights.length > 0 && (
+              <div>
+                <p style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.375rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Highlights</p>
+                <ul style={{ paddingLeft: '1.25rem', margin: 0, lineHeight: 2, fontSize: '0.9rem' }}>
+                  {(c.highlights as string[]).map((h, i) => <li key={i}>{h}</li>)}
+                </ul>
+              </div>
+            )}
+          </div>
+        )
+      default:
+        return <pre style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', whiteSpace: 'pre-wrap', overflowX: 'auto' }}>{JSON.stringify(content, null, 2)}</pre>
+    }
+  }
+
+  function deliverableStatusColor(status: string) {
+    switch (status) {
+      case 'approved':           return { bg: 'rgba(34,197,94,0.1)',   color: '#22c55e' }
+      case 'revision_requested': return { bg: 'rgba(245,158,11,0.1)', color: '#f59e0b' }
+      case 'ai_generated':       return { bg: 'rgba(123,47,255,0.1)', color: '#7B2FFF' }
+      case 'in_review':          return { bg: 'rgba(59,130,246,0.1)', color: '#3b82f6' }
+      default:                   return { bg: 'rgba(255,255,255,0.06)', color: 'var(--text-muted)' }
+    }
+  }
+
+  function milestoneIcon(status: Milestone['status']) {
+    if (status === 'completed') return <CheckCircle size={20} color="#22c55e" />
+    if (status === 'in_progress') return <Clock size={20} color="#f59e0b" />
+    if (status === 'skipped') return <Circle size={20} style={{ opacity: 0.2 }} />
+    return <Circle size={20} style={{ opacity: 0.3 }} />
+  }
+
+  const pendingReviewCount = campaigns.flatMap(c => c.milestones.flatMap(m => m.deliverables)).filter(d => d.status === 'in_review').length
 
   if (!session) {
     return (
@@ -183,6 +604,8 @@ export default function CustomerPortalPage() {
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode; count?: number }[] = [
     { id: 'progress', label: 'Progress', icon: <CheckCircle size={16} /> },
+    { id: 'campaign', label: 'Campaign', icon: <Sparkles size={16} />, count: pendingReviewCount || undefined },
+    { id: 'brief', label: 'Brief', icon: <ClipboardList size={16} />, count: campaigns.length > 0 && !brief ? 1 : undefined },
     { id: 'messages', label: 'Messages', icon: <MessageCircle size={16} />, count: messages.filter(m => m.sender === 'admin').length },
     { id: 'invoices', label: 'Invoices', icon: <CreditCard size={16} />, count: invoices.filter(i => i.status === 'sent' || i.status === 'overdue').length },
     { id: 'tickets', label: 'Tickets', icon: <LifeBuoy size={16} />, count: tickets.filter(t => t.status === 'open').length },
@@ -205,7 +628,7 @@ export default function CustomerPortalPage() {
       {/* Tab nav */}
       <div style={{ borderBottom: '1px solid var(--border)', padding: '0 2rem', display: 'flex', gap: '0.25rem' }}>
         {tabs.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.875rem 1rem', fontSize: '0.875rem', fontWeight: tab === t.id ? 600 : 400, color: tab === t.id ? 'var(--text)' : 'var(--text-muted)', borderBottom: tab === t.id ? '2px solid var(--text)' : '2px solid transparent', background: 'none', border: 'none', borderBottomWidth: '2px', borderBottomStyle: 'solid', borderBottomColor: tab === t.id ? 'var(--text)' : 'transparent', cursor: 'pointer', transition: 'all 0.15s' }}>
+          <button key={t.id} onClick={() => setTab(t.id)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.875rem 1rem', fontSize: '0.875rem', fontWeight: tab === t.id ? 600 : 400, color: tab === t.id ? 'var(--text)' : 'var(--text-muted)', background: 'none', border: 'none', borderBottomWidth: '2px', borderBottomStyle: 'solid', borderBottomColor: tab === t.id ? 'var(--text)' : 'transparent', cursor: 'pointer', transition: 'all 0.15s' }}>
             {t.icon} {t.label}
             {t.count ? <span style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', fontSize: '0.7rem', fontWeight: 700, padding: '0 5px', borderRadius: '100px', minWidth: '18px', textAlign: 'center' }}>{t.count}</span> : null}
           </button>
@@ -255,6 +678,378 @@ export default function CustomerPortalPage() {
               </div>
             )}
 
+            {/* CAMPAIGN TAB */}
+            {tab === 'campaign' && (
+              <div>
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.04em', marginBottom: '0.5rem' }}>Your Campaign</h1>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>Review and approve your AI-generated marketing deliverables.</p>
+
+                {campaigns.length === 0 ? (
+                  <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
+                    <Sparkles size={32} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
+                    <p style={{ color: 'var(--text-muted)' }}>Your marketing campaign will appear here once it&apos;s set up.</p>
+                  </div>
+                ) : campaigns.map(campaign => (
+                  <div key={campaign.id}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                      <span style={{ background: 'rgba(123,47,255,0.12)', color: '#7B2FFF', border: '1px solid rgba(123,47,255,0.25)', borderRadius: '100px', padding: '3px 12px', fontSize: '0.8rem', fontWeight: 700, textTransform: 'capitalize', letterSpacing: '0.03em' }}>
+                        {campaign.plan} plan
+                      </span>
+                      <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>{campaign.name}</span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      {campaign.milestones.map((milestone, mi) => {
+                        const isExpanded = expandedMilestones.has(milestone.id)
+                        const deliverablesPending = milestone.deliverables.filter(d => d.status === 'in_review').length
+
+                        return (
+                          <div key={milestone.id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                            {/* Milestone header */}
+                            <button
+                              onClick={() => toggleMilestone(milestone.id)}
+                              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 1.25rem', background: milestone.status === 'in_progress' ? 'rgba(245,158,11,0.04)' : 'var(--card)', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                            >
+                              <div style={{ flexShrink: 0 }}>{milestoneIcon(milestone.status)}</div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap' }}>
+                                  <span style={{ fontWeight: 600, fontSize: '0.9375rem' }}>
+                                    {mi + 1}. {milestone.title}
+                                  </span>
+                                  {deliverablesPending > 0 && (
+                                    <span style={{ background: 'rgba(239,68,68,0.12)', color: '#ef4444', fontSize: '0.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: '100px' }}>
+                                      {deliverablesPending} to review
+                                    </span>
+                                  )}
+                                </div>
+                                {milestone.due_date && (
+                                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Due {formatDate(milestone.due_date)}</p>
+                                )}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '2px 10px', borderRadius: '100px', background: milestone.status === 'completed' ? 'rgba(34,197,94,0.1)' : milestone.status === 'in_progress' ? 'rgba(245,158,11,0.1)' : 'rgba(255,255,255,0.05)', color: milestone.status === 'completed' ? '#22c55e' : milestone.status === 'in_progress' ? '#f59e0b' : 'var(--text-muted)', textTransform: 'capitalize' }}>
+                                  {milestone.status.replace('_', ' ')}
+                                </span>
+                                {isExpanded ? <ChevronDown size={16} style={{ opacity: 0.4 }} /> : <ChevronRight size={16} style={{ opacity: 0.4 }} />}
+                              </div>
+                            </button>
+
+                            {/* Milestone description + deliverables */}
+                            {isExpanded && (
+                              <div style={{ borderTop: '1px solid var(--border)', padding: '1.25rem' }}>
+                                {milestone.description && (
+                                  <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: milestone.deliverables.length > 0 ? '1.25rem' : 0, lineHeight: 1.6 }}>{milestone.description}</p>
+                                )}
+
+                                {milestone.deliverables.length === 0 ? (
+                                  <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', fontStyle: 'italic' }}>
+                                    {milestone.status === 'pending' ? 'Deliverables will appear here when this phase begins.' : 'No deliverables for this milestone.'}
+                                  </p>
+                                ) : (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                    {milestone.deliverables.map(d => {
+                                      const statusStyle = deliverableStatusColor(d.status)
+                                      const canReview = d.status === 'in_review'
+                                      const isProcessing = submittingApproval === d.id
+
+                                      return (
+                                        <div key={d.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '1rem 1.125rem' }}>
+                                          {/* Deliverable header */}
+                                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.875rem' }}>
+                                            <div>
+                                              <p style={{ fontWeight: 600, fontSize: '0.9375rem', marginBottom: '0.25rem' }}>{d.title}</p>
+                                              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: '100px', padding: '1px 8px', textTransform: 'capitalize' }}>
+                                                  {d.type.replace('_', ' ')}
+                                                </span>
+                                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: '100px', padding: '1px 8px', textTransform: 'capitalize' }}>
+                                                  {d.platform}
+                                                </span>
+                                              </div>
+                                            </div>
+                                            <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '3px 10px', borderRadius: '100px', background: statusStyle.bg, color: statusStyle.color, whiteSpace: 'nowrap', textTransform: 'capitalize', flexShrink: 0 }}>
+                                              {d.status.replace(/_/g, ' ')}
+                                            </span>
+                                          </div>
+
+                                          {/* Content preview */}
+                                          <div style={{ marginBottom: '1rem' }}>
+                                            {renderAiContent(d)}
+                                          </div>
+
+                                          {/* Client notes if revision was requested */}
+                                          {d.client_notes && d.status === 'revision_requested' && (
+                                            <div style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 'var(--radius-sm)', padding: '0.625rem 0.875rem', marginBottom: '0.875rem', fontSize: '0.875rem', color: '#f59e0b' }}>
+                                              <strong>Your notes:</strong> {d.client_notes}
+                                            </div>
+                                          )}
+
+                                          {/* Action buttons */}
+                                          {canReview && (
+                                            <div style={{ display: 'flex', gap: '0.625rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
+                                              <button
+                                                className="btn btn-sm"
+                                                disabled={isProcessing}
+                                                onClick={() => approveDeliverable(d)}
+                                                style={{ background: 'rgba(34,197,94,0.12)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.25)', display: 'flex', alignItems: 'center', gap: '0.375rem' }}
+                                              >
+                                                {isProcessing ? <span className="spinner" /> : <><ThumbsUp size={14} /> Approve</>}
+                                              </button>
+                                              <button
+                                                className="btn btn-sm btn-ghost"
+                                                disabled={isProcessing}
+                                                onClick={() => { setRevisionDeliverable(d); setRevisionNotes(d.client_notes ?? '') }}
+                                                style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}
+                                              >
+                                                <RotateCcw size={14} /> Request revision
+                                              </button>
+                                            </div>
+                                          )}
+
+                                          {d.status === 'approved' && (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)', color: '#22c55e', fontSize: '0.875rem' }}>
+                                              <CheckCircle size={16} /> Approved
+                                            </div>
+                                          )}
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* BRIEF TAB */}
+            {tab === 'brief' && (
+              <div>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '2rem' }}>
+                  <div>
+                    <h1 style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.04em', marginBottom: '0.5rem' }}>Brand Brief</h1>
+                    <p style={{ color: 'var(--text-muted)' }}>
+                      {brief ? 'Your brand brief is on file and guides all AI-generated content.' : 'Help us understand your business so we can create content that hits.'}
+                    </p>
+                  </div>
+                  {brief && !briefEditing && (
+                    <button className="btn btn-ghost btn-sm" onClick={() => setBriefEditing(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                      <Pencil size={14} /> Edit
+                    </button>
+                  )}
+                </div>
+
+                {campaigns.length === 0 ? (
+                  <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
+                    <ClipboardList size={32} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
+                    <p style={{ color: 'var(--text-muted)' }}>Your campaign brief will be available once your campaign is set up.</p>
+                  </div>
+                ) : brief && !briefEditing ? (
+                  // READ VIEW
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {briefSuccess && (
+                      <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 'var(--radius-sm)', padding: '0.875rem 1rem', color: '#22c55e', fontSize: '0.875rem' }}>
+                        Brief saved! Your AI brand summary has been updated.
+                      </div>
+                    )}
+
+                    {brief.ai_summary && (
+                      <div style={{ background: 'rgba(123,47,255,0.06)', border: '1px solid rgba(123,47,255,0.2)', borderRadius: 'var(--radius)', padding: '1.25rem 1.5rem' }}>
+                        <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#7B2FFF', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.625rem' }}>AI Brand Summary</p>
+                        <p style={{ lineHeight: 1.75, color: 'var(--text)' }}>{brief.ai_summary}</p>
+                      </div>
+                    )}
+
+                    <div className="card" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+                      {[
+                        { label: 'Business name', value: brief.business_name },
+                        { label: 'Industry', value: brief.industry },
+                        { label: 'Location', value: brief.location },
+                      ].map(({ label, value }) => value ? (
+                        <div key={label}>
+                          <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>{label}</p>
+                          <p>{value}</p>
+                        </div>
+                      ) : null)}
+                    </div>
+
+                    {brief.target_audience && (
+                      <div className="card">
+                        <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.375rem' }}>Target audience</p>
+                        <p style={{ lineHeight: 1.65 }}>{brief.target_audience}</p>
+                      </div>
+                    )}
+
+                    {brief.unique_value_prop && (
+                      <div className="card">
+                        <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.375rem' }}>What makes you different</p>
+                        <p style={{ lineHeight: 1.65 }}>{brief.unique_value_prop}</p>
+                      </div>
+                    )}
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                      {brief.tone?.length > 0 && (
+                        <div className="card">
+                          <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.625rem' }}>Brand tone</p>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+                            {brief.tone.map(t => (
+                              <span key={t} style={{ background: 'rgba(123,47,255,0.1)', color: '#7B2FFF', borderRadius: '100px', padding: '2px 10px', fontSize: '0.8125rem', textTransform: 'capitalize' }}>{t}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {brief.goals?.length > 0 && (
+                        <div className="card">
+                          <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.625rem' }}>Goals</p>
+                          <ul style={{ paddingLeft: '1.125rem', margin: 0, lineHeight: 2, fontSize: '0.875rem' }}>
+                            {brief.goals.map(g => <li key={g}>{g}</li>)}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+
+                    {brief.competitors?.length > 0 && (
+                      <div className="card">
+                        <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.625rem' }}>Competitors</p>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+                          {brief.competitors.map(c => (
+                            <span key={c} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', borderRadius: '100px', padding: '2px 10px', fontSize: '0.8125rem' }}>{c}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  // FORM VIEW
+                  <form onSubmit={submitBrief} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    {/* Section 1 – Business basics */}
+                    <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <p style={{ fontWeight: 700, fontSize: '0.9375rem', marginBottom: '0.25rem' }}>Business basics</p>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                        <div className="form-group">
+                          <label>Business name *</label>
+                          <input className="input" required value={bfBusinessName} onChange={e => setBfBusinessName(e.target.value)} placeholder="Acme Plumbing Co." />
+                        </div>
+                        <div className="form-group">
+                          <label>Industry *</label>
+                          <input className="input" required value={bfIndustry} onChange={e => setBfIndustry(e.target.value)} placeholder="Home services, retail, restaurant…" />
+                        </div>
+                      </div>
+                      <div className="form-group">
+                        <label>Location</label>
+                        <input className="input" value={bfLocation} onChange={e => setBfLocation(e.target.value)} placeholder="City, State — or 'nationwide'" />
+                      </div>
+                    </div>
+
+                    {/* Section 2 – Audience & positioning */}
+                    <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <p style={{ fontWeight: 700, fontSize: '0.9375rem', marginBottom: '0.25rem' }}>Audience & positioning</p>
+                      <div className="form-group">
+                        <label>Who is your target customer? *</label>
+                        <textarea className="input" required value={bfTargetAudience} onChange={e => setBfTargetAudience(e.target.value)} style={{ minHeight: '80px' }} placeholder="e.g. Homeowners aged 30–55 in the suburbs who value quality over price and want a trustworthy contractor" />
+                      </div>
+                      <div className="form-group">
+                        <label>What makes you different from competitors? *</label>
+                        <textarea className="input" required value={bfUniqueValueProp} onChange={e => setBfUniqueValueProp(e.target.value)} style={{ minHeight: '80px' }} placeholder="e.g. We're the only plumber in town with same-day guarantees and upfront pricing — no surprises" />
+                      </div>
+                    </div>
+
+                    {/* Section 3 – Brand tone */}
+                    <div className="card">
+                      <p style={{ fontWeight: 700, fontSize: '0.9375rem', marginBottom: '0.875rem' }}>Brand tone</p>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1rem' }}>Select all that match your brand voice.</p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        {TONE_OPTIONS.map(t => {
+                          const active = bfTone.includes(t)
+                          return (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => toggleTone(t)}
+                              style={{ padding: '6px 14px', borderRadius: '100px', fontSize: '0.875rem', fontWeight: 500, cursor: 'pointer', background: active ? 'rgba(123,47,255,0.15)' : 'rgba(255,255,255,0.04)', border: active ? '1px solid rgba(123,47,255,0.5)' : '1px solid var(--border)', color: active ? '#7B2FFF' : 'var(--text)', textTransform: 'capitalize', transition: 'all 0.15s' }}
+                            >
+                              {t}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Section 4 – Goals */}
+                    <div className="card">
+                      <p style={{ fontWeight: 700, fontSize: '0.9375rem', marginBottom: '0.875rem' }}>Marketing goals</p>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1rem' }}>What do you most want to achieve in the next 12 months?</p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {GOAL_OPTIONS.map(g => {
+                          const active = bfGoals.includes(g)
+                          return (
+                            <label key={g} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', padding: '0.625rem 0.875rem', borderRadius: 'var(--radius-sm)', background: active ? 'rgba(123,47,255,0.06)' : 'transparent', border: active ? '1px solid rgba(123,47,255,0.2)' : '1px solid transparent', transition: 'all 0.15s' }}>
+                              <input type="checkbox" checked={active} onChange={() => toggleGoal(g)} style={{ accentColor: '#7B2FFF', width: '16px', height: '16px', flexShrink: 0 }} />
+                              <span style={{ fontSize: '0.9rem' }}>{g}</span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Section 5 – Competitors */}
+                    <div className="card">
+                      <p style={{ fontWeight: 700, fontSize: '0.9375rem', marginBottom: '0.375rem' }}>Competitors</p>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1rem' }}>Who are your main competitors? (optional)</p>
+                      <div style={{ display: 'flex', gap: '0.625rem', marginBottom: '0.75rem' }}>
+                        <input
+                          className="input"
+                          style={{ flex: 1 }}
+                          value={bfCompetitorInput}
+                          onChange={e => setBfCompetitorInput(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCompetitor() } }}
+                          placeholder="Competitor name — press Enter to add"
+                        />
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={addCompetitor}>Add</button>
+                      </div>
+                      {bfCompetitors.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+                          {bfCompetitors.map(c => (
+                            <span key={c} style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', borderRadius: '100px', padding: '2px 10px 2px 12px', fontSize: '0.8125rem' }}>
+                              {c}
+                              <button type="button" onClick={() => removeCompetitor(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 0 }}><X size={12} /></button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Section 6 – Additional notes */}
+                    <div className="card">
+                      <p style={{ fontWeight: 700, fontSize: '0.9375rem', marginBottom: '0.375rem' }}>Anything else?</p>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '0.875rem' }}>Awards, origin story, must-avoids, seasonal focus — whatever helps us tell your story.</p>
+                      <textarea className="input" value={bfNotes} onChange={e => setBfNotes(e.target.value)} style={{ minHeight: '90px' }} placeholder="e.g. We've been family-owned since 1987. We don't want to mention competitors by name…" />
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', alignItems: 'center' }}>
+                      {briefEditing && (
+                        <button type="button" className="btn btn-ghost" onClick={() => setBriefEditing(false)}>Cancel</button>
+                      )}
+                      <button type="submit" className="btn btn-primary" disabled={briefSubmitting} style={{ minWidth: '160px', justifyContent: 'center' }}>
+                        {briefSubmitting ? (
+                          <><span className="spinner" /> Generating summary…</>
+                        ) : brief ? 'Save changes' : 'Submit brief'}
+                      </button>
+                    </div>
+
+                    <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
+                      After submitting, we&apos;ll generate an AI brand summary that guides all your content.
+                    </p>
+                  </form>
+                )}
+              </div>
+            )}
+
             {/* MESSAGES TAB */}
             {tab === 'messages' && (
               <div>
@@ -275,6 +1070,7 @@ export default function CustomerPortalPage() {
                       </div>
                     </div>
                   ))}
+                  <div ref={msgBottomRef} />
                 </div>
                 <form onSubmit={sendMessage} style={{ display: 'flex', gap: '0.75rem' }}>
                   <input className="input" style={{ flex: 1 }} value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Type a message…" required />
@@ -418,6 +1214,42 @@ export default function CustomerPortalPage() {
                 <button type="submit" className="btn btn-primary" disabled={submittingTicket}>{submittingTicket ? <span className="spinner" /> : 'Submit ticket'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Revision request modal */}
+      {revisionDeliverable && (
+        <div className="modal-backdrop" onClick={() => setRevisionDeliverable(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <h2 className="modal-title" style={{ marginBottom: 0 }}>Request Revision</h2>
+              <button onClick={() => setRevisionDeliverable(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={20} /></button>
+            </div>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.25rem' }}>
+              <strong style={{ color: 'var(--text)' }}>{revisionDeliverable.title}</strong> — tell us what needs to change and we&apos;ll update it for you.
+            </p>
+            <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+              <label>What should be changed? *</label>
+              <textarea
+                className="input"
+                required
+                value={revisionNotes}
+                onChange={e => setRevisionNotes(e.target.value)}
+                placeholder="e.g. Make the tone more casual, swap out the call-to-action, update the headline…"
+                style={{ minHeight: '110px' }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost" onClick={() => setRevisionDeliverable(null)}>Cancel</button>
+              <button
+                className="btn btn-primary"
+                disabled={!revisionNotes.trim() || !!submittingApproval}
+                onClick={submitRevision}
+              >
+                {submittingApproval ? <span className="spinner" /> : 'Submit revision request'}
+              </button>
+            </div>
           </div>
         </div>
       )}
