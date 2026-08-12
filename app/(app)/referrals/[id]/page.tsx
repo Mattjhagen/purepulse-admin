@@ -108,7 +108,7 @@ export default function ReferralDetailPage({ params }: { params: Promise<{ id: s
   const { id } = use(params)
   const searchParams = useSearchParams()
   const printMode = searchParams.get('print') === '1'
-  const supabase = createClient()
+  const supabase = createClient() // used for writes (update/insert) only
 
   const [referral, setReferral] = useState<Referral | null>(null)
   const [clicks, setClicks] = useState<Click[]>([])
@@ -126,15 +126,14 @@ export default function ReferralDetailPage({ params }: { params: Promise<{ id: s
   const [payoutError, setPayoutError] = useState('')
 
   const load = useCallback(async () => {
-    const [{ data: r }, { data: c }] = await Promise.all([
-      supabase.from('referrals').select('*').eq('id', id).single(),
-      supabase.from('referral_clicks').select('*').eq('referral_id', id).order('created_at', { ascending: false }),
-    ])
+    const res = await fetch(`/api/referrals/${id}`)
+    if (!res.ok) { setLoading(false); return }
+    const { referral: r, clicks: c } = await res.json()
     setReferral(r as Referral)
     setClicks((c ?? []) as Click[])
     if (r) setForm({ name: r.name, email: r.email ?? '', phone: r.phone ?? '', commission: r.commission_per_conversion.toString(), notes: r.notes ?? '' })
     setLoading(false)
-  }, [supabase, id])
+  }, [id])
 
   useEffect(() => { load() }, [load])
 
