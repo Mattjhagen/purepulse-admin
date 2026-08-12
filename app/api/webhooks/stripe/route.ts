@@ -6,7 +6,6 @@ import { Resend } from 'resend'
 import type Stripe from 'stripe'
 import { bootstrapCampaign } from '@/lib/campaign-bootstrap'
 import type { Plan } from '@/lib/types'
-import crypto from 'crypto'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -29,13 +28,7 @@ export async function POST(req: NextRequest) {
   try {
     event = getStripe().webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET)
   } catch (err) {
-    // TEMP DIAGNOSTIC -- remove once the production signature mismatch is resolved.
-    // Logs a hash/prefix only, never the raw secret.
-    const secretHash = crypto.createHash('sha256').update(process.env.STRIPE_WEBHOOK_SECRET).digest('hex').slice(0, 12)
     console.error('[stripe webhook] signature verification failed:', err instanceof Error ? err.message : err)
-    console.error('[stripe webhook] DEBUG secret hash:', secretHash, 'len:', process.env.STRIPE_WEBHOOK_SECRET.length, 'prefix:', process.env.STRIPE_WEBHOOK_SECRET.slice(0, 8))
-    console.error('[stripe webhook] DEBUG body len:', body.length, 'body first 60:', body.slice(0, 60))
-    console.error('[stripe webhook] DEBUG sig header:', sig)
     return NextResponse.json({ error: 'Webhook signature verification failed' }, { status: 400 })
   }
 
