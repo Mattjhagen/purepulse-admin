@@ -2,10 +2,31 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { InvoiceLineItem } from '@/lib/types'
-import { formatDate, formatMoney, statusBadgeClass } from '@/lib/utils'
-import { Printer, Plus, Trash2, ChevronLeft, Save, Send, Link2, CheckCircle, Mail } from 'lucide-react'
+import { formatDate, formatMoney, statusBadgeClass, generateInvoiceNumber } from '@/lib/utils'
+import { Printer, Plus, Trash2, ChevronLeft, Save, Send, Link2, CheckCircle, Mail, Copy, XCircle, Eye } from 'lucide-react'
 import Link from 'next/link'
 import { use } from 'react'
+
+// ─── Void Confirmation ────────────────────────────────────────────────────────
+
+function VoidDialog({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
+        <h2 className="modal-title">Void this invoice?</h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.9375rem', marginBottom: '1.5rem', lineHeight: 1.6 }}>
+          Voiding cancels the invoice. This cannot be undone, but you can duplicate it to create a new draft.
+        </p>
+        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+          <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+          <button className="btn btn-danger" onClick={onConfirm}><XCircle size={14} /> Void invoice</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -20,9 +41,11 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const [saving, setSaving] = useState(false)
   const [generatingLink, setGeneratingLink] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
+  const [duplicating, setDuplicating] = useState(false)
   const [actionError, setActionError] = useState('')
   const [copied, setCopied] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
+  const [showVoidDialog, setShowVoidDialog] = useState(false)
 
   const load = useCallback(async () => {
     const [invRes, itemsRes] = await Promise.all([
@@ -83,7 +106,6 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
 
     const existing = lineItems.filter(i => !i.id.startsWith('temp-'))
     const newItems = lineItems.filter(i => i.id.startsWith('temp-'))
-
     for (const item of existing) {
       await supabase.from('invoice_line_items').update({
         type: item.type, description: item.description, quantity: item.quantity, unit_price: item.unit_price, total: item.total,
@@ -92,13 +114,12 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     if (newItems.length > 0) {
       await supabase.from('invoice_line_items').insert(newItems.map(({ id: _, ...rest }) => ({ ...rest, invoice_id: id })))
     }
-
     await load()
     setSaving(false)
   }
 
-  async function updateStatus(status: string) {
-    await supabase.from('invoices').update({ status, updated_at: new Date().toISOString() }).eq('id', id)
+  async function updateStatus(status: string, extra: Record<string, unknown> = {}) {
+    await supabase.from('invoices').update({ status, updated_at: new Date().toISOString(), ...extra }).eq('id', id)
     await load()
   }
 
@@ -134,6 +155,40 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
+  async function duplicate() {
+    setDuplicating(true)
+    const subtotal = lineItems.reduce((s, i) => s + i.total, 0)
+    const taxAmount = subtotal * (taxRate / 100)
+    const total = subtotal + taxAmount - discount
+
+    const { data: newInv } = await supabase.from('invoices').insert({
+      invoice_number: generateInvoiceNumber(),
+      client_id: invoice.client_id,
+      status: 'draft',
+      issue_date: new Date().toISOString().split('T')[0],
+      due_date: (() => { const d = new Date(); d.setDate(d.getDate() + 30); return d.toISOString().split('T')[0] })(),
+      subtotal, tax_rate: taxRate, tax_amount: taxAmount, discount, total,
+      notes: notes || null,
+    }).select('id').single()
+
+    if (newInv && lineItems.length > 0) {
+      await supabase.from('invoice_line_items').insert(
+        lineItems.map((item, i) => ({
+          invoice_id: newInv.id,
+          type: item.type,
+          description: item.description,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          total: item.total,
+          sort_order: i,
+        }))
+      )
+    }
+
+    setDuplicating(false)
+    if (newInv) window.location.href = `/invoices/${newInv.id}`
+  }
+
   function copyLink() {
     if (!invoice?.stripe_payment_link) return
     navigator.clipboard.writeText(invoice.stripe_payment_link)
@@ -150,10 +205,20 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const taxAmount = subtotal * (taxRate / 100)
   const total = subtotal + taxAmount - discount
   const isEditable = !['paid', 'void'].includes(invoice.status)
+  const canMarkPaid = ['sent', 'overdue', 'viewed'].includes(invoice.status)
+  const isOverdue = invoice.status === 'overdue'
+
+  const sendLabel = isOverdue
+    ? 'Send reminder'
+    : invoice.status === 'viewed'
+      ? 'Resend to client'
+      : invoice.status === 'draft'
+        ? 'Send to client'
+        : 'Resend to client'
 
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
         <Link href="/invoices" className="btn btn-ghost btn-sm"><ChevronLeft size={14} /> Invoices</Link>
         <span className={statusBadgeClass(invoice.status)}>{invoice.status}</span>
         <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginLeft: 'auto', fontFamily: 'monospace' }}>{invoice.invoice_number}</span>
@@ -169,32 +234,51 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           )}
           <button className="btn btn-ghost" onClick={() => window.print()}><Printer size={14} /> Print / PDF</button>
 
-          {/* Generate Stripe link */}
           {isEditable && !invoice.stripe_payment_link && total > 0 && (
             <button className="btn btn-ghost" onClick={generatePayLink} disabled={generatingLink}>
               {generatingLink ? <span className="spinner" /> : <><Link2 size={14} /> Generate payment link</>}
             </button>
           )}
 
-          {/* Send to client (generates link + emails) */}
           {isEditable && total > 0 && (
-            <button className="btn btn-success" onClick={sendToClient} disabled={sendingEmail} style={emailSent ? { background: 'rgba(34,197,94,0.15)', color: '#22c55e' } : {}}>
+            <button
+              className="btn btn-success"
+              onClick={sendToClient}
+              disabled={sendingEmail}
+              style={emailSent ? { background: 'rgba(34,197,94,0.15)', color: '#22c55e' } : isOverdue ? { borderColor: '#ef4444', color: '#ef4444' } : {}}
+            >
               {sendingEmail
                 ? <span className="spinner" />
                 : emailSent
                   ? <><CheckCircle size={14} /> Sent!</>
-                  : <><Mail size={14} /> {invoice.status === 'draft' ? 'Send to client' : 'Resend to client'}</>}
+                  : <><Mail size={14} /> {sendLabel}</>}
             </button>
           )}
 
-          {/* Mark paid manually */}
+          {/* Mark as viewed */}
           {invoice.status === 'sent' && (
-            <button className="btn btn-ghost" onClick={() => updateStatus('paid')}>Mark paid</button>
+            <button className="btn btn-ghost" onClick={() => updateStatus('viewed')}>
+              <Eye size={14} /> Mark viewed
+            </button>
           )}
+
+          {/* Mark paid */}
+          {canMarkPaid && (
+            <button className="btn btn-ghost" onClick={() => updateStatus('paid', { paid_at: new Date().toISOString() })}>
+              <CheckCircle size={14} /> Mark paid
+            </button>
+          )}
+
+          {/* Duplicate */}
+          <button className="btn btn-ghost" onClick={duplicate} disabled={duplicating}>
+            {duplicating ? <span className="spinner" /> : <><Copy size={14} /> Duplicate</>}
+          </button>
 
           {/* Void */}
           {!['void', 'paid'].includes(invoice.status) && (
-            <button className="btn btn-danger" onClick={() => updateStatus('void')}>Void</button>
+            <button className="btn btn-danger" onClick={() => setShowVoidDialog(true)}>
+              <XCircle size={14} /> Void
+            </button>
           )}
         </div>
 
@@ -214,6 +298,13 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginTop: '0.875rem', padding: '0.625rem 0.875rem', background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 'var(--radius-sm)', fontSize: '0.8125rem', color: '#22c55e' }}>
             <CheckCircle size={14} style={{ flexShrink: 0 }} />
             Paid on {formatDate(invoice.paid_at)}
+          </div>
+        )}
+
+        {isOverdue && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginTop: '0.875rem', padding: '0.625rem 0.875rem', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 'var(--radius-sm)', fontSize: '0.8125rem', color: '#ef4444' }}>
+            <Send size={14} style={{ flexShrink: 0 }} />
+            Overdue since {formatDate(invoice.due_date)} — send a reminder to prompt payment.
           </div>
         )}
       </div>
@@ -250,7 +341,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             </div>
             <div>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Due Date</p>
-              <p style={{ fontWeight: 500, color: invoice.status === 'overdue' ? '#ef4444' : 'inherit' }}>{formatDate(invoice.due_date)}</p>
+              <p style={{ fontWeight: 500, color: isOverdue ? '#ef4444' : 'inherit' }}>{formatDate(invoice.due_date)}</p>
             </div>
           </div>
         </div>
@@ -338,6 +429,13 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             : notes ? <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>{notes}</p> : <p style={{ fontSize: '0.875rem', color: 'var(--text-dim)' }}>None</p>}
         </div>
       </div>
+
+      {showVoidDialog && (
+        <VoidDialog
+          onConfirm={async () => { setShowVoidDialog(false); await updateStatus('void') }}
+          onCancel={() => setShowVoidDialog(false)}
+        />
+      )}
 
       <style>{`
         @media print {
