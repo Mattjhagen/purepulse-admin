@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { InvoiceLineItem } from '@/lib/types'
 import { formatDate, formatMoney, statusBadgeClass, generateInvoiceNumber } from '@/lib/utils'
-import { Printer, Plus, Trash2, ChevronLeft, Save, Send, Link2, CheckCircle, Mail, Copy, XCircle, Eye } from 'lucide-react'
+import { Printer, Plus, Trash2, ChevronLeft, Save, Send, Link2, CheckCircle, Mail, Copy, XCircle, Eye, AlertTriangle, Clock } from 'lucide-react'
 import Link from 'next/link'
 import { use } from 'react'
 
@@ -24,6 +24,19 @@ function VoidDialog({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: 
       </div>
     </div>
   )
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function daysOverdue(dueDateStr: string): number {
+  const due = new Date(dueDateStr)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return Math.floor((today.getTime() - due.getTime()) / 86_400_000)
+}
+
+function daysBetween(a: string, b: string): number {
+  return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86_400_000)
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
@@ -207,6 +220,10 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const isEditable = !['paid', 'void'].includes(invoice.status)
   const canMarkPaid = ['sent', 'overdue', 'viewed'].includes(invoice.status)
   const isOverdue = invoice.status === 'overdue'
+  const overduedays = isOverdue ? daysOverdue(invoice.due_date) : 0
+  const daysToPayment = invoice.status === 'paid' && invoice.paid_at && invoice.issue_date
+    ? daysBetween(invoice.issue_date, invoice.paid_at)
+    : null
 
   const sendLabel = isOverdue
     ? 'Send reminder'
@@ -221,6 +238,16 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
         <Link href="/invoices" className="btn btn-ghost btn-sm"><ChevronLeft size={14} /> Invoices</Link>
         <span className={statusBadgeClass(invoice.status)}>{invoice.status}</span>
+        {isOverdue && overduedays > 0 && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', color: '#ef4444', fontWeight: 700 }}>
+            <AlertTriangle size={12} /> {overduedays}d overdue
+          </span>
+        )}
+        {daysToPayment !== null && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', color: '#22c55e', fontWeight: 600 }}>
+            <Clock size={12} /> Paid in {daysToPayment}d
+          </span>
+        )}
         <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginLeft: 'auto', fontFamily: 'monospace' }}>{invoice.invoice_number}</span>
       </div>
 
@@ -298,13 +325,14 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginTop: '0.875rem', padding: '0.625rem 0.875rem', background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 'var(--radius-sm)', fontSize: '0.8125rem', color: '#22c55e' }}>
             <CheckCircle size={14} style={{ flexShrink: 0 }} />
             Paid on {formatDate(invoice.paid_at)}
+            {daysToPayment !== null && <span style={{ marginLeft: '0.5rem', color: 'var(--text-muted)' }}>· {daysToPayment} days after issue</span>}
           </div>
         )}
 
         {isOverdue && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginTop: '0.875rem', padding: '0.625rem 0.875rem', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 'var(--radius-sm)', fontSize: '0.8125rem', color: '#ef4444' }}>
-            <Send size={14} style={{ flexShrink: 0 }} />
-            Overdue since {formatDate(invoice.due_date)} — send a reminder to prompt payment.
+            <AlertTriangle size={14} style={{ flexShrink: 0 }} />
+            {overduedays > 0 ? `${overduedays} days overdue` : 'Overdue'} since {formatDate(invoice.due_date)} — send a reminder to prompt payment.
           </div>
         )}
       </div>
@@ -321,6 +349,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           <div style={{ textAlign: 'right' }}>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 800, letterSpacing: '-0.04em' }}>INVOICE</h2>
             <p style={{ fontFamily: 'monospace', color: 'var(--text-muted)', marginTop: '0.25rem' }}>{invoice.invoice_number}</p>
+            <span className={statusBadgeClass(invoice.status)} style={{ marginTop: '0.375rem', display: 'inline-block' }}>{invoice.status}</span>
           </div>
         </div>
 
@@ -342,6 +371,9 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             <div>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Due Date</p>
               <p style={{ fontWeight: 500, color: isOverdue ? '#ef4444' : 'inherit' }}>{formatDate(invoice.due_date)}</p>
+              {isOverdue && overduedays > 0 && (
+                <p style={{ fontSize: '0.75rem', color: '#ef4444', fontWeight: 700 }}>+{overduedays}d overdue</p>
+              )}
             </div>
           </div>
         </div>
@@ -383,6 +415,13 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                 )}
               </tr>
             ))}
+            {lineItems.length === 0 && (
+              <tr>
+                <td colSpan={isEditable ? 5 : 4} style={{ padding: '1.5rem 0.25rem', color: 'var(--text-muted)', fontSize: '0.875rem', textAlign: 'center' }}>
+                  No line items yet. Add one below.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
 
