@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js'
 import { getStripe } from '@/lib/stripe'
 import { Resend } from 'resend'
 import type Stripe from 'stripe'
+import { bootstrapCampaign } from '@/lib/campaign-bootstrap'
+import type { Plan } from '@/lib/types'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -53,7 +55,7 @@ export async function POST(req: NextRequest) {
 
     const { data: contract } = await supabase
       .from('contracts')
-      .select('id, plan, clients(name, email)')
+      .select('id, plan, client_id, clients(name, email)')
       .eq('id', contractId)
       .single()
 
@@ -77,6 +79,13 @@ export async function POST(req: NextRequest) {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const client = Array.isArray(contract.clients) ? (contract.clients as any[])[0] : contract.clients
+
+    // Bootstrap campaign + milestones (non-fatal)
+    try {
+      await bootstrapCampaign(supabase, contractId, contract.client_id, client?.name ?? 'Client', contract.plan as Plan)
+    } catch (err) {
+      console.error('[stripe webhook] campaign bootstrap threw:', err)
+    }
 
     try {
       const { error: adminEmailErr } = await resend.emails.send({
