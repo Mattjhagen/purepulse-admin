@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Clock, Users, Ticket, FileText, FileCheck, Receipt, LayoutDashboard, Settings, LogOut, ChevronRight, Inbox, Mail, MessageCircle, Sparkles, CalendarDays, Share2, UsersRound, Gift } from 'lucide-react'
+import { Clock, Users, Ticket, FileText, FileCheck, Receipt, LayoutDashboard, Settings, LogOut, ChevronRight, Inbox, Mail, MessageCircle, Sparkles, CalendarDays, Share2, UsersRound, Gift, Megaphone } from 'lucide-react'
 import { signOut } from '@/lib/auth'
 
 const nav = [
@@ -11,6 +11,7 @@ const nav = [
   { label: 'Clients', href: '/clients', icon: Users },
   { label: 'Team', href: '/team', icon: UsersRound },
   { label: 'Campaigns', href: '/campaigns', icon: Sparkles },
+  { label: 'Marketing', href: '/marketing', icon: Megaphone },
   { label: 'Calendar', href: '/calendar', icon: CalendarDays },
   { label: 'Social', href: '/social', icon: Share2 },
   { label: 'Time Clock', href: '/time-clock', icon: Clock },
