@@ -29,7 +29,6 @@ function genCode(name: string): string {
 }
 
 function NewReferralModal({ onClose, onSaved }: { onClose: () => void; onSaved: (newId: string) => void }) {
-  const supabase = createClient()
   const [form, setForm] = useState({ name: '', email: '', phone: '', commission: '50', notes: '', code: '' })
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
@@ -43,17 +42,22 @@ function NewReferralModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
     if (!form.code.trim()) { setErr('Code is required'); return }
     setSaving(true)
     setErr('')
-    const { data, error } = await supabase.from('referrals').insert({
-      name: form.name.trim(),
-      email: form.email.trim() || null,
-      phone: form.phone.trim() || null,
-      code: form.code.trim().toUpperCase(),
-      commission_per_conversion: parseFloat(form.commission) || 50,
-      notes: form.notes.trim() || null,
-    }).select('id').single()
+    const res = await fetch('/api/referrals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: form.name,
+        email: form.email,
+        phone: form.phone,
+        code: form.code,
+        commission_per_conversion: form.commission,
+        notes: form.notes,
+      }),
+    })
+    const json = await res.json()
     setSaving(false)
-    if (error) { setErr(error.message); return }
-    onSaved(data.id)
+    if (!res.ok) { setErr(json.error ?? 'Failed to create referrer'); return }
+    onSaved(json.id)
     onClose()
   }
 
