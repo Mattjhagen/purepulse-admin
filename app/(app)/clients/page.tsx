@@ -67,7 +67,6 @@ function ClientModal({ client, onClose, onSave }: {
   onClose: () => void
   onSave: () => void
 }) {
-  const supabase = createClient()
   const [form, setForm] = useState({
     name: client?.name ?? '',
     email: client?.email ?? '',
@@ -85,10 +84,11 @@ function ClientModal({ client, onClose, onSave }: {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setError(''); setLoading(true)
     const payload = { ...form, hourly_rate: Number(form.hourly_rate), updated_at: new Date().toISOString() }
-    const { error: err } = client?.id
-      ? await supabase.from('clients').update(payload).eq('id', client.id)
-      : await supabase.from('clients').insert(payload)
-    if (err) { setError(err.message); setLoading(false); return }
+    const url = client?.id ? `/api/clients/${client.id}` : '/api/clients'
+    const method = client?.id ? 'PUT' : 'POST'
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+    const json = await res.json()
+    if (!res.ok) { setError(json.error ?? 'Something went wrong'); setLoading(false); return }
     onSave()
   }
 
