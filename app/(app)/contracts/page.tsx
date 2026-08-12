@@ -1,10 +1,11 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { Contract, Client, Plan, PLAN_PRICES, ContractStatus } from '@/lib/types'
 import { formatDate, formatMoney, statusBadgeClass, planBadgeClass, planLabel } from '@/lib/utils'
 import { generateContractContent } from '@/lib/contract-template'
-import { Plus, Search, X, FileText, Send, Link2, CheckCircle, FileCheck, Clock, TrendingUp, AlertTriangle } from 'lucide-react'
+import { Plus, Search, X, FileText, Send, Link2, CheckCircle, FileCheck, Clock, TrendingUp, AlertTriangle, RefreshCw, XCircle } from 'lucide-react'
 import Link from 'next/link'
 
 const PLANS: Plan[] = ['starter', 'growth', 'premium', 'business']
@@ -100,7 +101,19 @@ function ContractModal({ clients, onClose, onSave }: { clients: Client[]; onClos
   )
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function daysUntil(dateStr: string): number {
+  const target = new Date(dateStr)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return Math.ceil((target.getTime() - today.getTime()) / 86_400_000)
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
 export default function ContractsPage() {
+  const router = useRouter()
   const supabase = createClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [contracts, setContracts] = useState<any[]>([])
@@ -113,11 +126,12 @@ export default function ContractsPage() {
   const [sendingId, setSendingId] = useState<string | null>(null)
   const [sentId, setSentId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [renewingId, setRenewingId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     const [contRes, clientsRes] = await Promise.all([
-      supabase.from('contracts').select('*, clients(name)').order('created_at', { ascending: false }),
+      supabase.from('contracts').select('*, clients(name, email, hourly_rate)').order('created_at', { ascending: false }),
       supabase.from('clients').select('*').order('name'),
     ])
     setContracts(contRes.data ?? [])
@@ -144,6 +158,29 @@ export default function ContractsPage() {
     setTimeout(() => setCopiedId(null), 2000)
   }
 
+  async function renewContract(c: typeof contracts[0]) {
+    setRenewingId(c.id)
+    const clientObj = clients.find(cl => cl.id === c.client_id)
+    if (!clientObj) { setRenewingId(null); return }
+
+    const newStart = new Date().toISOString().split('T')[0]
+    const content = generateContractContent(clientObj, c.plan, c.hourly_rate, newStart)
+
+    const { data: newContract } = await supabase.from('contracts').insert({
+      client_id: c.client_id,
+      title: c.title,
+      plan: c.plan,
+      monthly_rate: c.monthly_rate,
+      hourly_rate: c.hourly_rate,
+      start_date: newStart,
+      content,
+      status: 'draft',
+    }).select('id').single()
+
+    setRenewingId(null)
+    if (newContract) router.push(`/contracts/${newContract.id}`)
+  }
+
   const today = new Date()
 
   const filtered = contracts.filter(c => {
@@ -157,13 +194,12 @@ export default function ContractsPage() {
   const activeCount = contracts.filter(c => ['signed', 'active'].includes(c.status)).length
   const pendingCount = contracts.filter(c => c.status === 'sent').length
   const draftCount = contracts.filter(c => c.status === 'draft').length
+  const terminatedCount = contracts.filter(c => ['expired', 'terminated'].includes(c.status)).length
   const mrr = contracts.filter(c => ['signed', 'active'].includes(c.status)).reduce((s, c) => s + (c.monthly_rate ?? 0), 0)
 
-  // Contracts expiring within 30 days
   const expiringSoon = contracts.filter(c => {
     if (!c.end_date || !['signed', 'active'].includes(c.status)) return false
-    const end = new Date(c.end_date)
-    const diff = (end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+    const diff = daysUntil(c.end_date)
     return diff >= 0 && diff <= 30
   })
 
@@ -183,7 +219,7 @@ export default function ContractsPage() {
 
       {/* Stats */}
       {!loading && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
           <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
             <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(34,197,94,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <FileCheck size={18} color="#22c55e" />
@@ -212,12 +248,21 @@ export default function ContractsPage() {
             </div>
           </div>
           <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
-            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <FileText size={18} style={{ opacity: 0.4 }} />
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(148,163,184,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <FileText size={18} color="#94a3b8" />
             </div>
             <div>
               <p style={{ fontSize: '1.375rem', fontWeight: 800, lineHeight: 1 }}>{draftCount}</p>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Drafts</p>
+            </div>
+          </div>
+          <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(239,68,68,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <XCircle size={18} color="#ef4444" />
+            </div>
+            <div>
+              <p style={{ fontSize: '1.375rem', fontWeight: 800, lineHeight: 1 }}>{terminatedCount}</p>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Ended</p>
             </div>
           </div>
         </div>
@@ -244,30 +289,20 @@ export default function ContractsPage() {
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
-              className="btn btn-ghost btn-sm"
-              style={{
-                fontWeight: statusFilter === s ? 700 : 400,
-                background: statusFilter === s ? 'var(--bg-card-hover)' : undefined,
-                borderColor: statusFilter === s ? 'var(--border-strong)' : undefined,
-                textTransform: 'capitalize',
-              }}
+              className={`btn btn-sm ${statusFilter === s ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ textTransform: 'capitalize' }}
             >
               {s === 'all' ? 'All' : s}
             </button>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: '0.375rem' }}>
+        <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
           {(['all', ...PLANS] as string[]).map(p => (
             <button
               key={p}
               onClick={() => setPlanFilter(p)}
-              className="btn btn-ghost btn-sm"
-              style={{
-                fontWeight: planFilter === p ? 700 : 400,
-                background: planFilter === p ? 'var(--bg-card-hover)' : undefined,
-                borderColor: planFilter === p ? 'var(--border-strong)' : undefined,
-                textTransform: 'capitalize',
-              }}
+              className={`btn btn-sm ${planFilter === p ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ textTransform: 'capitalize' }}
             >
               {p === 'all' ? 'Any plan' : planLabel(p as Plan)}
             </button>
@@ -286,19 +321,22 @@ export default function ContractsPage() {
         <div className="table-wrap">
           <table>
             <thead>
-              <tr><th>Contract</th><th>Client</th><th>Plan</th><th>Monthly</th><th>Status</th><th>Start Date</th><th></th></tr>
+              <tr><th>Contract</th><th>Client</th><th>Plan</th><th>Monthly</th><th>Status</th><th>Expires</th><th></th></tr>
             </thead>
             <tbody>
               {filtered.map(c => {
                 const isSending = sendingId === c.id
                 const wasSent = sentId === c.id
                 const wasCopied = copiedId === c.id
+                const isRenewing = renewingId === c.id
                 const canSend = ['draft', 'sent'].includes(c.status)
                 const hasToken = !!c.signature_token
-                const isExpiringSoon = c.end_date && ['signed', 'active'].includes(c.status) && (() => {
-                  const diff = (new Date(c.end_date).getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-                  return diff >= 0 && diff <= 30
-                })()
+                const isActive = ['signed', 'active'].includes(c.status)
+                const isEnded = ['expired', 'terminated'].includes(c.status)
+                const daysLeft = c.end_date ? daysUntil(c.end_date) : null
+                const isExpiringSoon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 30 && isActive
+                const isPastEnd = daysLeft !== null && daysLeft < 0
+
                 return (
                   <tr key={c.id}>
                     <td>
@@ -311,7 +349,23 @@ export default function ContractsPage() {
                     <td><span className={planBadgeClass(c.plan)}>{planLabel(c.plan)}</span></td>
                     <td>{formatMoney(c.monthly_rate)}/mo</td>
                     <td><span className={statusBadgeClass(c.status)}>{c.status}</span></td>
-                    <td style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>{c.start_date ? formatDate(c.start_date) : '—'}</td>
+                    <td>
+                      {c.end_date ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+                          <span style={{ fontSize: '0.8125rem', color: isExpiringSoon ? '#f59e0b' : isPastEnd ? '#ef4444' : 'var(--text-muted)', fontWeight: isExpiringSoon || isPastEnd ? 600 : undefined }}>
+                            {formatDate(c.end_date)}
+                          </span>
+                          {isExpiringSoon && daysLeft !== null && (
+                            <span style={{ fontSize: '0.7rem', color: '#f59e0b', fontWeight: 700 }}>{daysLeft}d left</span>
+                          )}
+                          {isPastEnd && daysLeft !== null && (
+                            <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: 700 }}>{Math.abs(daysLeft)}d ago</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span style={{ color: 'var(--text-dim)', fontSize: '0.8125rem' }}>—</span>
+                      )}
+                    </td>
                     <td>
                       <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
                         <Link href={`/contracts/${c.id}`} className="btn btn-ghost btn-sm">View</Link>
@@ -326,7 +380,7 @@ export default function ContractsPage() {
                             {isSending ? <span className="spinner" style={{ width: 12, height: 12 }} /> : wasSent ? <CheckCircle size={13} /> : <Send size={13} />}
                           </button>
                         )}
-                        {hasToken && c.status !== 'signed' && c.status !== 'active' && (
+                        {hasToken && !isActive && !isEnded && (
                           <button
                             className="btn btn-ghost btn-sm"
                             title="Copy signing link"
@@ -334,6 +388,16 @@ export default function ContractsPage() {
                             style={wasCopied ? { color: '#22c55e' } : {}}
                           >
                             {wasCopied ? <CheckCircle size={13} /> : <Link2 size={13} />}
+                          </button>
+                        )}
+                        {(isEnded || isExpiringSoon) && (
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            title="Renew — creates a new draft"
+                            disabled={isRenewing}
+                            onClick={() => renewContract(c)}
+                          >
+                            {isRenewing ? <span className="spinner" style={{ width: 12, height: 12 }} /> : <RefreshCw size={13} />}
                           </button>
                         )}
                       </div>
