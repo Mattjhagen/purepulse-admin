@@ -3,11 +3,18 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Ticket, Client, TicketStatus, TicketPriority } from '@/lib/types'
 import { formatDate, statusBadgeClass } from '@/lib/utils'
-import { Plus, Search, X } from 'lucide-react'
+import { Plus, Search, X, AlertCircle, Clock, CheckCircle, XCircle, Ticket as TicketIcon } from 'lucide-react'
 import Link from 'next/link'
 
 const STATUSES: TicketStatus[] = ['open', 'in_progress', 'blocked', 'resolved', 'closed']
 const PRIORITIES: TicketPriority[] = ['low', 'medium', 'high', 'urgent']
+
+function priorityBadgeClass(p: TicketPriority) {
+  if (p === 'urgent') return 'badge badge-red'
+  if (p === 'high') return 'badge badge-amber'
+  if (p === 'medium') return 'badge badge-blue'
+  return 'badge badge-white'
+}
 
 function TicketModal({ ticket, clients, onClose, onSave }: {
   ticket?: Ticket | null; clients: Client[]; onClose: () => void; onSave: () => void
@@ -89,6 +96,7 @@ export default function TicketsPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('open')
+  const [priorityFilter, setPriorityFilter] = useState<string>('all')
   const [modal, setModal] = useState<{ open: boolean; ticket?: Ticket | null }>({ open: false })
 
   const load = useCallback(async () => {
@@ -109,15 +117,22 @@ export default function TicketsPage() {
   const filtered = tickets.filter(t => {
     const matchSearch = search === '' || t.subject.toLowerCase().includes(search.toLowerCase()) || (t.clients?.name ?? '').toLowerCase().includes(search.toLowerCase())
     const matchStatus = statusFilter === 'all' || t.status === statusFilter
-    return matchSearch && matchStatus
+    const matchPriority = priorityFilter === 'all' || t.priority === priorityFilter
+    return matchSearch && matchStatus && matchPriority
   })
+
+  // Stats
+  const openCount = tickets.filter(t => t.status === 'open').length
+  const inProgressCount = tickets.filter(t => t.status === 'in_progress').length
+  const blockedCount = tickets.filter(t => t.status === 'blocked').length
+  const urgentCount = tickets.filter(t => t.priority === 'urgent' && t.status !== 'resolved' && t.status !== 'closed').length
 
   return (
     <>
       <div className="page-header">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <h1>IT Tickets</h1>
+            <h1>Tickets</h1>
             <p>Track and resolve client support requests.</p>
           </div>
           <button className="btn btn-primary" onClick={() => setModal({ open: true, ticket: null })}>
@@ -126,15 +141,88 @@ export default function TicketsPage() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+      {/* Stats */}
+      {!loading && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+          <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(99,102,241,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <TicketIcon size={18} color="#6366f1" />
+            </div>
+            <div>
+              <p style={{ fontSize: '1.375rem', fontWeight: 800, lineHeight: 1 }}>{openCount}</p>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Open</p>
+            </div>
+          </div>
+          <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(245,158,11,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Clock size={18} color="#f59e0b" />
+            </div>
+            <div>
+              <p style={{ fontSize: '1.375rem', fontWeight: 800, lineHeight: 1 }}>{inProgressCount}</p>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>In Progress</p>
+            </div>
+          </div>
+          <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(239,68,68,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <AlertCircle size={18} color="#ef4444" />
+            </div>
+            <div>
+              <p style={{ fontSize: '1.375rem', fontWeight: 800, lineHeight: 1 }}>{blockedCount}</p>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Blocked</p>
+            </div>
+          </div>
+          <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: urgentCount > 0 ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <XCircle size={18} color={urgentCount > 0 ? '#ef4444' : undefined} style={urgentCount === 0 ? { opacity: 0.3 } : undefined} />
+            </div>
+            <div>
+              <p style={{ fontSize: '1.375rem', fontWeight: 800, lineHeight: 1 }}>{urgentCount}</p>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Urgent</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Filters */}
+      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ position: 'relative', flex: '1 1 240px', maxWidth: '360px' }}>
           <Search size={16} style={{ position: 'absolute', left: '0.875rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
           <input className="input" style={{ paddingLeft: '2.5rem' }} placeholder="Search tickets…" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <select className="input" style={{ width: 'auto' }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-          <option value="all">All statuses</option>
-          {STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-        </select>
+        <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
+          {['all', ...STATUSES].map(s => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className="btn btn-ghost btn-sm"
+              style={{
+                fontWeight: statusFilter === s ? 700 : 400,
+                background: statusFilter === s ? 'var(--bg-card-hover)' : undefined,
+                borderColor: statusFilter === s ? 'var(--border-strong)' : undefined,
+                textTransform: 'capitalize',
+              }}
+            >
+              {s === 'all' ? 'All' : s.replace('_', ' ')}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: '0.375rem' }}>
+          {['all', ...PRIORITIES].map(p => (
+            <button
+              key={p}
+              onClick={() => setPriorityFilter(p)}
+              className="btn btn-ghost btn-sm"
+              style={{
+                fontWeight: priorityFilter === p ? 700 : 400,
+                background: priorityFilter === p ? 'var(--bg-card-hover)' : undefined,
+                borderColor: priorityFilter === p ? 'var(--border-strong)' : undefined,
+                textTransform: 'capitalize',
+              }}
+            >
+              {p === 'all' ? 'Any priority' : p}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
@@ -154,20 +242,19 @@ export default function TicketsPage() {
               {filtered.map(t => (
                 <tr key={t.id}>
                   <td>
-                    <Link href={`/tickets/${t.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                      <p style={{ fontWeight: 500 }}>{t.subject}</p>
-                      <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem', marginTop: '0.125rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '300px' }}>{t.description}</p>
-                    </Link>
+                    <p style={{ fontWeight: 600 }}>{t.subject}</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem', marginTop: '0.125rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '300px' }}>{t.description}</p>
                   </td>
                   <td style={{ color: 'var(--text-muted)' }}>{t.clients?.name ?? '—'}</td>
-                  <td>
-                    <span className={t.priority === 'urgent' ? 'badge badge-red' : t.priority === 'high' ? 'badge badge-amber' : t.priority === 'medium' ? 'badge badge-blue' : 'badge badge-white'}>
-                      {t.priority}
-                    </span>
-                  </td>
+                  <td><span className={priorityBadgeClass(t.priority)}>{t.priority}</span></td>
                   <td><span className={statusBadgeClass(t.status)}>{t.status.replace('_', ' ')}</span></td>
-                  <td style={{ color: 'var(--text-muted)' }}>{formatDate(t.created_at)}</td>
-                  <td><button className="btn btn-ghost btn-sm" onClick={() => setModal({ open: true, ticket: t })}>Edit</button></td>
+                  <td style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>{formatDate(t.created_at)}</td>
+                  <td>
+                    <div style={{ display: 'flex', gap: '0.375rem' }}>
+                      <Link href={`/tickets/${t.id}`} className="btn btn-ghost btn-sm">View</Link>
+                      <button className="btn btn-ghost btn-sm" onClick={() => setModal({ open: true, ticket: t })}>Edit</button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -1,11 +1,33 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Contract, Client } from '@/lib/types'
+import { Client } from '@/lib/types'
 import { formatDate, formatMoney, statusBadgeClass, planBadgeClass, planLabel } from '@/lib/utils'
-import { ChevronLeft, Printer, Send, CheckCircle, XCircle, Edit3, Save, Mail, Link2 } from 'lucide-react'
+import { ChevronLeft, Printer, Send, CheckCircle, XCircle, Edit3, Save, Mail, Link2, Copy, AlertTriangle, Calendar } from 'lucide-react'
 import Link from 'next/link'
 import { use } from 'react'
+
+function TerminateDialog({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div className="modal" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+          <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(239,68,68,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <AlertTriangle size={18} color="#ef4444" />
+          </div>
+          <h2 className="modal-title" style={{ marginBottom: 0 }}>Terminate Contract</h2>
+        </div>
+        <p style={{ fontSize: '0.9375rem', color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: '1.5rem' }}>
+          This will mark the contract as terminated. The client will no longer be bound by this agreement. This action cannot be undone.
+        </p>
+        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+          <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+          <button className="btn btn-danger" onClick={onConfirm}>Yes, terminate</button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function ContractDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -18,6 +40,8 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
   const [saving, setSaving] = useState(false)
   const [sending, setSending] = useState(false)
   const [sendMsg, setSendMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+  const [copiedLink, setCopiedLink] = useState(false)
+  const [showTerminate, setShowTerminate] = useState(false)
 
   const load = useCallback(async () => {
     const { data } = await supabase.from('contracts').select('*, clients(*)').eq('id', id).single()
@@ -55,90 +79,148 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
     await load()
   }
 
+  function copySigningLink() {
+    const url = `${window.location.origin}/sign/${contract.signature_token}`
+    navigator.clipboard.writeText(url)
+    setCopiedLink(true)
+    setTimeout(() => setCopiedLink(false), 2000)
+  }
+
   if (loading) return <div style={{ textAlign: 'center', padding: '4rem' }}><span className="spinner" style={{ margin: '0 auto' }} /></div>
   if (!contract) return <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>Contract not found.</div>
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const client = Array.isArray(contract.clients) ? (contract.clients as any[])[0] : contract.clients as Client | null
 
+  const isSigned = ['signed', 'active'].includes(contract.status)
+  const isTerminated = ['terminated', 'expired'].includes(contract.status)
+  const canSend = ['draft', 'sent'].includes(contract.status)
+  const hasSigningLink = !!contract.signature_token && !isSigned && !isTerminated
+
+  const today = new Date()
+  const endDate = contract.end_date ? new Date(contract.end_date) : null
+  const daysUntilExpiry = endDate ? Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : null
+  const isExpiringSoon = daysUntilExpiry !== null && daysUntilExpiry >= 0 && daysUntilExpiry <= 30 && isSigned
+  const isOverdue = daysUntilExpiry !== null && daysUntilExpiry < 0 && isSigned
+
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+      <style>{`@media print { .no-print { display: none !important; } }`}</style>
+
+      {/* Breadcrumb + badges */}
+      <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
         <Link href="/contracts" className="btn btn-ghost btn-sm"><ChevronLeft size={14} /> Contracts</Link>
         <span className={statusBadgeClass(contract.status)}>{contract.status}</span>
         <span className={planBadgeClass(contract.plan)}>{planLabel(contract.plan)}</span>
       </div>
 
-      {/* Actions */}
-      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
-        {!editing ? (
-          <button className="btn btn-ghost" onClick={() => setEditing(true)}><Edit3 size={14} /> Edit content</button>
-        ) : (
-          <>
-            <button className="btn btn-primary" onClick={saveContent} disabled={saving}>{saving ? <span className="spinner" /> : <><Save size={14} /> Save</>}</button>
-            <button className="btn btn-ghost" onClick={() => { setEditing(false); setContent(contract.content) }}>Cancel</button>
-          </>
-        )}
-        <button className="btn btn-ghost" onClick={() => window.print()}><Printer size={14} /> Print / PDF</button>
-        {['draft', 'sent'].includes(contract.status) && (
-          <button className="btn btn-success" onClick={sendForSigning} disabled={sending}>
-            <Mail size={14} /> {sending ? 'Sending…' : 'Email to Client'}
-          </button>
-        )}
-        {contract.signature_token && (
-          <button className="btn btn-ghost" onClick={() => {
-            const url = `${window.location.origin}/sign/${contract.signature_token}`
-            navigator.clipboard.writeText(url)
-            setSendMsg({ type: 'ok', text: 'Signing link copied to clipboard.' })
-          }}>
-            <Link2 size={14} /> Copy Signing Link
-          </button>
-        )}
-        {contract.status === 'draft' && <button className="btn btn-ghost" onClick={() => updateStatus('sent')}><Send size={14} /> Mark Sent</button>}
-        {contract.status === 'sent' && (
-          <>
-            <button className="btn btn-success" onClick={() => updateStatus('signed', { signed_at: new Date().toISOString(), signed_by: client?.name })}>
-              <CheckCircle size={14} /> Mark Signed
-            </button>
-          </>
-        )}
-        {!['terminated', 'expired'].includes(contract.status) && (
-          <button className="btn btn-danger" onClick={() => updateStatus('terminated')}><XCircle size={14} /> Terminate</button>
-        )}
-      </div>
+      {/* Expiry warning */}
+      {(isExpiringSoon || isOverdue) && (
+        <div className="no-print" style={{ marginBottom: '1rem', padding: '12px 16px', borderRadius: 8, background: isOverdue ? 'rgba(239,68,68,0.08)' : 'rgba(245,158,11,0.08)', border: `1px solid ${isOverdue ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.25)'}`, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <Calendar size={15} color={isOverdue ? '#ef4444' : '#f59e0b'} />
+          <span style={{ fontSize: '0.875rem', color: isOverdue ? '#ef4444' : 'var(--text-muted)' }}>
+            {isOverdue
+              ? `Contract ended ${Math.abs(daysUntilExpiry!)} day${Math.abs(daysUntilExpiry!) !== 1 ? 's' : ''} ago — consider renewing.`
+              : `Expires in ${daysUntilExpiry} day${daysUntilExpiry !== 1 ? 's' : ''} on ${endDate!.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.`}
+          </span>
+        </div>
+      )}
 
-      {/* Send feedback */}
+      {/* Signing link banner */}
+      {hasSigningLink && (
+        <div className="no-print" style={{ marginBottom: '1rem', padding: '12px 16px', borderRadius: 8, background: 'rgba(123,47,255,0.08)', border: '1px solid rgba(123,47,255,0.2)', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <Link2 size={15} style={{ color: '#7B2FFF', flexShrink: 0 }} />
+          <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {window?.location?.origin ?? ''}/sign/{contract.signature_token}
+          </span>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={copySigningLink}
+            style={copiedLink ? { color: '#22c55e' } : {}}
+          >
+            {copiedLink ? <><CheckCircle size={13} /> Copied!</> : <><Copy size={13} /> Copy link</>}
+          </button>
+        </div>
+      )}
+
+      {/* Signed / active notice */}
+      {isSigned && (
+        <div style={{ marginBottom: '1rem', padding: '12px 16px', borderRadius: 8, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <CheckCircle size={16} style={{ color: '#22c55e', flexShrink: 0 }} />
+          <span style={{ fontSize: '0.875rem', color: '#22c55e', fontWeight: 500 }}>
+            {contract.status === 'active' ? 'Active — signed' : 'Signed'} by <strong>{contract.signed_by}</strong>
+            {contract.signed_at && <> on {new Date(contract.signed_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</>}
+          </span>
+        </div>
+      )}
+
+      {/* Feedback message */}
       {sendMsg && (
         <div style={{
-          marginBottom: '1rem',
-          padding: '10px 16px',
-          borderRadius: 8,
-          fontSize: '0.875rem',
+          marginBottom: '1rem', padding: '10px 16px', borderRadius: 8, fontSize: '0.875rem',
           background: sendMsg.type === 'ok' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
-          color: sendMsg.type === 'ok' ? 'var(--accent-green)' : 'var(--accent-red)',
+          color: sendMsg.type === 'ok' ? '#22c55e' : '#ef4444',
           border: `1px solid ${sendMsg.type === 'ok' ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}`,
         }}>
           {sendMsg.text}
         </div>
       )}
 
-      {/* Signed notice */}
-      {contract.status === 'signed' && (
-        <div style={{ marginBottom: '1rem', padding: '12px 16px', borderRadius: 8, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <CheckCircle size={16} style={{ color: 'var(--accent-green)', flexShrink: 0 }} />
-          <span style={{ fontSize: '0.875rem', color: 'var(--accent-green)', fontWeight: 500 }}>
-            Signed by <strong>{contract.signed_by}</strong> on {new Date(contract.signed_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-          </span>
-        </div>
-      )}
+      {/* Actions */}
+      <div className="no-print" style={{ display: 'flex', gap: '0.75rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
+        {!editing ? (
+          <button className="btn btn-ghost" onClick={() => setEditing(true)} disabled={isSigned || isTerminated}>
+            <Edit3 size={14} /> Edit content
+          </button>
+        ) : (
+          <>
+            <button className="btn btn-primary" onClick={saveContent} disabled={saving}>
+              {saving ? <span className="spinner" /> : <><Save size={14} /> Save</>}
+            </button>
+            <button className="btn btn-ghost" onClick={() => { setEditing(false); setContent(contract.content) }}>Cancel</button>
+          </>
+        )}
 
-      {/* Contract doc */}
+        <button className="btn btn-ghost" onClick={() => window.print()}><Printer size={14} /> Print / PDF</button>
+
+        {canSend && (
+          <button className="btn btn-ghost" onClick={sendForSigning} disabled={sending}>
+            <Mail size={14} /> {sending ? 'Sending…' : contract.status === 'sent' ? 'Resend email' : 'Email to client'}
+          </button>
+        )}
+
+        {contract.status === 'draft' && (
+          <button className="btn btn-ghost" onClick={() => updateStatus('sent')}>
+            <Send size={14} /> Mark sent
+          </button>
+        )}
+
+        {contract.status === 'sent' && (
+          <button className="btn btn-ghost" onClick={() => updateStatus('signed', { signed_at: new Date().toISOString(), signed_by: client?.name })}>
+            <CheckCircle size={14} /> Mark signed
+          </button>
+        )}
+
+        {(contract.status === 'signed') && (
+          <button className="btn btn-ghost" onClick={() => updateStatus('active')}>
+            <CheckCircle size={14} /> Mark active
+          </button>
+        )}
+
+        {!isTerminated && (
+          <button className="btn btn-danger" onClick={() => setShowTerminate(true)}>
+            <XCircle size={14} /> Terminate
+          </button>
+        )}
+      </div>
+
+      {/* Contract document */}
       <div id="contract-print" className="card-elevated" style={{ maxWidth: '760px' }}>
-        {/* Meta */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', marginBottom: '2rem', padding: '1.5rem 1.5rem 0' }}>
           <div>
             <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Client</p>
             <p style={{ fontWeight: 600 }}>{client?.name}</p>
+            {client?.email && <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>{client.email}</p>}
           </div>
           <div>
             <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Plan</p>
@@ -152,10 +234,16 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
             <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Start Date</p>
             <p style={{ fontWeight: 600 }}>{formatDate(contract.start_date)}</p>
           </div>
+          {contract.end_date && (
+            <div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>End Date</p>
+              <p style={{ fontWeight: 600 }}>{formatDate(contract.end_date)}</p>
+            </div>
+          )}
           {contract.signed_at && (
             <div>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>Signed</p>
-              <p style={{ fontWeight: 600, color: 'var(--accent-green)' }}>{formatDate(contract.signed_at)}</p>
+              <p style={{ fontWeight: 600, color: '#22c55e' }}>{formatDate(contract.signed_at)}</p>
             </div>
           )}
           {contract.signature_data && (
@@ -172,7 +260,6 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
 
         <hr className="divider" style={{ margin: '0 1.5rem' }} />
 
-        {/* Content */}
         <div style={{ padding: '1.5rem' }}>
           {editing ? (
             <textarea
@@ -188,6 +275,13 @@ export default function ContractDetailPage({ params }: { params: Promise<{ id: s
           )}
         </div>
       </div>
+
+      {showTerminate && (
+        <TerminateDialog
+          onConfirm={async () => { setShowTerminate(false); await updateStatus('terminated') }}
+          onCancel={() => setShowTerminate(false)}
+        />
+      )}
     </>
   )
 }

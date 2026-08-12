@@ -127,7 +127,7 @@ export interface InvoiceLineItem {
   created_at: string
 }
 
-export type ContractStatus = 'draft' | 'sent' | 'signed' | 'expired' | 'terminated'
+export type ContractStatus = 'draft' | 'sent' | 'signed' | 'active' | 'expired' | 'terminated'
 
 export interface Contract {
   id: string
@@ -142,6 +142,9 @@ export interface Contract {
   end_date?: string
   signed_at?: string
   signed_by?: string
+  signature_token?: string
+  signature_data?: string
+  signature_ip?: string
   content: string
   created_at: string
   updated_at: string
