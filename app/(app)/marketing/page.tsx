@@ -186,7 +186,7 @@ export default function MarketingPage() {
   const [recipientGroups, setRecipientGroups] = useState<string[]>(['clients'])
   const [previewMode, setPreviewMode] = useState(false)
   const [sending, setSending] = useState(false)
-  const [result, setResult] = useState<{ sent: number; failed: number } | null>(null)
+  const [result, setResult] = useState<{ sent: number; failed: number; results?: { email: string; ok: boolean; error?: string }[]; error?: string } | null>(null)
   const [counts, setCounts] = useState<{ clients: number; leads: number }>({ clients: 0, leads: 0 })
 
   useEffect(() => {
@@ -227,9 +227,13 @@ export default function MarketingPage() {
         body: JSON.stringify({ subject: customSubject, html: previewHtml, recipients: recipientGroups }),
       })
       const data = await res.json()
-      setResult(data)
-    } catch {
-      setResult({ sent: 0, failed: 1 })
+      if (!res.ok) {
+        setResult({ sent: 0, failed: 1, error: data.error ?? 'Unknown error' })
+      } else {
+        setResult(data)
+      }
+    } catch (e) {
+      setResult({ sent: 0, failed: 1, error: String(e) })
     }
     setSending(false)
   }
@@ -307,14 +311,21 @@ export default function MarketingPage() {
           {result && (
             <div style={{
               padding: '12px 16px', borderRadius: '8px',
-              background: result.failed === 0 ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
-              border: `1px solid ${result.failed === 0 ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
+              background: result.error || result.failed ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)',
+              border: `1px solid ${result.error || result.failed ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)'}`,
             }}>
-              <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: result.failed === 0 ? '#10b981' : '#ef4444' }}>
-                {result.failed === 0
-                  ? `✓ Sent to ${result.sent} recipient${result.sent !== 1 ? 's' : ''}`
-                  : `${result.sent} sent, ${result.failed} failed`}
+              <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 600, color: result.error || result.failed ? '#ef4444' : '#10b981' }}>
+                {result.error
+                  ? `Error: ${result.error}`
+                  : result.failed === 0
+                    ? `✓ Sent to ${result.sent} recipient${result.sent !== 1 ? 's' : ''}`
+                    : `${result.sent} sent, ${result.failed} failed`}
               </p>
+              {result.results?.filter(r => !r.ok).map(r => (
+                <p key={r.email} style={{ margin: '2px 0 0', fontSize: '11px', color: '#ef4444' }}>
+                  {r.email}: {r.error}
+                </p>
+              ))}
             </div>
           )}
 

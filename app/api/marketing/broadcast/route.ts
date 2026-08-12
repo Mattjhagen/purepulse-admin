@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'PurePulse <matty@purepulse.one>',
+        from: 'PurePulse <matty@app.purepulse.one>',
         to: recipient.email,
         subject,
         html: personalizedHtml,
@@ -68,7 +68,8 @@ export async function POST(req: NextRequest) {
     })
 
     const json = await res.json() as { id?: string; message?: string; name?: string }
-    results.push({ email: recipient.email, ok: res.ok, id: json.id, error: !res.ok ? (json.message ?? json.name) : undefined })
+    if (!res.ok) console.error('Resend error for', recipient.email, JSON.stringify(json))
+    results.push({ email: recipient.email, ok: res.ok, id: json.id, error: !res.ok ? (json.message ?? json.name ?? JSON.stringify(json)) : undefined })
   }
 
   const sent = results.filter(r => r.ok).length
