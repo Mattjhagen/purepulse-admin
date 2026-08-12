@@ -17,9 +17,11 @@ export async function PATCH(
 
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() }
 
-  if (body.status       !== undefined) update.status        = body.status
+  if (body.status        !== undefined) update.status        = body.status
   if (body.final_content !== undefined) update.final_content = body.final_content
-  if (body.title        !== undefined) update.title         = body.title
+  if (body.title         !== undefined) update.title         = body.title
+  if (body.scheduled_at  !== undefined) update.scheduled_at  = body.scheduled_at   // null clears it
+  if (body.published_at  !== undefined) update.published_at  = body.published_at
 
   const supabase = adminSupabase()
   const { error } = await supabase.from('deliverables').update(update).eq('id', id)
