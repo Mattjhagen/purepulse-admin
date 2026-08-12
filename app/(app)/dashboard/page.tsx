@@ -185,7 +185,7 @@ export default function DashboardPage() {
   const [newLeads, setNewLeads] = useState(0)
 
   // Alerts
-  const [overdueInvoices, setOverdueInvoices] = useState<{ id: string; clientName: string; total: number; daysOverdue: number }[]>([])
+  const [overdueInvoices, setOverdueInvoices] = useState<{ id: string; clientId: string; clientName: string; total: number; daysOverdue: number }[]>([])
   const [urgentTicketCount, setUrgentTicketCount] = useState(0)
 
   // Time tracking
@@ -260,7 +260,7 @@ export default function DashboardPage() {
     ] = await Promise.all([
       supabase.from('clients').select('id, plan, status'),
       supabase.from('contracts').select('monthly_rate, status'),
-      supabase.from('invoices').select('id, status, total, invoice_number, updated_at, created_at, clients(name)'),
+      supabase.from('invoices').select('id, status, total, invoice_number, due_date, client_id, updated_at, created_at, clients(name)'),
       supabase.from('invoices').select('paid_at, total').eq('status', 'paid').gte('paid_at', sixMonthsAgo),
       supabase.from('invoices').select('total').eq('status', 'paid').gte('paid_at', lastMonthStart).lt('paid_at', monthStart),
       supabase.from('deliverables').select('status, type, published_at'),
@@ -321,10 +321,10 @@ export default function DashboardPage() {
 
     const overdue = invoices.filter(i => i.status === 'overdue')
     setOverdueInvoices(
-      overdue.slice(0, 5).map(i => {
+      overdue.slice(0, 10).map(i => {
         const due = new Date(i.due_date ?? i.created_at)
         const daysOverdue = Math.floor((now.getTime() - due.getTime()) / 86_400_000)
-        return { id: i.id, clientName: i.clients?.name ?? '—', total: i.total, daysOverdue }
+        return { id: i.id, clientId: i.client_id ?? '', clientName: i.clients?.name ?? '—', total: i.total, daysOverdue }
       }).sort((a, b) => b.daysOverdue - a.daysOverdue)
     )
 
@@ -602,25 +602,67 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── Overdue invoices alert ── */}
-      {overdueInvoices.length > 0 && (
-        <div style={{ marginBottom: '1.5rem', padding: '12px 16px', borderRadius: 8, background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.22)', display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
-          <AlertTriangle size={16} color="#ef4444" style={{ flexShrink: 0, marginTop: 2 }} />
-          <div style={{ flex: 1 }}>
-            <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#ef4444', marginBottom: '0.375rem' }}>
-              {overdueInvoices.length} overdue invoice{overdueInvoices.length !== 1 ? 's' : ''} — {formatMoney(overdueInvoices.reduce((s, i) => s + i.total, 0))} outstanding
-            </p>
-            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-              {overdueInvoices.map(inv => (
-                <Link key={inv.id} href={`/invoices/${inv.id}`} style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', textDecoration: 'none' }}>
-                  <strong>{inv.clientName}</strong> — {formatMoney(inv.total)}{inv.daysOverdue > 0 ? ` (+${inv.daysOverdue}d)` : ''}
+      {/* ── Overdue invoices alert — two tiers ── */}
+      {overdueInvoices.length > 0 && (() => {
+        const suspendTier = overdueInvoices.filter(i => i.daysOverdue >= 60)
+        const warnTier = overdueInvoices.filter(i => i.daysOverdue >= 30 && i.daysOverdue < 60)
+        const minorTier = overdueInvoices.filter(i => i.daysOverdue < 30)
+        return (
+          <div style={{ marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+            {suspendTier.length > 0 && (
+              <div style={{ padding: '12px 16px', borderRadius: 8, background: 'rgba(239,68,68,0.09)', border: '1px solid rgba(239,68,68,0.28)', display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                <AlertTriangle size={16} color="#ef4444" style={{ flexShrink: 0, marginTop: 2 }} />
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: '0.875rem', fontWeight: 700, color: '#ef4444', marginBottom: '0.375rem' }}>
+                    Suspension eligible — {suspendTier.length} invoice{suspendTier.length !== 1 ? 's' : ''} 60+ days overdue
+                  </p>
+                  <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    {suspendTier.map(inv => (
+                      <span key={inv.id} style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                        <Link href={`/clients/${inv.clientId}`} style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', textDecoration: 'none' }}>
+                          <strong>{inv.clientName}</strong> — {formatMoney(inv.total)} (+{inv.daysOverdue}d)
+                        </Link>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <Link href="/clients" className="btn btn-ghost btn-sm" style={{ flexShrink: 0, color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }}>
+                  Manage clients
                 </Link>
-              ))}
-            </div>
+              </div>
+            )}
+            {warnTier.length > 0 && (
+              <div style={{ padding: '12px 16px', borderRadius: 8, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                <AlertTriangle size={16} color="#f59e0b" style={{ flexShrink: 0, marginTop: 2 }} />
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#b45309', marginBottom: '0.375rem' }}>
+                    Warning overdue — {warnTier.length} invoice{warnTier.length !== 1 ? 's' : ''} 30–59 days overdue
+                  </p>
+                  <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    {warnTier.map(inv => (
+                      <Link key={inv.id} href={`/clients/${inv.clientId}`} style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', textDecoration: 'none' }}>
+                        <strong>{inv.clientName}</strong> — {formatMoney(inv.total)} (+{inv.daysOverdue}d)
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+                <Link href="/clients" className="btn btn-ghost btn-sm" style={{ flexShrink: 0 }}>
+                  Manage clients
+                </Link>
+              </div>
+            )}
+            {minorTier.length > 0 && (
+              <div style={{ padding: '12px 16px', borderRadius: 8, background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <AlertTriangle size={15} color="#ef4444" style={{ flexShrink: 0 }} />
+                <p style={{ fontSize: '0.875rem', flex: 1, color: 'var(--text-muted)' }}>
+                  <span style={{ fontWeight: 600, color: '#ef4444' }}>{minorTier.length} invoice{minorTier.length !== 1 ? 's' : ''}</span> overdue (under 30 days) — {formatMoney(minorTier.reduce((s, i) => s + i.total, 0))}
+                </p>
+                <Link href="/invoices" className="btn btn-ghost btn-sm" style={{ flexShrink: 0 }}>View invoices</Link>
+              </div>
+            )}
           </div>
-          <Link href="/invoices" className="btn btn-ghost btn-sm" style={{ flexShrink: 0 }}>View all</Link>
-        </div>
-      )}
+        )
+      })()}
 
       {/* ── Urgent tickets alert ── */}
       {urgentTicketCount > 0 && (
