@@ -106,6 +106,20 @@ function ManualEntryModal({ clients, entry, onClose, onSave }: {
   )
 }
 
+function dateGroupKey(iso: string) {
+  const d = new Date(iso)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function dateGroupLabel(key: string) {
+  const d = new Date(key + 'T00:00:00')
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1)
+  if (d.getTime() === today.getTime()) return 'Today'
+  if (d.getTime() === yesterday.getTime()) return 'Yesterday'
+  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
+}
+
 export default function TimesheetsPage() {
   const supabase = createClient()
   const [entries, setEntries] = useState<EntryRow[]>([])
@@ -115,6 +129,7 @@ export default function TimesheetsPage() {
   const [weekOffset, setWeekOffset] = useState(0)
   const [modal, setModal] = useState<{ open: boolean; entry?: EntryRow | null }>({ open: false })
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [clientFilter, setClientFilter] = useState('')
 
   const { start, end } = (() => {
     const base = new Date()
@@ -146,7 +161,7 @@ export default function TimesheetsPage() {
 
     const [{ data: entriesData }, { data: clientsData }] = await Promise.all([
       query,
-      supabase.from('clients').select('*').eq('status', 'active').order('name'),
+      supabase.from('clients').select('*').order('name'),
     ])
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setEntries((entriesData ?? []) as any[])
@@ -167,7 +182,7 @@ export default function TimesheetsPage() {
 
   function exportCSV() {
     const rows = [['Date', 'Client', 'Description', 'Clock In', 'Clock Out', 'Hours', 'Rate', 'Earnings']]
-    for (const e of entries.filter(e => e.clock_out)) {
+    for (const e of filteredEntries.filter(e => e.clock_out)) {
       const hours = calcDurationHours(e.clock_in, e.clock_out)
       const { total } = calcEarnings(hours, e.hourly_rate)
       rows.push([
@@ -188,12 +203,18 @@ export default function TimesheetsPage() {
     URL.revokeObjectURL(url)
   }
 
+  // Client filter
+  const clientsInEntries = [...new Map(
+    entries.map(e => [e.client_id, { id: e.client_id, name: e.clients?.name ?? e.client_id }])
+  ).values()]
+  const filteredEntries = clientFilter ? entries.filter(e => e.client_id === clientFilter) : entries
+
   // Aggregate by client
   type ClientSummary = { name: string; hours: number; regular: number; overtime: number; earnings: number }
   const byClient: Record<string, ClientSummary> = {}
   let totalHours = 0, totalEarnings = 0
 
-  for (const e of entries.filter(e => e.clock_out)) {
+  for (const e of filteredEntries.filter(e => e.clock_out)) {
     const hours = calcDurationHours(e.clock_in, e.clock_out)
     const { regular, overtime, total } = calcEarnings(hours, e.hourly_rate)
     const cname = e.clients?.name ?? 'Unknown'
@@ -206,7 +227,17 @@ export default function TimesheetsPage() {
     totalEarnings += total
   }
 
-  const summaries = Object.values(byClient)
+  const summaries = Object.values(byClient).sort((a, b) => b.earnings - a.earnings)
+  const maxClientEarnings = Math.max(...summaries.map(s => s.earnings), 1)
+
+  // Date-group entries
+  const dateGroupMap = new Map<string, EntryRow[]>()
+  for (const e of filteredEntries) {
+    const key = dateGroupKey(e.clock_in)
+    if (!dateGroupMap.has(key)) dateGroupMap.set(key, [])
+    dateGroupMap.get(key)!.push(e)
+  }
+  const dateGroups = [...dateGroupMap.entries()]
 
   function weekLabel() {
     const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
@@ -241,7 +272,7 @@ export default function TimesheetsPage() {
           {(['daily', 'weekly', 'all'] as ViewMode[]).map(v => (
             <button key={v} className="btn btn-ghost btn-sm"
               style={{ borderRadius: v === 'daily' ? 'var(--radius-full) 0 0 var(--radius-full)' : v === 'all' ? '0 var(--radius-full) var(--radius-full) 0' : '0', background: mode === v ? 'rgba(255,255,255,0.1)' : undefined, borderRight: v !== 'all' ? 'none' : undefined }}
-              onClick={() => setMode(v)}
+              onClick={() => { setMode(v); setWeekOffset(0) }}
             >
               {v === 'daily' ? 'Today' : v === 'weekly' ? 'Weekly' : 'All time'}
             </button>
@@ -255,10 +286,22 @@ export default function TimesheetsPage() {
             <button className="btn btn-ghost btn-sm" onClick={() => setWeekOffset(o => Math.max(0, o - 1))} disabled={weekOffset === 0}><ChevronRight size={14} /></button>
           </div>
         )}
+
+        {clientsInEntries.length > 1 && (
+          <select
+            className="input input-sm"
+            style={{ width: 'auto', fontSize: '0.8125rem', marginLeft: 'auto' }}
+            value={clientFilter}
+            onChange={e => setClientFilter(e.target.value)}
+          >
+            <option value="">All clients</option>
+            {clientsInEntries.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
       </div>
 
       {/* Summary cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
         <div className="stat-tile">
           <div className="stat-value">{formatHours(totalHours)}</div>
           <div className="stat-label">Total Hours</div>
@@ -268,7 +311,7 @@ export default function TimesheetsPage() {
           <div className="stat-label">Total Earnings</div>
         </div>
         <div className="stat-tile">
-          <div className="stat-value">{entries.filter(e => e.clock_out).length}</div>
+          <div className="stat-value">{filteredEntries.filter(e => e.clock_out).length}</div>
           <div className="stat-label">Sessions</div>
         </div>
         {summaries.length > 0 && (
@@ -279,13 +322,15 @@ export default function TimesheetsPage() {
         )}
       </div>
 
-      {/* By client */}
-      {summaries.length > 0 && (
+      {/* By client with progress bars */}
+      {summaries.length > 1 && (
         <div style={{ marginBottom: '2rem' }}>
           <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem' }}>By Client</h2>
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Client</th><th>Hours</th><th>Regular</th><th>Overtime</th><th>Earnings</th></tr></thead>
+              <thead>
+                <tr><th>Client</th><th>Hours</th><th>Regular</th><th>Overtime</th><th>Earnings</th><th style={{ width: 120 }}></th></tr>
+              </thead>
               <tbody>
                 {summaries.map(s => (
                   <tr key={s.name}>
@@ -294,6 +339,11 @@ export default function TimesheetsPage() {
                     <td style={{ color: 'var(--text-muted)' }}>{formatMoney(s.regular)}</td>
                     <td style={{ color: s.overtime > 0 ? 'var(--accent-amber, #f59e0b)' : 'var(--text-muted)' }}>{formatMoney(s.overtime)}</td>
                     <td style={{ fontWeight: 600 }}>{formatMoney(s.earnings)}</td>
+                    <td>
+                      <div style={{ height: 5, borderRadius: 3, background: 'var(--border)', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${(s.earnings / maxClientEarnings) * 100}%`, background: '#6366f1', borderRadius: 3 }} />
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -302,13 +352,14 @@ export default function TimesheetsPage() {
         </div>
       )}
 
-      {/* All entries */}
+      {/* Date-grouped entries */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
         <h2 style={{ fontSize: '1rem', fontWeight: 700 }}>Time Entries</h2>
       </div>
+
       {loading ? (
         <div style={{ textAlign: 'center', padding: '2rem' }}><span className="spinner" style={{ margin: '0 auto' }} /></div>
-      ) : entries.length === 0 ? (
+      ) : filteredEntries.length === 0 ? (
         <div className="empty-state">
           <p>No entries for this period.</p>
           <button className="btn btn-ghost" style={{ marginTop: '1rem' }} onClick={() => setModal({ open: true, entry: null })}>
@@ -319,33 +370,60 @@ export default function TimesheetsPage() {
         <div className="table-wrap">
           <table>
             <thead>
-              <tr><th>Date</th><th>Client</th><th>Description</th><th>In</th><th>Out</th><th>Hours</th><th>Rate</th><th>Earnings</th><th></th></tr>
+              <tr><th>Client</th><th>Description</th><th>In</th><th>Out</th><th>Hours</th><th>Rate</th><th>Earnings</th><th></th></tr>
             </thead>
             <tbody>
-              {entries.map(e => {
-                const hours = calcDurationHours(e.clock_in, e.clock_out)
-                const { total } = calcEarnings(hours, e.hourly_rate)
-                return (
-                  <tr key={e.id}>
-                    <td style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{new Date(e.clock_in).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</td>
-                    <td style={{ fontWeight: 500 }}>{e.clients?.name ?? '—'}</td>
-                    <td style={{ color: 'var(--text-muted)', fontSize: '0.8125rem', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.description ?? '—'}</td>
-                    <td style={{ color: 'var(--text-muted)' }}>{new Date(e.clock_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                    <td style={{ color: 'var(--text-muted)' }}>{e.clock_out ? new Date(e.clock_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : <span className="badge badge-green">active</span>}</td>
-                    <td>{formatHours(hours)}</td>
-                    <td style={{ color: 'var(--text-muted)' }}>{formatMoney(e.hourly_rate)}/hr</td>
-                    <td style={{ fontWeight: 600 }}>{e.clock_out ? formatMoney(total) : '—'}</td>
-                    <td>
-                      <div style={{ display: 'flex', gap: '0.25rem' }}>
-                        <button className="btn btn-ghost btn-sm" onClick={() => setModal({ open: true, entry: e })}><Pencil size={12} /></button>
-                        <button className="btn btn-ghost btn-sm" style={{ color: 'var(--text-muted)' }} onClick={() => deleteEntry(e.id)} disabled={deleting === e.id}>
-                          {deleting === e.id ? <span className="spinner" style={{ width: 12, height: 12 }} /> : <Trash2 size={12} />}
-                        </button>
+              {dateGroups.map(([dateKey, dayEntries]) => {
+                const dayHours = dayEntries.filter(e => e.clock_out).reduce((s, e) => s + calcDurationHours(e.clock_in, e.clock_out), 0)
+                const dayEarnings = dayEntries.filter(e => e.clock_out).reduce((s, e) => s + calcEarnings(calcDurationHours(e.clock_in, e.clock_out), e.hourly_rate).total, 0)
+                return [
+                  <tr key={`hdr-${dateKey}`} style={{ background: 'rgba(255,255,255,0.03)' }}>
+                    <td colSpan={8} style={{ padding: '0.5rem 1rem', borderBottom: 'none' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontWeight: 600, fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+                          {dateGroupLabel(dateKey)}
+                        </span>
+                        <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+                          {dayHours > 0 ? `${formatHours(dayHours)} · ${formatMoney(dayEarnings)}` : ''}
+                        </span>
                       </div>
                     </td>
-                  </tr>
-                )
+                  </tr>,
+                  ...dayEntries.map(e => {
+                    const hours = calcDurationHours(e.clock_in, e.clock_out)
+                    const { total } = calcEarnings(hours, e.hourly_rate)
+                    return (
+                      <tr key={e.id}>
+                        <td style={{ fontWeight: 500 }}>{e.clients?.name ?? '—'}</td>
+                        <td style={{ color: 'var(--text-muted)', fontSize: '0.8125rem', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.description ?? '—'}</td>
+                        <td style={{ color: 'var(--text-muted)' }}>{new Date(e.clock_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                        <td style={{ color: 'var(--text-muted)' }}>{e.clock_out ? new Date(e.clock_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : <span className="badge badge-green">active</span>}</td>
+                        <td>{formatHours(hours)}</td>
+                        <td style={{ color: 'var(--text-muted)' }}>{formatMoney(e.hourly_rate)}/hr</td>
+                        <td style={{ fontWeight: 600 }}>{e.clock_out ? formatMoney(total) : '—'}</td>
+                        <td>
+                          <div style={{ display: 'flex', gap: '0.25rem' }}>
+                            <button className="btn btn-ghost btn-sm" onClick={() => setModal({ open: true, entry: e })}><Pencil size={12} /></button>
+                            <button className="btn btn-ghost btn-sm" style={{ color: 'var(--text-muted)' }} onClick={() => deleteEntry(e.id)} disabled={deleting === e.id}>
+                              {deleting === e.id ? <span className="spinner" style={{ width: 12, height: 12 }} /> : <Trash2 size={12} />}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })
+                ]
               })}
+              {/* Total row */}
+              {filteredEntries.filter(e => e.clock_out).length > 0 && (
+                <tr style={{ background: 'rgba(255,255,255,0.03)', fontWeight: 700 }}>
+                  <td colSpan={4} style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Total</td>
+                  <td>{formatHours(totalHours)}</td>
+                  <td></td>
+                  <td style={{ fontWeight: 700 }}>{formatMoney(totalEarnings)}</td>
+                  <td></td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
