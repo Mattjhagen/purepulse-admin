@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getStripe } from '@/lib/stripe'
+import { generatePortalLink } from '@/lib/portal-auth-link'
 import { Resend } from 'resend'
 import type Stripe from 'stripe'
 
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest) {
 
     const { data: contract } = await supabase
       .from('contracts')
-      .select('id, plan, clients(name, email)')
+      .select('id, plan, client_id, clients(name, email)')
       .eq('id', contractId)
       .single()
 
@@ -102,19 +103,16 @@ export async function POST(req: NextRequest) {
     }
 
     if (client?.email) {
-      // Generate portal signup link
-      let portalSignupUrl = 'https://login.purepulse.one/portal'
+      // Generate a portal sign-in link and link the account to this client record
+      let portalSignupUrl = `${appUrl}/portal`
       try {
-        const { data: linkData } = await supabase.auth.admin.generateLink({
-          type: 'invite',
-          email: client.email,
-          options: {
-            redirectTo: 'https://login.purepulse.one/portal',
-            data: { full_name: client.name, role: 'client' },
-          },
-        })
-        if (linkData?.properties?.action_link) {
-          portalSignupUrl = linkData.properties.action_link
+        const link = await generatePortalLink(supabase, client.email, { clientId: contract.client_id, appUrl })
+        if (link) {
+          portalSignupUrl = link.url
+          await supabase.from('portal_users').upsert(
+            { auth_user_id: link.userId, client_id: contract.client_id, email: client.email },
+            { onConflict: 'auth_user_id' }
+          )
         }
       } catch (err) {
         console.error('[stripe webhook] portal signup link error:', err)
