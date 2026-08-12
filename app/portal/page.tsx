@@ -201,7 +201,7 @@ export default function CustomerPortalPage() {
           .from('deliverables')
           .select('id,milestone_id,title,type,platform,status,ai_content,final_content,client_notes,revision_count,created_at')
           .in('milestone_id', milestoneIds)
-          .not('status', 'in', '("draft","archived")')
+          .in('status', ['in_review', 'revision_requested', 'approved', 'scheduled', 'published'])
           .order('created_at')
 
         for (const d of delivs ?? []) {
@@ -525,7 +525,7 @@ export default function CustomerPortalPage() {
     return <Circle size={20} style={{ opacity: 0.3 }} />
   }
 
-  const pendingReviewCount = campaigns.flatMap(c => c.milestones.flatMap(m => m.deliverables)).filter(d => d.status === 'ai_generated' || d.status === 'in_review').length
+  const pendingReviewCount = campaigns.flatMap(c => c.milestones.flatMap(m => m.deliverables)).filter(d => d.status === 'in_review').length
 
   if (!session) {
     return (
@@ -666,7 +666,7 @@ export default function CustomerPortalPage() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                       {campaign.milestones.map((milestone, mi) => {
                         const isExpanded = expandedMilestones.has(milestone.id)
-                        const deliverablesPending = milestone.deliverables.filter(d => d.status === 'ai_generated' || d.status === 'in_review').length
+                        const deliverablesPending = milestone.deliverables.filter(d => d.status === 'in_review').length
 
                         return (
                           <div key={milestone.id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
@@ -714,7 +714,7 @@ export default function CustomerPortalPage() {
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                     {milestone.deliverables.map(d => {
                                       const statusStyle = deliverableStatusColor(d.status)
-                                      const canReview = d.status === 'ai_generated' || d.status === 'in_review'
+                                      const canReview = d.status === 'in_review'
                                       const isProcessing = submittingApproval === d.id
 
                                       return (
