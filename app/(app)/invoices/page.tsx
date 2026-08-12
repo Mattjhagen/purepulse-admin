@@ -4,11 +4,35 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { Client, InvoiceStatus } from '@/lib/types'
 import { formatDate, formatMoney, statusBadgeClass, generateInvoiceNumber } from '@/lib/utils'
-import { Plus, Search, X, Send, Link2, CheckCircle, AlertCircle, Clock, DollarSign, Eye, Zap, FileText, TrendingUp } from 'lucide-react'
+import {
+  Plus, Search, X, Send, Link2, CheckCircle, AlertCircle, Clock,
+  DollarSign, Eye, Zap, FileText, TrendingUp, ChevronDown, Filter,
+} from 'lucide-react'
 import Link from 'next/link'
 
 const PLAN_PRICES: Record<string, number> = { starter: 20, growth: 50, premium: 75, business: 100 }
 const STATUSES: InvoiceStatus[] = ['draft', 'sent', 'viewed', 'paid', 'overdue', 'void']
+
+// ─── Mini bar chart ───────────────────────────────────────────────────────────
+
+function MiniBarChart({ data }: { data: { label: string; value: number }[] }) {
+  const max = Math.max(...data.map(d => d.value), 1)
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', height: 48 }}>
+      {data.map((d) => (
+        <div key={d.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
+          <div style={{
+            width: '100%',
+            height: `${Math.max((d.value / max) * 36, d.value > 0 ? 3 : 0)}px`,
+            background: d.value > 0 ? '#7B2FFF' : 'rgba(255,255,255,0.06)',
+            borderRadius: '3px 3px 0 0',
+          }} />
+          <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)', marginTop: '3px', whiteSpace: 'nowrap' }}>{d.label}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 // ─── New Invoice Modal ────────────────────────────────────────────────────────
 
@@ -195,22 +219,41 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [clientFilter, setClientFilter] = useState<string>('all')
   const [modal, setModal] = useState(false)
   const [bulkModal, setBulkModal] = useState(false)
   const [sendingId, setSendingId] = useState<string | null>(null)
   const [sentId, setSentId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [markingPaidId, setMarkingPaidId] = useState<string | null>(null)
+  const [revenueByMonth, setRevenueByMonth] = useState<{ label: string; value: number }[]>([])
 
   const load = useCallback(async () => {
     setLoading(true)
     const [invRes, clientsRes] = await Promise.all([
-      supabase.from('invoices').select('*, clients(name, email)').order('created_at', { ascending: false }),
+      supabase.from('invoices').select('*, clients(id, name, email)').order('created_at', { ascending: false }),
       supabase.from('clients').select('*').eq('status', 'active').order('name'),
     ])
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    setInvoices((invRes.data ?? []) as any[])
+    const allInvoices = (invRes.data ?? []) as any[]
+    setInvoices(allInvoices)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setClients((clientsRes.data ?? []) as any[])
+
+    // Build 6-month revenue chart from paid invoices
+    const now = new Date()
+    const months: { label: string; value: number }[] = []
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      const label = d.toLocaleString('default', { month: 'short' })
+      const value = allInvoices
+        .filter(inv => inv.status === 'paid' && inv.paid_at && inv.paid_at.startsWith(key))
+        .reduce((s, inv) => s + (inv.total ?? 0), 0)
+      months.push({ label, value })
+    }
+    setRevenueByMonth(months)
+
     setLoading(false)
   }, [supabase])
 
@@ -240,6 +283,20 @@ export default function InvoicesPage() {
     }
   }
 
+  async function quickMarkPaid(invId: string) {
+    setMarkingPaidId(invId)
+    try {
+      await supabase.from('invoices').update({
+        status: 'paid',
+        paid_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq('id', invId)
+      await load()
+    } finally {
+      setMarkingPaidId(null)
+    }
+  }
+
   function copyLink(inv: typeof invoices[0]) {
     navigator.clipboard.writeText(inv.stripe_payment_link)
     setCopiedId(inv.id)
@@ -247,9 +304,13 @@ export default function InvoicesPage() {
   }
 
   const filtered = invoices.filter(i => {
-    const matchSearch = search === '' || i.invoice_number.toLowerCase().includes(search.toLowerCase()) || (i.clients?.name ?? '').toLowerCase().includes(search.toLowerCase())
+    const client = Array.isArray(i.clients) ? i.clients[0] : i.clients
+    const matchSearch = search === '' ||
+      i.invoice_number.toLowerCase().includes(search.toLowerCase()) ||
+      (client?.name ?? '').toLowerCase().includes(search.toLowerCase())
     const matchStatus = statusFilter === 'all' || i.status === statusFilter
-    return matchSearch && matchStatus
+    const matchClient = clientFilter === 'all' || (client?.id ?? '') === clientFilter
+    return matchSearch && matchStatus && matchClient
   })
 
   // Stats
@@ -261,6 +322,14 @@ export default function InvoicesPage() {
   const overdueCount = invoices.filter(i => i.status === 'overdue').length
   const viewedCount = invoices.filter(i => i.status === 'viewed').length
   const draftCount = invoices.filter(i => i.status === 'draft').length
+
+  // Clients with invoices for the filter dropdown
+  const clientsWithInvoices = clients.filter(c =>
+    invoices.some(i => {
+      const ic = Array.isArray(i.clients) ? i.clients[0] : i.clients
+      return ic?.id === c.id
+    })
+  )
 
   return (
     <>
@@ -281,15 +350,19 @@ export default function InvoicesPage() {
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Stats + revenue chart */}
       {!loading && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-          <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+          <div
+            className="card"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', cursor: 'pointer' }}
+            onClick={() => setStatusFilter('all')}
+          >
             <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(245,158,11,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <Clock size={18} color="#f59e0b" />
             </div>
             <div>
-              <p style={{ fontSize: '1.25rem', fontWeight: 800, lineHeight: 1 }}>{formatMoney(outstanding)}</p>
+              <p style={{ fontSize: '1.125rem', fontWeight: 800, lineHeight: 1 }}>{formatMoney(outstanding)}</p>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Outstanding</p>
             </div>
           </div>
@@ -298,7 +371,7 @@ export default function InvoicesPage() {
               <DollarSign size={18} color="#22c55e" />
             </div>
             <div>
-              <p style={{ fontSize: '1.25rem', fontWeight: 800, lineHeight: 1 }}>{formatMoney(paidThisMonth)}</p>
+              <p style={{ fontSize: '1.125rem', fontWeight: 800, lineHeight: 1 }}>{formatMoney(paidThisMonth)}</p>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Paid this month</p>
             </div>
           </div>
@@ -307,46 +380,83 @@ export default function InvoicesPage() {
               <TrendingUp size={18} color="#6366f1" />
             </div>
             <div>
-              <p style={{ fontSize: '1.25rem', fontWeight: 800, lineHeight: 1 }}>{formatMoney(allTimePaid)}</p>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>All-time collected</p>
+              <p style={{ fontSize: '1.125rem', fontWeight: 800, lineHeight: 1 }}>{formatMoney(allTimePaid)}</p>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>All-time</p>
             </div>
           </div>
-          <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+          <div
+            className="card"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', cursor: overdueCount > 0 ? 'pointer' : 'default' }}
+            onClick={() => overdueCount > 0 && setStatusFilter('overdue')}
+          >
             <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(239,68,68,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <AlertCircle size={18} color="#ef4444" />
             </div>
             <div>
-              <p style={{ fontSize: '1.25rem', fontWeight: 800, lineHeight: 1 }}>{overdueCount}</p>
+              <p style={{ fontSize: '1.125rem', fontWeight: 800, lineHeight: 1, color: overdueCount > 0 ? '#ef4444' : undefined }}>{overdueCount}</p>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Overdue</p>
             </div>
           </div>
-          <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+          <div
+            className="card"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', cursor: viewedCount > 0 ? 'pointer' : 'default' }}
+            onClick={() => viewedCount > 0 && setStatusFilter('viewed')}
+          >
             <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(99,102,241,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <Eye size={18} color="#6366f1" />
             </div>
             <div>
-              <p style={{ fontSize: '1.25rem', fontWeight: 800, lineHeight: 1 }}>{viewedCount}</p>
+              <p style={{ fontSize: '1.125rem', fontWeight: 800, lineHeight: 1 }}>{viewedCount}</p>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Viewed, unpaid</p>
             </div>
           </div>
-          <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+          <div
+            className="card"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', cursor: draftCount > 0 ? 'pointer' : 'default' }}
+            onClick={() => draftCount > 0 && setStatusFilter('draft')}
+          >
             <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(148,163,184,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <FileText size={18} color="#94a3b8" />
             </div>
             <div>
-              <p style={{ fontSize: '1.25rem', fontWeight: 800, lineHeight: 1 }}>{draftCount}</p>
+              <p style={{ fontSize: '1.125rem', fontWeight: 800, lineHeight: 1 }}>{draftCount}</p>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Drafts</p>
             </div>
           </div>
+          {/* Revenue chart tile */}
+          {revenueByMonth.some(m => m.value > 0) && (
+            <div className="card" style={{ gridColumn: 'span 2', minWidth: 0 }}>
+              <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Collected — last 6 months</p>
+              <MiniBarChart data={revenueByMonth} />
+            </div>
+          )}
         </div>
       )}
 
       {/* Filters */}
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ position: 'relative', flex: '1 1 240px', maxWidth: '360px' }}>
+        <div style={{ position: 'relative', flex: '1 1 200px', maxWidth: '320px' }}>
           <Search size={16} style={{ position: 'absolute', left: '0.875rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
           <input className="input" style={{ paddingLeft: '2.5rem' }} placeholder="Search invoices…" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
+
+        {/* Client filter */}
+        {clientsWithInvoices.length > 0 && (
+          <div style={{ position: 'relative' }}>
+            <Filter size={13} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+            <ChevronDown size={13} style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+            <select
+              className="input"
+              style={{ paddingLeft: '2.25rem', paddingRight: '2rem', appearance: 'none', minWidth: 160, fontSize: '0.875rem' }}
+              value={clientFilter}
+              onChange={e => setClientFilter(e.target.value)}
+            >
+              <option value="all">All clients</option>
+              {clientsWithInvoices.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
           {['all', ...STATUSES].map(s => (
             <button
@@ -380,17 +490,23 @@ export default function InvoicesPage() {
                 const isSending = sendingId === inv.id
                 const wasSent = sentId === inv.id
                 const wasCopied = copiedId === inv.id
+                const isMarkingPaid = markingPaidId === inv.id
                 const canSend = ['draft', 'sent', 'overdue', 'viewed'].includes(inv.status) && inv.total > 0
+                const canMarkPaid = ['sent', 'overdue', 'viewed'].includes(inv.status)
                 const isOverdue = inv.status === 'overdue'
                 const overduedays = isOverdue ? daysOverdue(inv.due_date) : 0
                 return (
                   <tr key={inv.id}>
-                    <td style={{ fontFamily: 'monospace', fontSize: '0.875rem', color: 'var(--text-muted)' }}>{inv.invoice_number}</td>
-                    <td style={{ fontWeight: 500 }}>{client?.name ?? '—'}</td>
-                    <td style={{ color: 'var(--text-muted)' }}>{formatDate(inv.issue_date)}</td>
+                    <td style={{ fontFamily: 'monospace', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>{inv.invoice_number}</td>
+                    <td>
+                      <Link href={`/clients/${client?.id}`} style={{ fontWeight: 500, color: 'inherit', textDecoration: 'none' }}>
+                        {client?.name ?? '—'}
+                      </Link>
+                    </td>
+                    <td style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{formatDate(inv.issue_date)}</td>
                     <td>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem' }}>
-                        <span style={{ color: isOverdue ? '#ef4444' : 'var(--text-muted)', fontWeight: isOverdue ? 600 : undefined }}>{formatDate(inv.due_date)}</span>
+                        <span style={{ color: isOverdue ? '#ef4444' : 'var(--text-muted)', fontWeight: isOverdue ? 600 : undefined, fontSize: '0.875rem' }}>{formatDate(inv.due_date)}</span>
                         {isOverdue && overduedays > 0 && (
                           <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: 700, letterSpacing: '0.03em' }}>+{overduedays}d overdue</span>
                         )}
@@ -401,6 +517,17 @@ export default function InvoicesPage() {
                     <td>
                       <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
                         <Link href={`/invoices/${inv.id}`} className="btn btn-ghost btn-sm">View</Link>
+                        {canMarkPaid && (
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            title="Mark as paid"
+                            onClick={() => quickMarkPaid(inv.id)}
+                            disabled={isMarkingPaid}
+                            style={{ color: '#22c55e', borderColor: 'rgba(34,197,94,0.3)' }}
+                          >
+                            {isMarkingPaid ? <span className="spinner" style={{ width: 12, height: 12 }} /> : <CheckCircle size={13} />}
+                          </button>
+                        )}
                         {inv.stripe_payment_link && inv.status !== 'paid' && (
                           <button
                             className="btn btn-ghost btn-sm"
