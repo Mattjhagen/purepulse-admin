@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
       let portalSignupUrl = 'https://login.purepulse.one/portal'
       try {
         const { data: linkData } = await supabase.auth.admin.generateLink({
-          type: 'signup',
+          type: 'invite',
           email: client.email,
           options: {
             redirectTo: 'https://login.purepulse.one/portal',
