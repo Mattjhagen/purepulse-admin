@@ -26,6 +26,7 @@ export interface Client {
   hourly_rate: number
   status: ClientStatus
   notes?: string
+  referral_code?: string | null
   created_at: string
   updated_at: string
 }

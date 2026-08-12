@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { getStripe } from '@/lib/stripe'
+import { getStripe, PLAN_CENTS } from '@/lib/stripe'
 import { generatePortalLink } from '@/lib/portal-auth-link'
 import { Resend } from 'resend'
 import type Stripe from 'stripe'
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
 
     const { data: contract } = await supabase
       .from('contracts')
-      .select('id, plan, client_id, clients(name, email)')
+      .select('id, plan, client_id, clients(name, email, referral_code)')
       .eq('id', contractId)
       .single()
 
@@ -86,6 +86,63 @@ export async function POST(req: NextRequest) {
       await bootstrapCampaign(supabase, contractId, contract.client_id, client?.name ?? 'Client', contract.plan as Plan)
     } catch (err) {
       console.error('[stripe webhook] campaign bootstrap threw:', err)
+    }
+
+    // Auto-record a referral commission if this client was attributed to one.
+    // Commission = the plan's recurring monthly rate (the "first payment" is
+    // deposit + first month combined; this is that first payment minus the
+    // deposit portion).
+    if (client?.referral_code) {
+      try {
+        const { data: referral } = await supabase
+          .from('referrals')
+          .select('id, name, conversions, total_earned')
+          .eq('code', client.referral_code)
+          .eq('active', true)
+          .maybeSingle()
+
+        if (referral) {
+          const commission = (PLAN_CENTS[contract.plan as Plan] ?? 0) / 100
+
+          await supabase.from('referral_clicks').insert({
+            referral_id: referral.id,
+            converted: true,
+            converted_at: new Date().toISOString(),
+            client_name: client.name,
+            plan: contract.plan,
+          })
+
+          await supabase.from('referrals').update({
+            conversions: referral.conversions + 1,
+            total_earned: referral.total_earned + commission,
+            updated_at: new Date().toISOString(),
+          }).eq('id', referral.id)
+
+          try {
+            const { error: refEmailErr } = await resend.emails.send({
+              from: 'PurePulse Leads <matty@purepulse.one>',
+              to: 'matty@purepulse.one',
+              subject: `🎉 Referral commission earned — ${referral.name}`,
+              html: `
+                <div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;padding:32px 24px;color:#111;">
+                  <h2 style="margin:0 0 16px;">Referral commission earned</h2>
+                  <p style="color:#555;margin:0 0 8px;"><strong>${client.name}</strong> signed up on the <strong>${contract.plan}</strong> plan via <strong>${referral.name}</strong>'s referral link (code ${client.referral_code}).</p>
+                  <p style="color:#555;margin:0 0 24px;">Commission owed: <strong>$${commission.toFixed(2)}</strong></p>
+                  <a href="${appUrl}/referrals"
+                     style="display:inline-block;background:#111;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">
+                    View Referrals →
+                  </a>
+                </div>
+              `,
+            })
+            if (refEmailErr) console.error('[stripe webhook] referral email error:', refEmailErr)
+          } catch (err) {
+            console.error('[stripe webhook] referral email threw:', err)
+          }
+        }
+      } catch (err) {
+        console.error('[stripe webhook] referral commission error:', err)
+      }
     }
 
     try {

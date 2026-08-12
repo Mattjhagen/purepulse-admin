@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
   const origin = request.headers.get('origin')
 
   try {
-    const { name, email, project, plan } = await request.json()
+    const { name, email, project, plan, referral_code } = await request.json()
 
     if (!name?.trim() || !email?.trim()) {
       return NextResponse.json({ error: 'Name and email are required.' }, { status: 400, headers: cors(origin) })
@@ -34,11 +34,25 @@ export async function POST(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
+    // Only attribute to a referral code that actually exists and is active —
+    // a bad/stale ref param shouldn't block the lead or attribute to nothing.
+    let referralCode: string | null = null
+    if (referral_code?.trim()) {
+      const { data: referral } = await supabase
+        .from('referrals')
+        .select('code')
+        .eq('code', referral_code.trim().toUpperCase())
+        .eq('active', true)
+        .maybeSingle()
+      referralCode = referral?.code ?? null
+    }
+
     const { error } = await supabase.from('leads').insert({
       name: name.trim(),
       email: email.trim(),
       project: project?.trim() || null,
       plan: plan || null,
+      referral_code: referralCode,
     })
 
     if (error) throw error

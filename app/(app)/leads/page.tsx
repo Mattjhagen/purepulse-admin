@@ -13,6 +13,7 @@ type Lead = {
   source: string | null
   project: string | null
   notes: string | null
+  referral_code: string | null
   created_at: string
 }
 
@@ -139,6 +140,7 @@ export default function LeadsPage() {
       phone: selected.phone,
       plan: selected.plan ?? 'starter',
       status: 'prospect',
+      referral_code: selected.referral_code,
     })
     await moveLead(selected.id, 'converted')
     setSelectedId(null)

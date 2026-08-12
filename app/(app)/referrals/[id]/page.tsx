@@ -5,7 +5,7 @@ import { formatDate, formatMoney } from '@/lib/utils'
 import {
   ChevronLeft, Gift, MousePointer, CheckCircle, DollarSign,
   Edit3, Save, X, AlertTriangle, Printer, Copy, ToggleLeft, ToggleRight,
-  TrendingUp
+  TrendingUp, Landmark
 } from 'lucide-react'
 import Link from 'next/link'
 import { use } from 'react'
@@ -16,6 +16,7 @@ type Referral = {
   code: string; clicks: number; conversions: number
   commission_per_conversion: number; total_earned: number; total_paid: number
   notes: string | null; active: boolean; created_at: string; updated_at: string
+  stripe_account_id: string | null; stripe_payouts_enabled: boolean
 }
 
 type Click = {
@@ -119,6 +120,10 @@ export default function ReferralDetailPage({ params }: { params: Promise<{ id: s
   const [showPay, setShowPay] = useState(false)
   const [copied, setCopied] = useState(false)
   const [qrError, setQrError] = useState(false)
+  const [connecting, setConnecting] = useState(false)
+  const [connectMsg, setConnectMsg] = useState('')
+  const [payingViaStripe, setPayingViaStripe] = useState(false)
+  const [payoutError, setPayoutError] = useState('')
 
   const load = useCallback(async () => {
     const [{ data: r }, { data: c }] = await Promise.all([
@@ -176,6 +181,47 @@ export default function ReferralDetailPage({ params }: { params: Promise<{ id: s
     })
     await load()
     setShowConversion(false)
+  }
+
+  async function sendConnectLink() {
+    setConnecting(true)
+    setConnectMsg('')
+    try {
+      const res = await fetch(`/api/referrals/${id}/connect`, { method: 'POST' })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error ?? 'Failed to create payout setup link.')
+      setConnectMsg(result.emailed ? 'Setup link emailed to them.' : 'Setup link created — copy it from their email, or share it directly.')
+      if (!result.emailed && result.url) {
+        navigator.clipboard.writeText(result.url)
+        setConnectMsg('No email on file — link copied to your clipboard instead.')
+      }
+      await load()
+    } catch (err) {
+      setConnectMsg(err instanceof Error ? err.message : 'Failed to create payout setup link.')
+    } finally {
+      setConnecting(false)
+    }
+  }
+
+  async function payViaStripe() {
+    if (!referral || owed <= 0) return
+    if (!confirm(`Send ${formatMoney(owed)} to ${referral.name} via Stripe?`)) return
+    setPayingViaStripe(true)
+    setPayoutError('')
+    try {
+      const res = await fetch(`/api/referrals/${id}/payout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: owed }),
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error ?? 'Payout failed.')
+      await load()
+    } catch (err) {
+      setPayoutError(err instanceof Error ? err.message : 'Payout failed.')
+    } finally {
+      setPayingViaStripe(false)
+    }
   }
 
   async function markPaid(amount: number) {
@@ -242,9 +288,21 @@ export default function ReferralDetailPage({ params }: { params: Promise<{ id: s
           <TrendingUp size={14} /> Record signup
         </button>
 
+        {referral.stripe_payouts_enabled ? (
+          owed > 0 && (
+            <button className="btn btn-primary" onClick={payViaStripe} disabled={payingViaStripe}>
+              {payingViaStripe ? <span className="spinner" /> : <><Landmark size={14} /> Pay {formatMoney(owed)} via Stripe</>}
+            </button>
+          )
+        ) : (
+          <button className="btn btn-ghost" onClick={sendConnectLink} disabled={connecting}>
+            {connecting ? <span className="spinner" /> : <><Landmark size={14} /> {referral.stripe_account_id ? 'Resend payout setup link' : 'Set up payouts'}</>}
+          </button>
+        )}
+
         {owed > 0 && (
-          <button className="btn btn-primary" onClick={() => setShowPay(true)}>
-            <DollarSign size={14} /> Pay {formatMoney(owed)}
+          <button className="btn btn-ghost" onClick={() => setShowPay(true)}>
+            <DollarSign size={14} /> Mark {formatMoney(owed)} paid manually
           </button>
         )}
 
@@ -252,6 +310,12 @@ export default function ReferralDetailPage({ params }: { params: Promise<{ id: s
           {referral.active ? <><ToggleRight size={14} color="#22c55e" /> Active</> : <><ToggleLeft size={14} /> Inactive</>}
         </button>
       </div>
+
+      {(connectMsg || payoutError) && (
+        <div className="no-print" style={{ marginTop: '-1.25rem', marginBottom: '1.5rem', fontSize: '0.8125rem', color: payoutError ? '#ef4444' : 'var(--text-muted)' }}>
+          {payoutError || connectMsg}
+        </div>
+      )}
 
       {/* Stats */}
       <div className="no-print" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
