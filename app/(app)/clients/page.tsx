@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Client, Plan, PLAN_PRICES } from '@/lib/types'
 import { formatDate, formatMoney, planBadgeClass, planLabel, statusBadgeClass } from '@/lib/utils'
-import { Plus, Search, X } from 'lucide-react'
+import { Plus, Search, X, Link2, Check } from 'lucide-react'
 import Link from 'next/link'
 
 const PLANS: Plan[] = ['starter', 'growth', 'premium', 'business']
@@ -105,18 +105,40 @@ function ClientModal({ client, onClose, onSave }: {
 export default function ClientsPage() {
   const supabase = createClient()
   const [clients, setClients] = useState<Client[]>([])
+  const [linkedClientIds, setLinkedClientIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [modal, setModal] = useState<{ open: boolean; client?: Client | null }>({ open: false })
+  const [inviting, setInviting] = useState<Set<string>>(new Set())
+  const [inviteError, setInviteError] = useState<{ id: string; message: string } | null>(null)
 
   async function load() {
     setLoading(true)
-    const { data } = await supabase.from('clients').select('*').order('name')
+    const [{ data }, { data: portalUsers }] = await Promise.all([
+      supabase.from('clients').select('*').order('name'),
+      supabase.from('portal_users').select('client_id'),
+    ])
     setClients(data ?? [])
+    setLinkedClientIds(new Set((portalUsers ?? []).map(pu => pu.client_id).filter(Boolean)))
     setLoading(false)
   }
 
   useEffect(() => { load() }, [])
+
+  async function invitePortal(clientId: string) {
+    setInviteError(null)
+    setInviting(prev => new Set(prev).add(clientId))
+    try {
+      const res = await fetch(`/api/clients/${clientId}/portal-invite`, { method: 'POST' })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error ?? 'Failed to link portal access.')
+      setLinkedClientIds(prev => new Set(prev).add(clientId))
+    } catch (err) {
+      setInviteError({ id: clientId, message: err instanceof Error ? err.message : 'Failed to link portal access.' })
+    } finally {
+      setInviting(prev => { const next = new Set(prev); next.delete(clientId); return next })
+    }
+  }
 
   const filtered = clients.filter(c =>
     search === '' ||
@@ -163,6 +185,7 @@ export default function ClientsPage() {
                 <th>Plan</th>
                 <th>Hourly Rate</th>
                 <th>Status</th>
+                <th>Portal</th>
                 <th>Since</th>
                 <th></th>
               </tr>
@@ -179,6 +202,20 @@ export default function ClientsPage() {
                   <td><span className={planBadgeClass(c.plan)}>{planLabel(c.plan)} — {formatMoney(PLAN_PRICES[c.plan])}/mo</span></td>
                   <td>{formatMoney(c.hourly_rate)}/hr</td>
                   <td><span className={statusBadgeClass(c.status)}>{c.status}</span></td>
+                  <td>
+                    {linkedClientIds.has(c.id) ? (
+                      <span className="badge badge-green"><Check size={12} /> Linked</span>
+                    ) : (
+                      <div>
+                        <button className="btn btn-ghost btn-sm" disabled={inviting.has(c.id)} onClick={() => invitePortal(c.id)}>
+                          {inviting.has(c.id) ? <span className="spinner" /> : <><Link2 size={13} /> Invite</>}
+                        </button>
+                        {inviteError?.id === c.id && (
+                          <p className="error-msg" style={{ fontSize: '0.75rem', marginTop: '0.25rem', maxWidth: '160px' }}>{inviteError.message}</p>
+                        )}
+                      </div>
+                    )}
+                  </td>
                   <td style={{ color: 'var(--text-muted)' }}>{formatDate(c.created_at)}</td>
                   <td>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
