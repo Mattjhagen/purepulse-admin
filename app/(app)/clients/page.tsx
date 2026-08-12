@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Client, Plan, PLAN_PRICES } from '@/lib/types'
 import { formatDate, formatMoney, planBadgeClass, planLabel, statusBadgeClass } from '@/lib/utils'
-import { Plus, Search, X, CheckCircle, Users, TrendingUp, UserCheck, UserX } from 'lucide-react'
+import { Plus, Search, X, CheckCircle, Users, TrendingUp, UserCheck, UserX, Ban } from 'lucide-react'
 import Link from 'next/link'
 
 const PLANS: Plan[] = ['starter', 'growth', 'premium', 'business']
@@ -240,7 +240,10 @@ export default function ClientsPage() {
                     <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginLeft: '0.375rem' }}>{formatMoney(PLAN_PRICES[c.plan])}/mo</span>
                   </td>
                   <td style={{ color: 'var(--text-muted)' }}>{formatMoney(c.hourly_rate)}/hr</td>
-                  <td><span className={statusBadgeClass(c.status)}>{c.status}</span></td>
+                  <td>
+                    <span className={statusBadgeClass(c.status)}>{c.status}</span>
+                    {c.suspended && <span className="badge badge-red" style={{ marginLeft: '0.375rem' }}><Ban size={10} style={{ marginRight: 2 }} />Suspended</span>}
+                  </td>
                   <td>
                     {linkedClientIds.has(c.id)
                       ? <span className="badge badge-green"><CheckCircle size={11} style={{ marginRight: 3 }} />Linked</span>

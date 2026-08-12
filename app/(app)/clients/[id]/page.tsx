@@ -6,7 +6,7 @@ import { formatDate, formatMoney, planBadgeClass, planLabel, statusBadgeClass } 
 import {
   ChevronLeft, Edit3, Save, X, Mail, Phone, Building2, Clock,
   FileText, Receipt, Ticket, MessageCircle, CheckCircle, Link2,
-  AlertCircle, DollarSign
+  AlertCircle, DollarSign, Ban, AlertTriangle, ShieldOff
 } from 'lucide-react'
 import Link from 'next/link'
 import { use } from 'react'
@@ -104,6 +104,8 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   const [editing, setEditing] = useState(false)
   const [inviting, setInviting] = useState(false)
   const [inviteMsg, setInviteMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+  const [actionLoading, setActionLoading] = useState<'warn' | 'suspend' | 'unsuspend' | null>(null)
+  const [actionMsg, setActionMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -145,6 +147,45 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
     }
   }
 
+  async function sendWarning() {
+    setActionLoading('warn'); setActionMsg(null)
+    try {
+      const res = await fetch(`/api/clients/${id}/warn`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed')
+      setActionMsg({ type: 'ok', text: `Warning email sent (${data.invoiceCount} invoice${data.invoiceCount !== 1 ? 's' : ''}, total ${formatMoney(data.totalOwed)}).` })
+      load()
+    } catch (err) {
+      setActionMsg({ type: 'err', text: err instanceof Error ? err.message : 'Failed' })
+    } finally { setActionLoading(null) }
+  }
+
+  async function suspendClient() {
+    setActionLoading('suspend'); setActionMsg(null)
+    try {
+      const res = await fetch(`/api/clients/${id}/suspend`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed')
+      setActionMsg({ type: 'ok', text: `Client suspended. Suspension email sent.` })
+      load()
+    } catch (err) {
+      setActionMsg({ type: 'err', text: err instanceof Error ? err.message : 'Failed' })
+    } finally { setActionLoading(null) }
+  }
+
+  async function unsuspendClient() {
+    setActionLoading('unsuspend'); setActionMsg(null)
+    try {
+      const res = await fetch(`/api/clients/${id}/suspend`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed')
+      setActionMsg({ type: 'ok', text: 'Client access restored.' })
+      load()
+    } catch (err) {
+      setActionMsg({ type: 'err', text: err instanceof Error ? err.message : 'Failed' })
+    } finally { setActionLoading(null) }
+  }
+
   if (loading) return <div style={{ textAlign: 'center', padding: '4rem' }}><span className="spinner" style={{ margin: '0 auto' }} /></div>
   if (!client) return <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>Client not found.</div>
 
@@ -159,6 +200,14 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
     return s + (new Date(e.clock_out).getTime() - new Date(e.clock_in).getTime()) / 3_600_000
   }, 0)
   const activeContract = contracts.find(c => ['signed', 'active'].includes(c.status))
+  const overdueInvoices = invoices.filter(i => i.status === 'overdue')
+  const overdueTotal = overdueInvoices.reduce((s, i) => s + (i.total ?? 0), 0)
+  const maxDaysOverdue = overdueInvoices.reduce((max, i) => {
+    const d = Math.floor((now.getTime() - new Date(i.due_date).getTime()) / 86_400_000)
+    return Math.max(max, d)
+  }, 0)
+  const canWarn = overdueInvoices.length > 0 && !client.suspended
+  const canSuspend = maxDaysOverdue >= 60 && !client.suspended
 
   return (
     <>
@@ -167,6 +216,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
         <Link href="/clients" className="btn btn-ghost btn-sm"><ChevronLeft size={14} /> Clients</Link>
         <span className={statusBadgeClass(client.status)}>{client.status}</span>
         <span className={planBadgeClass(client.plan)}>{planLabel(client.plan)}</span>
+        {client.suspended && <span className="badge badge-red"><Ban size={11} style={{ marginRight: 3 }} />Suspended</span>}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.625rem', flexWrap: 'wrap' }}>
           {!portalLinked ? (
             <button className="btn btn-ghost btn-sm" onClick={invitePortal} disabled={inviting}>
@@ -174,6 +224,21 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
             </button>
           ) : (
             <span className="badge badge-green" style={{ alignSelf: 'center' }}><CheckCircle size={12} /> Portal linked</span>
+          )}
+          {canWarn && (
+            <button className="btn btn-ghost btn-sm" style={{ color: '#f59e0b', borderColor: 'rgba(245,158,11,0.3)' }} onClick={sendWarning} disabled={actionLoading === 'warn'}>
+              {actionLoading === 'warn' ? <span className="spinner" /> : <><AlertTriangle size={13} /> Send warning</>}
+            </button>
+          )}
+          {canSuspend && (
+            <button className="btn btn-ghost btn-sm" style={{ color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }} onClick={suspendClient} disabled={actionLoading === 'suspend'}>
+              {actionLoading === 'suspend' ? <span className="spinner" /> : <><Ban size={13} /> Suspend</>}
+            </button>
+          )}
+          {client.suspended && (
+            <button className="btn btn-ghost btn-sm" style={{ color: '#22c55e', borderColor: 'rgba(34,197,94,0.3)' }} onClick={unsuspendClient} disabled={actionLoading === 'unsuspend'}>
+              {actionLoading === 'unsuspend' ? <span className="spinner" /> : <><ShieldOff size={13} /> Restore access</>}
+            </button>
           )}
           <button className="btn btn-ghost btn-sm" onClick={() => setEditing(true)}><Edit3 size={13} /> Edit</button>
           <Link href={`/time-clock?client=${client.id}`} className="btn btn-ghost btn-sm"><Clock size={13} /> Clock in</Link>
@@ -183,6 +248,41 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
       {inviteMsg && (
         <div style={{ marginBottom: '1rem', padding: '10px 16px', borderRadius: 8, fontSize: '0.875rem', background: inviteMsg.type === 'ok' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', color: inviteMsg.type === 'ok' ? 'var(--accent-green)' : 'var(--accent-red)', border: `1px solid ${inviteMsg.type === 'ok' ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}` }}>
           {inviteMsg.text}
+        </div>
+      )}
+
+      {actionMsg && (
+        <div style={{ marginBottom: '1rem', padding: '10px 16px', borderRadius: 8, fontSize: '0.875rem', background: actionMsg.type === 'ok' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', color: actionMsg.type === 'ok' ? '#22c55e' : '#ef4444', border: `1px solid ${actionMsg.type === 'ok' ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}` }}>
+          {actionMsg.text}
+        </div>
+      )}
+
+      {client.suspended && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', padding: '0.875rem 1rem', background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 'var(--radius)', fontSize: '0.875rem' }}>
+          <Ban size={16} color="#ef4444" style={{ flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>
+            <p style={{ fontWeight: 700, color: '#ef4444', marginBottom: '0.125rem' }}>Portal access suspended</p>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
+              {client.suspension_reason ?? 'Overdue balance'}
+              {client.suspended_at ? ` · since ${formatDate(client.suspended_at)}` : ''}
+              {overdueTotal > 0 ? ` · ${formatMoney(overdueTotal)} owed` : ''}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {!client.suspended && overdueInvoices.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', padding: '0.875rem 1rem', background: maxDaysOverdue >= 60 ? 'rgba(239,68,68,0.07)' : 'rgba(245,158,11,0.07)', border: `1px solid ${maxDaysOverdue >= 60 ? 'rgba(239,68,68,0.25)' : 'rgba(245,158,11,0.25)'}`, borderRadius: 'var(--radius)', fontSize: '0.875rem' }}>
+          <AlertTriangle size={16} color={maxDaysOverdue >= 60 ? '#ef4444' : '#f59e0b'} style={{ flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>
+            <p style={{ fontWeight: 700, color: maxDaysOverdue >= 60 ? '#ef4444' : '#b45309', marginBottom: '0.125rem' }}>
+              {maxDaysOverdue >= 60 ? 'Eligible for suspension' : 'Payment overdue'}
+            </p>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
+              {overdueInvoices.length} overdue invoice{overdueInvoices.length !== 1 ? 's' : ''} · {formatMoney(overdueTotal)} total · {maxDaysOverdue}d past due
+              {client.warning_sent_at ? ` · Warning sent ${formatDate(client.warning_sent_at)}` : ''}
+            </p>
+          </div>
         </div>
       )}
 
