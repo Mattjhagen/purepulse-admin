@@ -78,7 +78,7 @@ export default function SocialPage() {
     const [postsRes, campaignsRes] = await Promise.all([
       supabase
         .from('deliverables')
-        .select('id, title, content, social_caption, social_image_url, platform, status, scheduled_at, published_at, campaign_id, campaigns(name, clients(name))')
+        .select('id, title, content:final_content->>caption, social_caption, social_image_url, platform, status, scheduled_at, published_at, campaign_id, campaigns(name, clients(name))')
         .eq('type', 'social_post')
         .in('status', ['approved', 'scheduled', 'published'])
         .order('scheduled_at', { ascending: true, nullsFirst: false }),
@@ -192,7 +192,7 @@ export default function SocialPage() {
       social_image_url: compImageUrl.trim() || null,
       scheduled_at: compScheduledAt ? new Date(compScheduledAt).toISOString() : null,
       status: compScheduledAt ? 'scheduled' : 'approved',
-    }).select('id, title, content, social_caption, social_image_url, platform, status, scheduled_at, published_at, campaign_id, campaigns(name, clients(name))').single()
+    }).select('id, title, content:final_content->>caption, social_caption, social_image_url, platform, status, scheduled_at, published_at, campaign_id, campaigns(name, clients(name))').single()
     if (data) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const r = data as any
