@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { formatDate, statusBadgeClass } from '@/lib/utils'
 import { Plus, X, LogOut, CheckCircle, Circle, Clock, MessageCircle, FileText, CreditCard, LifeBuoy, Sparkles, ThumbsUp, RotateCcw, ChevronDown, ChevronRight, ClipboardList, Pencil } from 'lucide-react'
@@ -126,6 +126,7 @@ export default function CustomerPortalPage() {
   // New message
   const [newMessage, setNewMessage] = useState('')
   const [sendingMessage, setSendingMessage] = useState(false)
+  const msgBottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -232,6 +233,31 @@ export default function CustomerPortalPage() {
 
   useEffect(() => { if (session) loadData() }, [session, loadData])
 
+  // Real-time: append new messages instantly when they arrive
+  useEffect(() => {
+    if (!clientId) return
+    const channel = supabase
+      .channel(`portal-messages:${clientId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'client_messages', filter: `client_id=eq.${clientId}` },
+        (payload) => {
+          setMessages(prev => {
+            const m = payload.new as Message
+            if (prev.some(x => x.id === m.id)) return prev
+            return [...prev, m]
+          })
+        }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [supabase, clientId])
+
+  // Scroll messages to bottom on new messages
+  useEffect(() => {
+    msgBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages.length])
+
   async function handleAuth(e: React.FormEvent) {
     e.preventDefault(); setAuthError(''); setAuthLoading(true)
     try {
@@ -307,10 +333,19 @@ export default function CustomerPortalPage() {
     e.preventDefault()
     if (!clientId || !newMessage.trim()) return
     setSendingMessage(true)
-    await supabase.from('client_messages').insert({ client_id: clientId, sender: 'client', sender_name: clientName || session?.user.email || 'Client', body: newMessage.trim() })
+    await fetch('/api/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: clientId,
+        sender: 'client',
+        sender_name: clientName || session?.user.email || 'Client',
+        body: newMessage.trim(),
+      }),
+    })
     setNewMessage('')
-    await loadData()
     setSendingMessage(false)
+    // Realtime will append the new message
   }
 
   function toggleTone(t: string) {
@@ -1035,6 +1070,7 @@ export default function CustomerPortalPage() {
                       </div>
                     </div>
                   ))}
+                  <div ref={msgBottomRef} />
                 </div>
                 <form onSubmit={sendMessage} style={{ display: 'flex', gap: '0.75rem' }}>
                   <input className="input" style={{ flex: 1 }} value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Type a message…" required />
