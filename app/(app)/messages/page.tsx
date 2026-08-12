@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Client } from '@/lib/types'
 import { formatDate } from '@/lib/utils'
@@ -30,6 +30,7 @@ export default function MessagesPage() {
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -43,6 +44,29 @@ export default function MessagesPage() {
   }, [supabase])
 
   useEffect(() => { load() }, [load])
+
+  // Real-time: append new messages without a full reload
+  useEffect(() => {
+    const channel = supabase
+      .channel('admin-messages')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'client_messages' },
+        (payload) => {
+          setMessages(prev => {
+            if (prev.some(m => m.id === (payload.new as Message).id)) return prev
+            return [...prev, payload.new as Message]
+          })
+        }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [supabase])
+
+  // Scroll to bottom when conversation changes
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [selectedClientId, messages.length])
 
   const threads = useMemo(() => {
     const byClient = new Map<string, Message[]>()
@@ -83,15 +107,19 @@ export default function MessagesPage() {
     e.preventDefault()
     if (!selectedClientId || !draft.trim()) return
     setSending(true)
-    await supabase.from('client_messages').insert({
-      client_id: selectedClientId,
-      sender: 'admin',
-      sender_name: 'Matty',
-      body: draft.trim(),
+    await fetch('/api/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: selectedClientId,
+        sender: 'admin',
+        sender_name: 'Matty',
+        body: draft.trim(),
+      }),
     })
     setDraft('')
-    await load()
     setSending(false)
+    // Realtime will append the message; no full reload needed
   }
 
   return (
@@ -206,6 +234,7 @@ export default function MessagesPage() {
                       </div>
                     </div>
                   ))}
+                  <div ref={bottomRef} />
                 </div>
 
                 <form onSubmit={sendMessage} style={{ display: 'flex', gap: '0.75rem', padding: '1rem 1.25rem', borderTop: '1px solid var(--border)' }}>
