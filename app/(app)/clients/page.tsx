@@ -99,12 +99,12 @@ export default function ClientsPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [{ data }, { data: portalUsers }] = await Promise.all([
+    const [{ data }, portalRes] = await Promise.all([
       supabase.from('clients').select('*').order('name'),
-      supabase.from('portal_users').select('client_id'),
+      fetch('/api/portal-users').then(r => r.json()),
     ])
     setClients(data ?? [])
-    setLinkedClientIds(new Set((portalUsers ?? []).map(pu => pu.client_id).filter(Boolean)))
+    setLinkedClientIds(new Set((portalRes.clientIds ?? []) as string[]))
     setLoading(false)
   }, [supabase])
 
