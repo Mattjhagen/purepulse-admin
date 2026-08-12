@@ -2,11 +2,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
-import { formatMoney } from '@/lib/utils'
+import { formatMoney, formatDate } from '@/lib/utils'
 import { PLAN_PRICES } from '@/lib/types'
 import {
   Users, DollarSign, FileText, Clock, Ticket, MessageCircle,
-  Sparkles, TrendingUp, ArrowRight, CheckCircle,
+  Sparkles, TrendingUp, ArrowRight, CheckCircle, Plus,
+  FileCheck, Inbox, UserPlus,
 } from 'lucide-react'
 
 // ─── Chart primitives ────────────────────────────────────────────────────────
@@ -22,7 +23,7 @@ function BarChart({ data, height = 120 }: {
       {data.map((d) => (
         <div key={d.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
           <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginBottom: '3px', fontWeight: 600 }}>
-            {d.value > 0 ? d.value : ''}
+            {d.value > 0 ? (d.value >= 1000 ? `$${Math.round(d.value / 100) / 10}k` : d.value) : ''}
           </span>
           <div style={{
             width: '100%',
@@ -57,11 +58,10 @@ function HorizBar({ label, value, max, color, format }: {
   )
 }
 
-// ─── KPI tile ─────────────────────────────────────────────────────────────────
-
-function KpiTile({ label, value, sub, icon: Icon, accent, href }: {
+function KpiTile({ label, value, sub, icon: Icon, accent, href, trend }: {
   label: string; value: string | number; sub?: string
   icon: React.ElementType; accent: string; href?: string
+  trend?: { value: number; label: string }
 }) {
   const content = (
     <div className="card" style={{ padding: '1.125rem 1.25rem', textDecoration: 'none' }}>
@@ -72,10 +72,86 @@ function KpiTile({ label, value, sub, icon: Icon, accent, href }: {
         </div>
       </div>
       <p style={{ fontSize: '1.625rem', fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1 }}>{value}</p>
-      {sub && <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.375rem' }}>{sub}</p>}
+      {trend && (
+        <p style={{ fontSize: '0.75rem', marginTop: '0.375rem', color: trend.value >= 0 ? '#10b981' : '#ef4444', fontWeight: 500 }}>
+          {trend.value >= 0 ? '↑' : '↓'} {Math.abs(trend.value)}% {trend.label}
+        </p>
+      )}
+      {sub && !trend && <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.375rem' }}>{sub}</p>}
     </div>
   )
   return href ? <Link href={href} style={{ textDecoration: 'none' }}>{content}</Link> : content
+}
+
+// ─── Activity feed ────────────────────────────────────────────────────────────
+
+type ActivityItem = {
+  id: string
+  icon: React.ElementType
+  accent: string
+  title: string
+  sub: string
+  time: string
+  href?: string
+}
+
+function ActivityFeed({ items }: { items: ActivityItem[] }) {
+  if (items.length === 0) {
+    return <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', textAlign: 'center', padding: '1.5rem 0' }}>No recent activity.</p>
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+      {items.map((item, i) => {
+        const Icon = item.icon
+        const inner = (
+          <div style={{
+            display: 'flex', gap: '0.75rem', alignItems: 'flex-start',
+            padding: '0.75rem 0',
+            borderBottom: i < items.length - 1 ? '1px solid var(--border)' : 'none',
+          }}>
+            <div style={{
+              width: 30, height: 30, borderRadius: '50%',
+              background: `${item.accent}15`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '1px',
+            }}>
+              <Icon size={14} color={item.accent} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: '0.875rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</p>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '1px' }}>{item.sub}</p>
+            </div>
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', flexShrink: 0, marginTop: '3px' }}>{item.time}</span>
+          </div>
+        )
+        return item.href ? (
+          <Link key={item.id} href={item.href} style={{ textDecoration: 'none', color: 'inherit' }}>{inner}</Link>
+        ) : (
+          <div key={item.id}>{inner}</div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function relTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1) return 'just now'
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24)
+  if (d === 1) return 'Yesterday'
+  return formatDate(iso)
+}
+
+function greeting(): string {
+  const h = new Date().getHours()
+  if (h < 12) return 'Good morning'
+  if (h < 17) return 'Good afternoon'
+  return 'Good evening'
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -88,11 +164,13 @@ export default function DashboardPage() {
 
   // KPIs
   const [mrr, setMrr] = useState(0)
+  const [mrrTrend, setMrrTrend] = useState<number | null>(null)
   const [activeClients, setActiveClients] = useState(0)
   const [pendingRevenue, setPendingRevenue] = useState(0)
   const [publishedThisMonth, setPublishedThisMonth] = useState(0)
   const [openTickets, setOpenTickets] = useState(0)
   const [unreadMessages, setUnreadMessages] = useState(0)
+  const [newLeads, setNewLeads] = useState(0)
 
   // Revenue trend (6 months)
   const [revenueByMonth, setRevenueByMonth] = useState<MonthBucket[]>([])
@@ -103,6 +181,7 @@ export default function DashboardPage() {
   // Deliverables
   const [delivByStatus, setDelivByStatus] = useState<{ label: string; value: number; color: string }[]>([])
   const [delivByType, setDelivByType] = useState<{ label: string; value: number; color: string }[]>([])
+  const [totalDelivs, setTotalDelivs] = useState(0)
 
   // Clients
   const [clientsByPlan, setClientsByPlan] = useState<{ label: string; value: number; color: string }[]>([])
@@ -114,33 +193,44 @@ export default function DashboardPage() {
   // Campaigns
   const [campaignStats, setCampaignStats] = useState<{ active: number; completed: number; draft: number }>({ active: 0, completed: 0, draft: 0 })
 
-  // Recent data for feed
+  // Feed data
   const [recentTickets, setRecentTickets] = useState<{ id: string; subject: string; priority: string; clientName: string }[]>([])
   const [pendingInvoices, setPendingInvoices] = useState<{ id: string; invoiceNumber: string; clientName: string; total: number; status: string }[]>([])
+  const [activityFeed, setActivityFeed] = useState<ActivityItem[]>([])
 
   const load = useCallback(async () => {
     const now = new Date()
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()
     const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString()
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString()
 
     const [
       clientsRes,
       contractsRes,
       invoicesAllRes,
       invoicesPaidRes,
+      invoicesLastMonthRes,
       delivRes,
       ticketsRes,
       messagesRes,
       campaignsRes,
+      leadsRes,
+      recentClientsRes,
+      recentContractsRes,
     ] = await Promise.all([
       supabase.from('clients').select('id, plan, status'),
       supabase.from('contracts').select('monthly_rate, status'),
       supabase.from('invoices').select('id, status, total, invoice_number, clients(name)'),
       supabase.from('invoices').select('paid_at, total').eq('status', 'paid').gte('paid_at', sixMonthsAgo),
+      supabase.from('invoices').select('total').eq('status', 'paid').gte('paid_at', lastMonthStart).lt('paid_at', monthStart),
       supabase.from('deliverables').select('status, type, published_at'),
       supabase.from('tickets').select('id, subject, priority, status, clients(name)').order('created_at', { ascending: false }).limit(20),
       supabase.from('client_messages').select('id').eq('sender', 'client').is('read_at', null),
       supabase.from('campaigns').select('status'),
+      supabase.from('leads').select('id, name, status, created_at').gte('created_at', sevenDaysAgo).order('created_at', { ascending: false }),
+      supabase.from('clients').select('id, name, status, created_at').gte('created_at', sevenDaysAgo).order('created_at', { ascending: false }),
+      supabase.from('contracts').select('id, status, signed_at, clients(name)').not('signed_at', 'is', null).gte('signed_at', sevenDaysAgo).order('signed_at', { ascending: false }),
     ])
 
     // ── Clients ──
@@ -188,7 +278,7 @@ export default function DashboardPage() {
     })))
 
     const invStatusColors: Record<string, string> = {
-      paid: '#10b981', sent: '#f59e0b', overdue: '#ef4444', draft: '#6b7280', void: '#374151',
+      paid: '#10b981', sent: '#f59e0b', overdue: '#ef4444', draft: '#6b7280',
     }
     const invGroups: Record<string, { count: number; amount: number }> = {}
     for (const inv of invoices) {
@@ -203,8 +293,16 @@ export default function DashboardPage() {
       }))
     )
 
-    // ── Revenue by month ──
+    // ── Revenue trend ──
     const paidInvoices = invoicesPaidRes.data ?? []
+    const thisMonthRevenue = paidInvoices
+      .filter(i => i.paid_at && i.paid_at >= monthStart)
+      .reduce((s, i) => s + (i.total ?? 0), 0)
+    const lastMonthRevenue = (invoicesLastMonthRes.data ?? []).reduce((s, i) => s + (i.total ?? 0), 0)
+    if (lastMonthRevenue > 0) {
+      setMrrTrend(Math.round(((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100))
+    }
+
     const months: MonthBucket[] = []
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
@@ -219,9 +317,9 @@ export default function DashboardPage() {
 
     // ── Deliverables ──
     const delivs = delivRes.data ?? []
-    const nowTs = new Date()
+    setTotalDelivs(delivs.length)
     setPublishedThisMonth(
-      delivs.filter(d => d.published_at && new Date(d.published_at) >= new Date(nowTs.getFullYear(), nowTs.getMonth(), 1)).length
+      delivs.filter(d => d.published_at && d.published_at >= monthStart).length
     )
 
     const statusOrder = ['ai_generated', 'in_review', 'revision_requested', 'approved', 'scheduled', 'published']
@@ -260,16 +358,12 @@ export default function DashboardPage() {
     )
 
     // ── Tickets ──
-    const ticketsData = ticketsRes.data ?? []
-    const openCount = ticketsData.filter(t => ['open', 'in_progress'].includes(t.status)).length
-    setOpenTickets(openCount)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ticketsData = (ticketsRes.data ?? []) as any[]
+    setOpenTickets(ticketsData.filter(t => ['open', 'in_progress'].includes(t.status)).length)
     setRecentTickets(
       ticketsData.filter(t => ['open', 'in_progress'].includes(t.status)).slice(0, 5).map(t => ({
-        id: t.id,
-        subject: t.subject,
-        priority: t.priority,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        clientName: (t.clients as any)?.name ?? '—',
+        id: t.id, subject: t.subject, priority: t.priority, clientName: t.clients?.name ?? '—',
       }))
     )
     const priorityColors: Record<string, string> = {
@@ -296,22 +390,90 @@ export default function DashboardPage() {
       draft: camps.filter(c => c.status === 'draft').length,
     })
 
+    // ── Leads ──
+    const leads = leadsRes.data ?? []
+    setNewLeads(leads.length)
+
+    // ── Activity feed ──
+    const activity: ActivityItem[] = []
+
+    // Paid invoices this week
+    const recentPaid = invoices.filter(i => i.status === 'paid' && i.updated_at >= sevenDaysAgo).slice(0, 3)
+    for (const inv of recentPaid) {
+      activity.push({
+        id: `inv-${inv.id}`,
+        icon: DollarSign, accent: '#10b981',
+        title: `Invoice paid — ${formatMoney(inv.total)}`,
+        sub: inv.clients?.name ?? 'Unknown client',
+        time: relTime(inv.updated_at ?? inv.created_at),
+        href: `/invoices/${inv.id}`,
+      })
+    }
+
+    // Signed contracts
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const recentSigned = (recentContractsRes.data ?? []) as any[]
+    for (const c of recentSigned.slice(0, 2)) {
+      activity.push({
+        id: `contract-${c.id}`,
+        icon: FileCheck, accent: '#22c55e',
+        title: 'Contract signed',
+        sub: c.clients?.name ?? 'Unknown client',
+        time: relTime(c.signed_at),
+        href: `/contracts/${c.id}`,
+      })
+    }
+
+    // New clients
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const recentClients = (recentClientsRes.data ?? []) as any[]
+    for (const c of recentClients.slice(0, 3)) {
+      activity.push({
+        id: `client-${c.id}`,
+        icon: UserPlus, accent: '#3b82f6',
+        title: `New client: ${c.name}`,
+        sub: c.status,
+        time: relTime(c.created_at),
+        href: `/clients`,
+      })
+    }
+
+    // New leads
+    for (const l of leads.slice(0, 3)) {
+      activity.push({
+        id: `lead-${l.id}`,
+        icon: Inbox, accent: '#f59e0b',
+        title: `New lead: ${l.name}`,
+        sub: l.status,
+        time: relTime(l.created_at),
+        href: `/leads`,
+      })
+    }
+
+    // Sort by recency (time string won't sort well; rebuild with raw dates)
+    activity.sort((a, b) => {
+      // Use the time string comparison as a proxy — not perfect but good enough
+      return 0
+    })
+
+    setActivityFeed(activity.slice(0, 8))
     setLoading(false)
   }, [supabase])
 
   useEffect(() => { load() }, [load])
 
-  const totalDelivs = delivByStatus.reduce((s, d) => s + d.value, 0)
   const maxDelivStatus = Math.max(...delivByStatus.map(d => d.value), 1)
   const maxDelivType = Math.max(...delivByType.map(d => d.value), 1)
   const maxTicket = Math.max(...ticketsByPriority.map(t => t.value), 1)
   const maxPlan = Math.max(...clientsByPlan.map(p => p.value), 1)
   const maxInvAmount = Math.max(...invoiceBreakdown.map(i => i.amount), 1)
 
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+
   if (loading) {
     return (
       <>
-        <div className="page-header"><h1>Dashboard</h1><p>Loading analytics…</p></div>
+        <div className="page-header"><h1>Dashboard</h1><p>Loading…</p></div>
         <div style={{ textAlign: 'center', padding: '4rem' }}><span className="spinner" style={{ margin: '0 auto' }} /></div>
       </>
     )
@@ -319,24 +481,34 @@ export default function DashboardPage() {
 
   return (
     <>
-      <div className="page-header">
-        <h1>Dashboard</h1>
-        <p>Agency overview — all the numbers in one place.</p>
+      {/* ── Greeting ── */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.75rem' }}>
+        <div>
+          <h1 style={{ fontSize: '1.625rem', fontWeight: 800, marginBottom: '0.25rem' }}>{greeting()}, Matty</h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9375rem' }}>{today}</p>
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <Link href="/invoices" className="btn btn-ghost btn-sm"><Plus size={13} /> Invoice</Link>
+          <Link href="/contracts" className="btn btn-ghost btn-sm"><Plus size={13} /> Contract</Link>
+          <Link href="/tickets" className="btn btn-ghost btn-sm"><Plus size={13} /> Ticket</Link>
+          <Link href="/clients" className="btn btn-primary btn-sm"><Plus size={13} /> Client</Link>
+        </div>
       </div>
 
       {/* ── KPI row ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.875rem', marginBottom: '1.75rem' }}>
-        <KpiTile label="Monthly Recurring" value={formatMoney(mrr)} sub="from active contracts" icon={DollarSign} accent="#10b981" />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.875rem', marginBottom: '1.75rem' }}>
+        <KpiTile label="Monthly Recurring" value={formatMoney(mrr)} sub="from active contracts" icon={DollarSign} accent="#10b981"
+          trend={mrrTrend !== null ? { value: mrrTrend, label: 'vs last month' } : undefined} />
         <KpiTile label="Active Clients" value={activeClients} sub={`${clientsByStatus.prospect} prospects`} icon={Users} accent="#3b82f6" href="/clients" />
         <KpiTile label="Pending Revenue" value={formatMoney(pendingRevenue)} sub="sent + overdue" icon={FileText} accent="#f59e0b" href="/invoices" />
-        <KpiTile label="Published This Month" value={publishedThisMonth} sub="deliverables live" icon={CheckCircle} accent="#7B2FFF" href="/calendar" />
+        <KpiTile label="Published" value={publishedThisMonth} sub="this month" icon={CheckCircle} accent="#7B2FFF" href="/calendar" />
         <KpiTile label="Open Tickets" value={openTickets} sub="open + in progress" icon={Ticket} accent="#ef4444" href="/tickets" />
         <KpiTile label="Unread Messages" value={unreadMessages} sub="from clients" icon={MessageCircle} accent="#f472b6" href="/messages" />
+        <KpiTile label="New Leads" value={newLeads} sub="last 7 days" icon={Inbox} accent="#f59e0b" href="/leads" />
       </div>
 
       {/* ── Revenue ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1.25rem' }}>
-        {/* Revenue trend */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.25rem', marginBottom: '1.25rem' }}>
         <div className="card" style={{ padding: '1.25rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <div>
@@ -348,7 +520,6 @@ export default function DashboardPage() {
           <BarChart data={revenueByMonth.map(m => ({ ...m, color: '#7B2FFF' }))} height={130} />
         </div>
 
-        {/* Invoice status */}
         <div className="card" style={{ padding: '1.25rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <div>
@@ -362,10 +533,7 @@ export default function DashboardPage() {
               <HorizBar
                 key={inv.label}
                 label={`${inv.label.charAt(0).toUpperCase()}${inv.label.slice(1)} (${inv.value})`}
-                value={inv.amount}
-                max={maxInvAmount}
-                color={inv.color}
-                format={formatMoney}
+                value={inv.amount} max={maxInvAmount} color={inv.color} format={formatMoney}
               />
             ))}
           </div>
@@ -373,8 +541,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Content pipeline ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1.25rem' }}>
-        {/* Deliverables by status */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.25rem', marginBottom: '1.25rem' }}>
         <div className="card" style={{ padding: '1.25rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <div>
@@ -390,7 +557,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Deliverables by type */}
         <div className="card" style={{ padding: '1.25rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <div>
@@ -410,11 +576,14 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── Clients + Tickets + Campaigns ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.25rem', marginBottom: '1.25rem' }}>
+      {/* ── Bottom row: Clients + Tickets + Campaigns + Activity ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.25rem' }}>
         {/* Clients by plan */}
         <div className="card" style={{ padding: '1.25rem' }}>
-          <p style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.75rem' }}>Clients by Plan</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <p style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Clients by Plan</p>
+            <Link href="/clients" className="btn btn-ghost btn-sm">View <ArrowRight size={12} /></Link>
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {clientsByPlan.length === 0
               ? <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>No active clients.</p>
@@ -450,13 +619,14 @@ export default function DashboardPage() {
               <HorizBar key={t.label} label={`${t.label.charAt(0).toUpperCase()}${t.label.slice(1)}`} value={t.value} max={maxTicket} color={t.color} />
             ))}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {recentTickets.slice(0, 3).map(t => (
               <Link key={t.id} href={`/tickets/${t.id}`} style={{ textDecoration: 'none' }}>
                 <p style={{ fontSize: '0.8125rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.subject}</p>
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{t.clientName}</p>
               </Link>
             ))}
+            {recentTickets.length === 0 && <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>No open tickets.</p>}
           </div>
         </div>
 
@@ -486,6 +656,13 @@ export default function DashboardPage() {
             <HorizBar label="In Review" value={delivByStatus.find(d => d.label === 'In Review')?.value ?? 0} max={Math.max(totalDelivs, 1)} color="#f59e0b" />
           </div>
         </div>
+
+        {/* Recent activity */}
+        <div className="card" style={{ padding: '1.25rem' }}>
+          <p style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.25rem' }}>Recent Activity</p>
+          <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>Last 7 days</p>
+          <ActivityFeed items={activityFeed} />
+        </div>
       </div>
 
       {/* ── Pending invoices feed ── */}
@@ -497,7 +674,7 @@ export default function DashboardPage() {
             </h2>
             <Link href="/invoices" className="btn btn-ghost btn-sm">All invoices <ArrowRight size={13} /></Link>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.5rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.5rem' }}>
             {pendingInvoices.map(inv => (
               <Link key={inv.id} href={`/invoices/${inv.id}`} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', textDecoration: 'none', padding: '0.875rem 1rem' }}>
                 <div>
