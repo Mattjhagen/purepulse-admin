@@ -362,73 +362,98 @@ export default function ReferralDetailPage({ params }: { params: Promise<{ id: s
         )}
       </div>
 
-      {/* ======= PRINTABLE FLYER ======= */}
+      {/* ======= PRINTABLE FLYER — matches marketing/purepulse-web-design-poster-letter.pdf ======= */}
       <div style={{
         display: 'none',
-        maxWidth: 600,
+        width: 600,
         margin: '0 auto',
-        padding: '3rem 2.5rem',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-        background: 'white',
-        color: '#0d0d0d',
-        textAlign: 'center',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", sans-serif',
+        background: '#08060d',
+        color: '#fff',
+        WebkitPrintColorAdjust: 'exact',
+        printColorAdjust: 'exact',
+        borderRadius: 24,
+        overflow: 'hidden',
+        position: 'relative',
       }}
         className="print-flyer"
       >
-        {/* Header */}
-        <div style={{ marginBottom: '2.5rem' }}>
-          <div style={{ fontSize: '2.25rem', fontWeight: 900, letterSpacing: '-0.05em', marginBottom: '0.5rem' }}>PurePulse</div>
-          <div style={{ fontSize: '0.875rem', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#555', marginBottom: '2rem' }}>AI Agency Management</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.5rem' }}>Grow your business on autopilot.</div>
-          <div style={{ fontSize: '1rem', color: '#444', lineHeight: 1.6 }}>
-            AI-powered client management, invoicing, contracts, time tracking,<br />and more — built for modern agencies.
+        {/* Ambient glow */}
+        <div style={{
+          position: 'absolute', inset: 0, pointerEvents: 'none',
+          background: 'radial-gradient(circle at 72% 8%, rgba(123,47,255,0.28), transparent 55%), radial-gradient(circle at 8% 60%, rgba(0,212,255,0.14), transparent 50%)',
+        }} />
+
+        <div style={{ position: 'relative', padding: '2.5rem 2.5rem 0' }}>
+          {/* Top bar */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.12)', marginBottom: '2.5rem' }}>
+            <div style={{ fontSize: '1.25rem', fontWeight: 800, letterSpacing: '-0.04em' }}>Pure<span style={{ color: '#A066FF' }}>Pulse</span></div>
+            <div style={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.5)' }}>WEB DESIGN &amp; DEVELOPMENT</div>
+          </div>
+
+          {/* Headline */}
+          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <div style={{ fontSize: '0.8125rem', fontWeight: 700, letterSpacing: '0.08em', color: '#A066FF', marginBottom: '0.75rem' }}>YOUR NEXT WEBSITE SHOULD</div>
+            <div style={{ fontSize: '3rem', fontWeight: 900, lineHeight: 1.05, letterSpacing: '-0.03em' }}>
+              MOVE<br /><span style={{ color: '#A066FF' }}>PEOPLE</span><br />FORWARD.
+            </div>
+          </div>
+
+          <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.6)', fontSize: '0.9375rem', lineHeight: 1.6, marginBottom: '1.75rem' }}>
+            Sharp aesthetics. Clean code. A website built to perform<br />and built to last.
+          </div>
+
+          <div style={{ textAlign: 'center', marginBottom: '2.25rem' }}>
+            <span style={{ display: 'inline-block', background: 'rgba(123,47,255,0.18)', border: '1px solid rgba(123,47,255,0.4)', borderRadius: 100, padding: '0.625rem 1.5rem', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.05em' }}>
+              PROFESSIONAL WEBSITES FROM A $150 DEPOSIT
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '1.5rem', marginBottom: '2.25rem' }}>
+            {[
+              { label: 'DESIGN', desc: 'A distinctive digital presence', color: '#A066FF' },
+              { label: 'BUILD', desc: 'Fast, clean, responsive foundations', color: '#00D4FF' },
+              { label: 'LAUNCH', desc: 'A site ready to make an impression', color: '#A066FF' },
+            ].map(step => (
+              <div key={step.label} style={{ textAlign: 'left', maxWidth: 150 }}>
+                <div style={{ fontSize: '0.8125rem', fontWeight: 700, letterSpacing: '0.04em', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: step.color, display: 'inline-block' }} />
+                  {step.label}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>{step.desc}</div>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* QR Code */}
-        <div style={{ margin: '2.5rem auto', display: 'inline-block', padding: '1.25rem', border: '2px solid #e5e7eb', borderRadius: 16 }}>
-          {!qrError ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={qrUrl}
-              alt="Referral QR Code"
-              width={220}
-              height={220}
-              onError={() => setQrError(true)}
-            />
-          ) : (
-            <div style={{ width: 220, height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f5', borderRadius: 8, fontSize: '0.75rem', color: '#888' }}>
-              <div><AlertTriangle size={24} style={{ display: 'block', margin: '0 auto 0.5rem' }} />QR unavailable</div>
-            </div>
-          )}
-        </div>
-
-        {/* URL */}
-        <div style={{ marginBottom: '2.5rem' }}>
-          <div style={{ fontSize: '0.875rem', color: '#888', marginBottom: '0.375rem' }}>Scan or visit</div>
-          <div style={{ fontSize: '1.125rem', fontWeight: 600, letterSpacing: '0.02em', color: '#1a1a1a', background: '#f5f5f5', padding: '0.75rem 1.5rem', borderRadius: 10, display: 'inline-block' }}>
-            {refUrl}
+        {/* CTA card — QR is unique per referrer, encodes /ref/{code} for commission tracking */}
+        <div style={{ position: 'relative', margin: '0 1.5rem 1.5rem', background: 'rgba(123,47,255,0.1)', border: '1px solid rgba(123,47,255,0.3)', borderRadius: 20, padding: '1.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1.5rem' }}>
+          <div style={{ textAlign: 'left' }}>
+            <div style={{ fontSize: '1.375rem', fontWeight: 800, marginBottom: '0.5rem' }}>Make your next move.</div>
+            <div style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.6)', marginBottom: '0.75rem' }}>Scan to explore the work and start a conversation.</div>
+            <div style={{ fontSize: '1rem', fontWeight: 700, color: '#00D4FF' }}>purepulse.one</div>
+          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/referral-mascot.png" alt="" width={80} height={102} style={{ flexShrink: 0, objectFit: 'contain' }} />
+          <div style={{ background: '#fff', borderRadius: 14, padding: '0.75rem', flexShrink: 0, WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+            {!qrError ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={qrUrl} alt="Referral QR Code" width={130} height={130} onError={() => setQrError(true)} />
+            ) : (
+              <div style={{ width: 130, height: 130, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
+                <AlertTriangle size={20} />
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Plans */}
-        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '2.5rem' }}>
-          {[
-            { name: 'Starter', price: '$299/mo' },
-            { name: 'Growth', price: '$599/mo' },
-            { name: 'Pro', price: '$999/mo' },
-            { name: 'Elite', price: '$1,499/mo' },
-          ].map(plan => (
-            <div key={plan.name} style={{ padding: '0.75rem 1.25rem', border: '1px solid #e5e7eb', borderRadius: 10, minWidth: 110 }}>
-              <div style={{ fontWeight: 700, marginBottom: '0.25rem' }}>{plan.name}</div>
-              <div style={{ color: '#555', fontSize: '0.875rem' }}>{plan.price}</div>
-            </div>
-          ))}
+        <div style={{ position: 'relative', textAlign: 'center', fontSize: '0.6875rem', letterSpacing: '0.05em', color: 'rgba(255,255,255,0.35)', paddingBottom: '1.25rem' }}>
+          PUREPULSE.ONE · DESIGN THAT MOVES PEOPLE FORWARD
         </div>
 
-        {/* Footer with referrer name */}
-        <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '1.5rem', fontSize: '0.8125rem', color: '#888' }}>
-          Referred by <strong style={{ color: '#1a1a1a' }}>{referral.name}</strong> · Code: <strong>{referral.code}</strong>
+        {/* Referrer attribution — not part of the brand poster, kept for your own tracking reference */}
+        <div style={{ position: 'relative', textAlign: 'center', fontSize: '0.6875rem', color: 'rgba(255,255,255,0.35)', borderTop: '1px solid rgba(255,255,255,0.08)', margin: '0 1.5rem', padding: '0.75rem 0 1.5rem' }}>
+          Referred by <strong style={{ color: 'rgba(255,255,255,0.65)' }}>{referral.name}</strong> · Code <strong style={{ color: 'rgba(255,255,255,0.65)' }}>{referral.code}</strong>
         </div>
       </div>
 

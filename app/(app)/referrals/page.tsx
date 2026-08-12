@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase'
 import { formatDate, formatMoney } from '@/lib/utils'
 import { Plus, Gift, TrendingUp, MousePointer, CheckCircle, DollarSign, Copy, Printer, X } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 type Referral = {
   id: string
@@ -27,7 +28,7 @@ function genCode(name: string): string {
   return base ? `${base}${suffix}` : suffix
 }
 
-function NewReferralModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+function NewReferralModal({ onClose, onSaved }: { onClose: () => void; onSaved: (newId: string) => void }) {
   const supabase = createClient()
   const [form, setForm] = useState({ name: '', email: '', phone: '', commission: '50', notes: '', code: '' })
   const [saving, setSaving] = useState(false)
@@ -42,17 +43,17 @@ function NewReferralModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
     if (!form.code.trim()) { setErr('Code is required'); return }
     setSaving(true)
     setErr('')
-    const { error } = await supabase.from('referrals').insert({
+    const { data, error } = await supabase.from('referrals').insert({
       name: form.name.trim(),
       email: form.email.trim() || null,
       phone: form.phone.trim() || null,
       code: form.code.trim().toUpperCase(),
       commission_per_conversion: parseFloat(form.commission) || 50,
       notes: form.notes.trim() || null,
-    })
+    }).select('id').single()
     setSaving(false)
     if (error) { setErr(error.message); return }
-    onSaved()
+    onSaved(data.id)
     onClose()
   }
 
@@ -110,6 +111,7 @@ function NewReferralModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
 
 export default function ReferralsPage() {
   const supabase = createClient()
+  const router = useRouter()
   const [referrals, setReferrals] = useState<Referral[]>([])
   const [loading, setLoading] = useState(true)
   const [showNew, setShowNew] = useState(false)
@@ -123,6 +125,10 @@ export default function ReferralsPage() {
   }, [supabase])
 
   useEffect(() => { load() }, [load])
+
+  function handleNewReferralSaved(newId: string) {
+    router.push(`/referrals/${newId}?print=1`)
+  }
 
   function copyLink(code: string) {
     const origin = window.location.origin
@@ -276,7 +282,7 @@ export default function ReferralsPage() {
         </div>
       )}
 
-      {showNew && <NewReferralModal onClose={() => setShowNew(false)} onSaved={load} />}
+      {showNew && <NewReferralModal onClose={() => setShowNew(false)} onSaved={handleNewReferralSaved} />}
     </>
   )
 }
