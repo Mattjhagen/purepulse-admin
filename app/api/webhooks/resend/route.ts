@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: 'PurePulse <matty@matty.purepulse.one>',
+            from: 'PurePulse <matty@purepulse.one>',
             to: 'mattjhagen0@gmail.com',
             subject: `🎫 New ticket from ${client.name} — ${subject}`,
             html: `
