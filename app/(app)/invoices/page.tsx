@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { Client, InvoiceStatus } from '@/lib/types'
 import { formatDate, formatMoney, statusBadgeClass, generateInvoiceNumber } from '@/lib/utils'
-import { Plus, Search, X, Send, Link2, CheckCircle, AlertCircle, Clock, DollarSign, Eye, Zap } from 'lucide-react'
+import { Plus, Search, X, Send, Link2, CheckCircle, AlertCircle, Clock, DollarSign, Eye, Zap, FileText, TrendingUp } from 'lucide-react'
 import Link from 'next/link'
 
 const PLAN_PRICES: Record<string, number> = { starter: 20, growth: 50, premium: 75, business: 100 }
@@ -175,6 +175,15 @@ function BulkMonthlyModal({ onClose, onDone }: { onClose: () => void; onDone: ()
   )
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function daysOverdue(dueDateStr: string): number {
+  const due = new Date(dueDateStr)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return Math.floor((today.getTime() - due.getTime()) / 86_400_000)
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function InvoicesPage() {
@@ -248,8 +257,10 @@ export default function InvoicesPage() {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
   const outstanding = invoices.filter(i => ['sent', 'overdue', 'viewed'].includes(i.status)).reduce((s, i) => s + (i.total ?? 0), 0)
   const paidThisMonth = invoices.filter(i => i.status === 'paid' && i.paid_at && i.paid_at >= monthStart).reduce((s, i) => s + (i.total ?? 0), 0)
+  const allTimePaid = invoices.filter(i => i.status === 'paid').reduce((s, i) => s + (i.total ?? 0), 0)
   const overdueCount = invoices.filter(i => i.status === 'overdue').length
   const viewedCount = invoices.filter(i => i.status === 'viewed').length
+  const draftCount = invoices.filter(i => i.status === 'draft').length
 
   return (
     <>
@@ -272,7 +283,7 @@ export default function InvoicesPage() {
 
       {/* Stats */}
       {!loading && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
           <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
             <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(245,158,11,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <Clock size={18} color="#f59e0b" />
@@ -289,6 +300,15 @@ export default function InvoicesPage() {
             <div>
               <p style={{ fontSize: '1.25rem', fontWeight: 800, lineHeight: 1 }}>{formatMoney(paidThisMonth)}</p>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Paid this month</p>
+            </div>
+          </div>
+          <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(99,102,241,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <TrendingUp size={18} color="#6366f1" />
+            </div>
+            <div>
+              <p style={{ fontSize: '1.25rem', fontWeight: 800, lineHeight: 1 }}>{formatMoney(allTimePaid)}</p>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>All-time collected</p>
             </div>
           </div>
           <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
@@ -309,6 +329,15 @@ export default function InvoicesPage() {
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Viewed, unpaid</p>
             </div>
           </div>
+          <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(148,163,184,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <FileText size={18} color="#94a3b8" />
+            </div>
+            <div>
+              <p style={{ fontSize: '1.25rem', fontWeight: 800, lineHeight: 1 }}>{draftCount}</p>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Drafts</p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -323,13 +352,8 @@ export default function InvoicesPage() {
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
-              className="btn btn-ghost btn-sm"
-              style={{
-                fontWeight: statusFilter === s ? 700 : 400,
-                background: statusFilter === s ? 'var(--bg-card-hover)' : undefined,
-                borderColor: statusFilter === s ? 'var(--border-strong)' : undefined,
-                textTransform: 'capitalize',
-              }}
+              className={`btn btn-sm ${statusFilter === s ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ textTransform: 'capitalize' }}
             >
               {s}
             </button>
@@ -358,12 +382,20 @@ export default function InvoicesPage() {
                 const wasCopied = copiedId === inv.id
                 const canSend = ['draft', 'sent', 'overdue', 'viewed'].includes(inv.status) && inv.total > 0
                 const isOverdue = inv.status === 'overdue'
+                const overduedays = isOverdue ? daysOverdue(inv.due_date) : 0
                 return (
                   <tr key={inv.id}>
                     <td style={{ fontFamily: 'monospace', fontSize: '0.875rem', color: 'var(--text-muted)' }}>{inv.invoice_number}</td>
                     <td style={{ fontWeight: 500 }}>{client?.name ?? '—'}</td>
                     <td style={{ color: 'var(--text-muted)' }}>{formatDate(inv.issue_date)}</td>
-                    <td style={{ color: isOverdue ? '#ef4444' : 'var(--text-muted)', fontWeight: isOverdue ? 600 : undefined }}>{formatDate(inv.due_date)}</td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem' }}>
+                        <span style={{ color: isOverdue ? '#ef4444' : 'var(--text-muted)', fontWeight: isOverdue ? 600 : undefined }}>{formatDate(inv.due_date)}</span>
+                        {isOverdue && overduedays > 0 && (
+                          <span style={{ fontSize: '0.7rem', color: '#ef4444', fontWeight: 700, letterSpacing: '0.03em' }}>+{overduedays}d overdue</span>
+                        )}
+                      </div>
+                    </td>
                     <td style={{ fontWeight: 700 }}>{formatMoney(inv.total)}</td>
                     <td><span className={statusBadgeClass(inv.status)}>{inv.status}</span></td>
                     <td>
