@@ -277,5 +277,20 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Stripe Invoice paid — mark our invoice record as paid
+  if (event.type === 'invoice.paid') {
+    const stripeInv = event.data.object as Stripe.Invoice
+    if (stripeInv.metadata?.invoice_id) {
+      await supabase
+        .from('invoices')
+        .update({
+          status: 'paid',
+          paid_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', stripeInv.metadata.invoice_id)
+    }
+  }
+
   return NextResponse.json({ ok: true })
 }

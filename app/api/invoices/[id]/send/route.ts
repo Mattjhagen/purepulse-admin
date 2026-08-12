@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import Stripe from 'stripe'
+import { getStripe } from '@/lib/stripe'
 
 function adminSupabase() {
   return createClient(
@@ -9,66 +9,68 @@ function adminSupabase() {
   )
 }
 
-async function sendInvoiceEmail(opts: {
-  clientName: string
-  clientEmail: string
-  invoiceNumber: string
-  total: number
-  dueDate: string
-  paymentLink: string
-  appUrl: string
-}) {
-  if (!process.env.RESEND_API_KEY) return
-  const { clientName, clientEmail, invoiceNumber, total, dueDate, paymentLink, appUrl } = opts
-  const formatted = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(total)
-  const due = new Date(dueDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
+// Returns the Stripe rendering template id to use for a given invoice type.
+// Set STRIPE_TEMPLATE_MONTHLY / STRIPE_TEMPLATE_DEPOSIT / STRIPE_TEMPLATE_PROJECT
+// in Vercel env vars. Values look like invtpl_xxx (from Stripe Dashboard URL).
+function templateId(invoiceType: string | null): string | undefined {
+  if (invoiceType === 'deposit') return process.env.STRIPE_TEMPLATE_DEPOSIT ?? undefined
+  if (invoiceType === 'project') return process.env.STRIPE_TEMPLATE_PROJECT ?? undefined
+  return process.env.STRIPE_TEMPLATE_MONTHLY ?? undefined
+}
 
-  await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: 'PurePulse <matty@purepulse.one>',
-      to: clientEmail,
-      subject: `Invoice ${invoiceNumber} — ${formatted} due ${due}`,
-      html: `
-        <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:2rem;color:#111">
-          <h2 style="font-size:1.5rem;font-weight:800;margin-bottom:0.25rem">PurePulse</h2>
-          <p style="color:#666;margin-bottom:2rem;font-size:0.875rem">Invoice from PurePulse</p>
+async function getOrCreateStripeCustomer(
+  stripe: ReturnType<typeof getStripe>,
+  clientId: string,
+  clientName: string,
+  clientEmail: string,
+  supabase: ReturnType<typeof adminSupabase>
+): Promise<string> {
+  // Look up existing Stripe customer from most recent active contract
+  const { data: contract } = await supabase
+    .from('contracts')
+    .select('stripe_customer_id')
+    .eq('client_id', clientId)
+    .not('stripe_customer_id', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
 
-          <p style="margin-bottom:1.5rem">Hi ${clientName},</p>
-          <p style="color:#555;margin-bottom:2rem;line-height:1.6">
-            A new invoice (<strong>${invoiceNumber}</strong>) for <strong>${formatted}</strong> is ready for you.
-            Payment is due by <strong>${due}</strong>.
-          </p>
+  if (contract?.stripe_customer_id) return contract.stripe_customer_id
 
-          <a href="${paymentLink}" style="display:inline-block;background:#000;color:#fff;padding:0.875rem 2rem;border-radius:8px;text-decoration:none;font-weight:700;font-size:1rem;margin-bottom:2rem">
-            Pay ${formatted} →
-          </a>
-
-          <p style="color:#888;font-size:0.8125rem;margin-bottom:0.5rem">
-            You can also view your invoice history in your <a href="${appUrl}/portal" style="color:#000">client portal</a>.
-          </p>
-          <p style="color:#bbb;font-size:0.75rem">
-            If you have questions, reply to this email or reach us at matty@purepulse.one.
-          </p>
-        </div>
-      `,
-    }),
+  // Create a new Stripe customer and save it back
+  const customer = await stripe.customers.create({
+    name: clientName,
+    email: clientEmail,
+    metadata: { client_id: clientId },
   })
+
+  // Store on the most recent contract so future lookups find it
+  const { data: latestContract } = await supabase
+    .from('contracts')
+    .select('id')
+    .eq('client_id', clientId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (latestContract) {
+    await supabase
+      .from('contracts')
+      .update({ stripe_customer_id: customer.id })
+      .eq('id', latestContract.id)
+  }
+
+  return customer.id
 }
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = adminSupabase()
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://admin.purepulse.one'
 
-  // Load invoice with client
+  // Load invoice with client and line items
   const { data: invoice } = await supabase
     .from('invoices')
-    .select('*, clients(name, email)')
+    .select('*, clients(id, name, email), invoice_line_items(description, quantity, unit_price, total, sort_order)')
     .eq('id', id)
     .single()
 
@@ -78,44 +80,76 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   const client = Array.isArray(invoice.clients) ? invoice.clients[0] : invoice.clients
   if (!client?.email) return NextResponse.json({ error: 'Client has no email address' }, { status: 400 })
 
-  // Generate Stripe payment link if not already present
-  let paymentLink = invoice.stripe_payment_link
-  if (!paymentLink) {
-    if (!process.env.STRIPE_SECRET_KEY) return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 })
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-07-29.dahlia' as never })
-    const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
-      payment_method_types: ['card'],
-      customer_email: client.email,
-      line_items: [{
-        price_data: {
-          currency: 'usd',
-          product_data: { name: `Invoice ${invoice.invoice_number}` },
-          unit_amount: Math.round(invoice.total * 100),
-        },
-        quantity: 1,
-      }],
-      metadata: { invoice_id: invoice.id },
-      success_url: `${appUrl}/portal?tab=invoices&paid=1`,
-      cancel_url: `${appUrl}/portal?tab=invoices`,
-    })
-    paymentLink = session.url!
-    await supabase.from('invoices').update({ stripe_payment_link: paymentLink }).eq('id', id)
+  if (!process.env.STRIPE_SECRET_KEY) return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 })
+
+  const stripe = getStripe()
+
+  // If already sent via Stripe, just return the existing invoice URL
+  if (invoice.stripe_invoice_id) {
+    const existing = await stripe.invoices.retrieve(invoice.stripe_invoice_id)
+    return NextResponse.json({ ok: true, invoiceUrl: existing.hosted_invoice_url })
   }
 
-  // Update status to sent
-  await supabase.from('invoices').update({ status: 'sent', updated_at: new Date().toISOString() }).eq('id', id)
+  // Get or create Stripe customer
+  const stripeCustomerId = await getOrCreateStripeCustomer(
+    stripe,
+    client.id,
+    client.name,
+    client.email,
+    supabase
+  )
 
-  // Email the client
-  await sendInvoiceEmail({
-    clientName: client.name,
-    clientEmail: client.email,
-    invoiceNumber: invoice.invoice_number,
-    total: invoice.total,
-    dueDate: invoice.due_date,
-    paymentLink,
-    appUrl,
+  // Determine rendering template
+  const tmpl = templateId(invoice.type ?? null)
+
+  // Create Stripe Invoice
+  const stripeInvoice = await stripe.invoices.create({
+    customer: stripeCustomerId,
+    collection_method: 'send_invoice',
+    days_until_due: 30,
+    metadata: { invoice_id: invoice.id, invoice_number: invoice.invoice_number },
+    ...(tmpl ? { rendering: { template: tmpl } } : {}),
   })
 
-  return NextResponse.json({ ok: true, paymentLink })
+  // Add line items
+  const lineItems = (Array.isArray(invoice.invoice_line_items) ? invoice.invoice_line_items : [])
+    .sort((a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order)
+
+  if (lineItems.length === 0) {
+    // Fallback: single line item from the invoice total
+    await stripe.invoiceItems.create({
+      customer: stripeCustomerId,
+      invoice: stripeInvoice.id,
+      description: `Invoice ${invoice.invoice_number}`,
+      amount: Math.round(invoice.total * 100),
+      currency: 'usd',
+    })
+  } else {
+    for (const item of lineItems as { description: string; quantity: number; unit_price: number; total: number }[]) {
+      await stripe.invoiceItems.create({
+        customer: stripeCustomerId,
+        invoice: stripeInvoice.id,
+        description: item.description,
+        amount: Math.round(item.unit_price * item.quantity * 100),
+        currency: 'usd',
+      })
+    }
+  }
+
+  // Finalize and send — Stripe emails the client using the template
+  await stripe.invoices.finalizeInvoice(stripeInvoice.id)
+  const sent = await stripe.invoices.sendInvoice(stripeInvoice.id)
+
+  // Persist stripe_invoice_id and update status
+  await supabase
+    .from('invoices')
+    .update({
+      stripe_invoice_id: stripeInvoice.id,
+      stripe_payment_link: sent.hosted_invoice_url,
+      status: 'sent',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+
+  return NextResponse.json({ ok: true, invoiceUrl: sent.hosted_invoice_url })
 }

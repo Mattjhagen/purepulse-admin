@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 const PLAN_PRICES: Record<string, number> = { starter: 20, growth: 50, premium: 75, business: 100 }
@@ -40,9 +40,13 @@ export async function GET() {
   return NextResponse.json({ pending, total: pending.length })
 }
 
-// POST — generate invoices for all unbilled active clients this month
-export async function POST() {
+// POST — generate invoices for all unbilled active clients this month and send them
+export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => ({}))
+  const autoSend = body.autoSend !== false // default true
+
   const supabase = adminSupabase()
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://login.purepulse.one'
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
@@ -62,6 +66,9 @@ export async function POST() {
   const unbilled = (clients ?? []).filter(c => !alreadyBilled.has(c.id))
 
   const created: string[] = []
+  const sent: string[] = []
+  const errors: { clientId: string; error: string }[] = []
+
   for (const client of unbilled) {
     const planPrice = PLAN_PRICES[client.plan] ?? 0
     if (planPrice === 0) continue
@@ -79,19 +86,34 @@ export async function POST() {
       total: planPrice,
     }).select('id').single()
 
-    if (inv) {
-      await supabase.from('invoice_line_items').insert({
-        invoice_id: inv.id,
-        type: 'monthly_plan',
-        description: `${client.plan.charAt(0).toUpperCase() + client.plan.slice(1)} Plan — Monthly fee`,
-        quantity: 1,
-        unit_price: planPrice,
-        total: planPrice,
-        sort_order: 0,
-      })
-      created.push(inv.id)
+    if (!inv) continue
+
+    await supabase.from('invoice_line_items').insert({
+      invoice_id: inv.id,
+      type: 'monthly_plan',
+      description: `${client.plan.charAt(0).toUpperCase() + client.plan.slice(1)} Plan — Monthly fee`,
+      quantity: 1,
+      unit_price: planPrice,
+      total: planPrice,
+      sort_order: 0,
+    })
+
+    created.push(inv.id)
+
+    if (autoSend) {
+      try {
+        const res = await fetch(`${appUrl}/api/invoices/${inv.id}/send`, { method: 'POST' })
+        if (res.ok) {
+          sent.push(inv.id)
+        } else {
+          const json = await res.json().catch(() => ({}))
+          errors.push({ clientId: client.id, error: json.error ?? 'Send failed' })
+        }
+      } catch (err) {
+        errors.push({ clientId: client.id, error: String(err) })
+      }
     }
   }
 
-  return NextResponse.json({ created: created.length, ids: created })
+  return NextResponse.json({ created: created.length, sent: sent.length, errors, ids: created })
 }
