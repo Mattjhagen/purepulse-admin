@@ -301,7 +301,7 @@ function TemplatesTab() {
 
 function InboxTab({ emails: initialEmails }: { emails: Email[] }) {
   const [emails, setEmails] = useState(initialEmails)
-  const [selected, setSelected] = useState<Email | null>(null)
+  const [selected, setSelected] = useState<Email | null>(initialEmails[0] ?? null)
   const [replying, setReplying] = useState(false)
   const [sentBanner, setSentBanner] = useState(false)
   const supabase = createClient()
@@ -311,7 +311,9 @@ function InboxTab({ emails: initialEmails }: { emails: Email[] }) {
     const channel = supabase
       .channel('received_emails_rt')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'received_emails' }, payload => {
-        setEmails(prev => [payload.new as Email, ...prev])
+        const newEmail = payload.new as Email
+        setEmails(prev => [newEmail, ...prev])
+        setSelected(prev => prev ?? newEmail)
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'received_emails' }, payload => {
         setEmails(prev => prev.filter(e => e.id !== payload.old.id))
@@ -370,7 +372,7 @@ function InboxTab({ emails: initialEmails }: { emails: Email[] }) {
           const isSelected = selected?.id === email.id
           return (
             <button key={email.id} onClick={() => openEmail(email)} className="w-full text-left">
-              <div className={`rounded-xl px-3 py-2.5 transition-all border ${isSelected ? 'bg-primary/8 border-primary/30' : 'border-transparent hover:bg-muted/50'}`}>
+              <div className={`rounded-xl px-3 py-2.5 transition-all border ${isSelected ? 'bg-primary/10 border-primary/30' : 'border-transparent hover:bg-muted/50'}`}>
                 <div className="flex items-start justify-between gap-1.5">
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm truncate ${isUnread ? 'font-semibold' : 'font-normal text-muted-foreground'}`}>
@@ -396,7 +398,7 @@ function InboxTab({ emails: initialEmails }: { emails: Email[] }) {
       </div>
 
       {/* Email viewer */}
-      <div className="flex-1 rounded-xl border bg-card overflow-hidden flex flex-col min-w-0">
+      <div className="flex-1 rounded-xl border overflow-hidden flex flex-col min-w-0 bg-background">
         {selected ? (
           <>
             {/* Header */}
@@ -436,8 +438,8 @@ function InboxTab({ emails: initialEmails }: { emails: Email[] }) {
             <div className="flex-1 overflow-y-auto p-5 min-h-0">
               {selected.html ? (
                 <iframe
-                  srcDoc={`<!doctype html><html><head><meta charset="utf-8"><style>*{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;line-height:1.6;color:#111;padding:0;margin:0;background:#fff}a{color:#7B2FFF}</style></head><body>${selected.html}</body></html>`}
-                  className="w-full h-full border-none"
+                  srcDoc={`<!doctype html><html><head><meta charset="utf-8"><style>*{box-sizing:border-box}html,body{background:#ffffff!important;color:#111111!important}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;line-height:1.6;padding:0;margin:0}a{color:#7B2FFF}img{max-width:100%}</style></head><body>${selected.html}</body></html>`}
+                  className="w-full h-full border-none rounded-b-xl"
                   sandbox="allow-same-origin"
                   title="Email content"
                 />
