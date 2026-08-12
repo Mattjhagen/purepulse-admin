@@ -3,7 +3,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { InvoiceLineItem } from '@/lib/types'
 import { formatDate, formatMoney, statusBadgeClass, generateInvoiceNumber } from '@/lib/utils'
-import { Printer, Plus, Trash2, ChevronLeft, Save, Send, Link2, CheckCircle, Mail, Copy, XCircle, Eye, AlertTriangle, Clock } from 'lucide-react'
+import {
+  Printer, Plus, Trash2, ChevronLeft, Save, Send, Link2, CheckCircle,
+  Mail, Copy, XCircle, Eye, AlertTriangle, Clock, User, TrendingUp,
+} from 'lucide-react'
 import Link from 'next/link'
 import { use } from 'react'
 
@@ -37,6 +40,44 @@ function daysOverdue(dueDateStr: string): number {
 
 function daysBetween(a: string, b: string): number {
   return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86_400_000)
+}
+
+function relTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const d = Math.floor(diff / 86_400_000)
+  if (d === 0) return 'Today'
+  if (d === 1) return 'Yesterday'
+  if (d < 30) return `${d} days ago`
+  return formatDate(iso)
+}
+
+// ─── Timeline ─────────────────────────────────────────────────────────────────
+
+type TimelineEvent = { label: string; time: string; color: string; icon: React.ElementType }
+
+function Timeline({ events }: { events: TimelineEvent[] }) {
+  if (events.length === 0) return null
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+      {events.map((e, i) => {
+        const Icon = e.icon
+        return (
+          <div key={i} style={{ display: 'flex', gap: '0.875rem', alignItems: 'flex-start', paddingBottom: i < events.length - 1 ? '0.875rem' : 0 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: `${e.color}18`, border: `1.5px solid ${e.color}40`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Icon size={13} color={e.color} />
+              </div>
+              {i < events.length - 1 && <div style={{ width: 1.5, flex: 1, background: 'var(--border)', marginTop: '4px' }} />}
+            </div>
+            <div style={{ paddingTop: '4px', paddingBottom: i < events.length - 1 ? '0.875rem' : 0 }}>
+              <p style={{ fontSize: '0.875rem', fontWeight: 500 }}>{e.label}</p>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '1px' }}>{relTime(e.time)}</p>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
@@ -233,6 +274,31 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         ? 'Send to client'
         : 'Resend to client'
 
+  // Build timeline events
+  const timelineEvents: TimelineEvent[] = []
+  if (invoice.created_at) {
+    timelineEvents.push({ label: 'Invoice created', time: invoice.created_at, color: '#6b7280', icon: TrendingUp })
+  }
+  if (invoice.status !== 'draft' && invoice.updated_at && invoice.updated_at !== invoice.created_at) {
+    if (['sent', 'viewed', 'paid', 'overdue'].includes(invoice.status) || invoice.stripe_payment_link) {
+      if (invoice.stripe_payment_link) {
+        timelineEvents.push({ label: 'Payment link generated', time: invoice.updated_at, color: '#3b82f6', icon: Link2 })
+      }
+    }
+  }
+  if (['sent', 'viewed', 'paid', 'overdue'].includes(invoice.status) && invoice.updated_at) {
+    timelineEvents.push({ label: 'Sent to client', time: invoice.updated_at, color: '#f59e0b', icon: Mail })
+  }
+  if (['viewed', 'paid'].includes(invoice.status) && invoice.updated_at) {
+    timelineEvents.push({ label: 'Viewed by client', time: invoice.updated_at, color: '#6366f1', icon: Eye })
+  }
+  if (invoice.status === 'paid' && invoice.paid_at) {
+    timelineEvents.push({ label: `Paid — ${formatMoney(invoice.total)}`, time: invoice.paid_at, color: '#22c55e', icon: CheckCircle })
+  }
+  if (invoice.status === 'void' && invoice.updated_at) {
+    timelineEvents.push({ label: 'Voided', time: invoice.updated_at, color: '#ef4444', icon: XCircle })
+  }
+
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
@@ -248,7 +314,12 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             <Clock size={12} /> Paid in {daysToPayment}d
           </span>
         )}
-        <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginLeft: 'auto', fontFamily: 'monospace' }}>{invoice.invoice_number}</span>
+        {client?.id && (
+          <Link href={`/clients/${client.id}`} className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }}>
+            <User size={13} /> {client.name}
+          </Link>
+        )}
+        <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem', fontFamily: 'monospace', ...(client?.id ? {} : { marginLeft: 'auto' }) }}>{invoice.invoice_number}</span>
       </div>
 
       {/* Actions */}
@@ -282,26 +353,22 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             </button>
           )}
 
-          {/* Mark as viewed */}
           {invoice.status === 'sent' && (
             <button className="btn btn-ghost" onClick={() => updateStatus('viewed')}>
               <Eye size={14} /> Mark viewed
             </button>
           )}
 
-          {/* Mark paid */}
           {canMarkPaid && (
-            <button className="btn btn-ghost" onClick={() => updateStatus('paid', { paid_at: new Date().toISOString() })}>
+            <button className="btn btn-ghost" onClick={() => updateStatus('paid', { paid_at: new Date().toISOString() })} style={{ color: '#22c55e', borderColor: 'rgba(34,197,94,0.3)' }}>
               <CheckCircle size={14} /> Mark paid
             </button>
           )}
 
-          {/* Duplicate */}
           <button className="btn btn-ghost" onClick={duplicate} disabled={duplicating}>
             {duplicating ? <span className="spinner" /> : <><Copy size={14} /> Duplicate</>}
           </button>
 
-          {/* Void */}
           {!['void', 'paid'].includes(invoice.status) && (
             <button className="btn btn-danger" onClick={() => setShowVoidDialog(true)}>
               <XCircle size={14} /> Void
@@ -333,140 +400,163 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginTop: '0.875rem', padding: '0.625rem 0.875rem', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 'var(--radius-sm)', fontSize: '0.8125rem', color: '#ef4444' }}>
             <AlertTriangle size={14} style={{ flexShrink: 0 }} />
             {overduedays > 0 ? `${overduedays} days overdue` : 'Overdue'} since {formatDate(invoice.due_date)} — send a reminder to prompt payment.
+            <Link href={`/clients/${client?.id}`} style={{ marginLeft: 'auto', fontSize: '0.8125rem', color: '#ef4444', textDecoration: 'underline', whiteSpace: 'nowrap' }}>
+              View client →
+            </Link>
           </div>
         )}
       </div>
 
-      {/* Invoice document */}
-      <div id="invoice-print" className="card-elevated" style={{ maxWidth: '760px', padding: '2.5rem' }}>
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2.5rem' }}>
-          <div>
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.05em' }}>PurePulse</h1>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>matty@purepulse.one</p>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>purepulse.one</p>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, letterSpacing: '-0.04em' }}>INVOICE</h2>
-            <p style={{ fontFamily: 'monospace', color: 'var(--text-muted)', marginTop: '0.25rem' }}>{invoice.invoice_number}</p>
-            <span className={statusBadgeClass(invoice.status)} style={{ marginTop: '0.375rem', display: 'inline-block' }}>{invoice.status}</span>
-          </div>
-        </div>
+      {/* Two-column layout: invoice doc + sidebar */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '1.5rem', alignItems: 'start' }}>
 
-        <hr className="divider" />
-
-        {/* Client + dates */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', marginBottom: '2.5rem' }}>
-          <div>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Bill To</p>
-            <p style={{ fontWeight: 600 }}>{client?.name}</p>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{client?.email}</p>
-            {client?.company && <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{client.company}</p>}
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ marginBottom: '0.5rem' }}>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Issue Date</p>
-              <p style={{ fontWeight: 500 }}>{formatDate(invoice.issue_date)}</p>
-            </div>
+        {/* Invoice document */}
+        <div id="invoice-print" className="card-elevated" style={{ maxWidth: '760px', padding: '2.5rem' }}>
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2.5rem' }}>
             <div>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Due Date</p>
-              <p style={{ fontWeight: 500, color: isOverdue ? '#ef4444' : 'inherit' }}>{formatDate(invoice.due_date)}</p>
-              {isOverdue && overduedays > 0 && (
-                <p style={{ fontSize: '0.75rem', color: '#ef4444', fontWeight: 700 }}>+{overduedays}d overdue</p>
+              <h1 style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.05em' }}>PurePulse</h1>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>matty@purepulse.one</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>purepulse.one</p>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, letterSpacing: '-0.04em' }}>INVOICE</h2>
+              <p style={{ fontFamily: 'monospace', color: 'var(--text-muted)', marginTop: '0.25rem' }}>{invoice.invoice_number}</p>
+              <span className={statusBadgeClass(invoice.status)} style={{ marginTop: '0.375rem', display: 'inline-block' }}>{invoice.status}</span>
+            </div>
+          </div>
+
+          <hr className="divider" />
+
+          {/* Client + dates */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', marginBottom: '2.5rem' }}>
+            <div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Bill To</p>
+              <p style={{ fontWeight: 600 }}>{client?.name}</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{client?.email}</p>
+              {client?.company && <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{client.company}</p>}
+              {client?.id && (
+                <Link href={`/clients/${client.id}`} style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'inline-block', textDecoration: 'underline' }}>
+                  View client profile →
+                </Link>
               )}
             </div>
-          </div>
-        </div>
-
-        {/* Line items */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '1.5rem' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid var(--border)' }}>
-              <th style={{ textAlign: 'left', padding: '0.5rem 0.25rem', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Description</th>
-              <th style={{ textAlign: 'right', padding: '0.5rem 0.25rem', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '80px' }}>Qty</th>
-              <th style={{ textAlign: 'right', padding: '0.5rem 0.25rem', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '100px' }}>Rate</th>
-              <th style={{ textAlign: 'right', padding: '0.5rem 0.25rem', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '100px' }}>Total</th>
-              {isEditable && <th style={{ width: '32px' }} />}
-            </tr>
-          </thead>
-          <tbody>
-            {lineItems.map(item => (
-              <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                <td style={{ padding: '0.625rem 0.25rem' }}>
-                  {isEditable
-                    ? <input className="input input-sm" value={item.description} onChange={e => updateItem(item.id, 'description', e.target.value)} placeholder="Description" style={{ border: 'none', background: 'transparent', padding: 0, fontSize: '0.9375rem', width: '100%' }} />
-                    : <span style={{ fontSize: '0.9375rem' }}>{item.description}</span>}
-                </td>
-                <td style={{ padding: '0.625rem 0.25rem', textAlign: 'right' }}>
-                  {isEditable
-                    ? <input className="input input-sm" type="number" step="0.001" value={item.quantity} onChange={e => updateItem(item.id, 'quantity', Number(e.target.value))} style={{ textAlign: 'right', border: 'none', background: 'transparent', width: '60px', padding: 0 }} />
-                    : <span>{item.quantity}</span>}
-                </td>
-                <td style={{ padding: '0.625rem 0.25rem', textAlign: 'right' }}>
-                  {isEditable
-                    ? <input className="input input-sm" type="number" step="0.01" value={item.unit_price} onChange={e => updateItem(item.id, 'unit_price', Number(e.target.value))} style={{ textAlign: 'right', border: 'none', background: 'transparent', width: '80px', padding: 0 }} />
-                    : <span>{formatMoney(item.unit_price)}</span>}
-                </td>
-                <td style={{ padding: '0.625rem 0.25rem', textAlign: 'right', fontWeight: 600 }}>{formatMoney(item.total)}</td>
-                {isEditable && (
-                  <td style={{ padding: '0.625rem 0' }}>
-                    <button onClick={() => removeItem(item.id)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', opacity: 0.4 }}><Trash2 size={14} /></button>
-                  </td>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ marginBottom: '0.5rem' }}>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Issue Date</p>
+                <p style={{ fontWeight: 500 }}>{formatDate(invoice.issue_date)}</p>
+              </div>
+              <div>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Due Date</p>
+                <p style={{ fontWeight: 500, color: isOverdue ? '#ef4444' : 'inherit' }}>{formatDate(invoice.due_date)}</p>
+                {isOverdue && overduedays > 0 && (
+                  <p style={{ fontSize: '0.75rem', color: '#ef4444', fontWeight: 700 }}>+{overduedays}d overdue</p>
                 )}
-              </tr>
-            ))}
-            {lineItems.length === 0 && (
-              <tr>
-                <td colSpan={isEditable ? 5 : 4} style={{ padding: '1.5rem 0.25rem', color: 'var(--text-muted)', fontSize: '0.875rem', textAlign: 'center' }}>
-                  No line items yet. Add one below.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-
-        {isEditable && (
-          <button className="btn btn-ghost btn-sm" onClick={addLineItem} style={{ marginBottom: '2rem' }}>
-            <Plus size={14} /> Add line item
-          </button>
-        )}
-
-        {/* Totals */}
-        <div style={{ maxWidth: '320px', marginLeft: 'auto' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-            <span>Subtotal</span><span>{formatMoney(subtotal)}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-            <span>Tax rate (%)</span>
-            {isEditable
-              ? <input type="number" min="0" max="100" step="0.01" value={taxRate} onChange={e => setTaxRate(Number(e.target.value))} style={{ width: '70px', textAlign: 'right', background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '2px 6px', color: 'var(--text)', fontSize: '0.875rem' }} />
-              : <span>{taxRate}%</span>}
-          </div>
-          {taxAmount > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-              <span>Tax ({taxRate}%)</span><span>{formatMoney(taxAmount)}</span>
+                {daysToPayment !== null && (
+                  <p style={{ fontSize: '0.75rem', color: '#22c55e', fontWeight: 600, marginTop: '0.25rem' }}>Paid in {daysToPayment}d</p>
+                )}
+              </div>
             </div>
-          )}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-            <span>Discount ($)</span>
-            {isEditable
-              ? <input type="number" min="0" step="0.01" value={discount} onChange={e => setDiscount(Number(e.target.value))} style={{ width: '70px', textAlign: 'right', background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '2px 6px', color: '#22c55e', fontSize: '0.875rem' }} />
-              : discount > 0 ? <span style={{ color: '#22c55e' }}>−{formatMoney(discount)}</span> : <span>—</span>}
           </div>
-          <hr className="divider" style={{ margin: '0.75rem 0' }} />
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '1.25rem' }}>
-            <span>Total</span><span>{formatMoney(total)}</span>
+
+          {/* Line items */}
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '1.5rem' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                <th style={{ textAlign: 'left', padding: '0.5rem 0.25rem', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Description</th>
+                <th style={{ textAlign: 'right', padding: '0.5rem 0.25rem', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '80px' }}>Qty</th>
+                <th style={{ textAlign: 'right', padding: '0.5rem 0.25rem', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '100px' }}>Rate</th>
+                <th style={{ textAlign: 'right', padding: '0.5rem 0.25rem', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '100px' }}>Total</th>
+                {isEditable && <th style={{ width: '32px' }} />}
+              </tr>
+            </thead>
+            <tbody>
+              {lineItems.map(item => (
+                <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '0.625rem 0.25rem' }}>
+                    {isEditable
+                      ? <input className="input input-sm" value={item.description} onChange={e => updateItem(item.id, 'description', e.target.value)} placeholder="Description" style={{ border: 'none', background: 'transparent', padding: 0, fontSize: '0.9375rem', width: '100%' }} />
+                      : <span style={{ fontSize: '0.9375rem' }}>{item.description}</span>}
+                  </td>
+                  <td style={{ padding: '0.625rem 0.25rem', textAlign: 'right' }}>
+                    {isEditable
+                      ? <input className="input input-sm" type="number" step="0.001" value={item.quantity} onChange={e => updateItem(item.id, 'quantity', Number(e.target.value))} style={{ textAlign: 'right', border: 'none', background: 'transparent', width: '60px', padding: 0 }} />
+                      : <span>{item.quantity}</span>}
+                  </td>
+                  <td style={{ padding: '0.625rem 0.25rem', textAlign: 'right' }}>
+                    {isEditable
+                      ? <input className="input input-sm" type="number" step="0.01" value={item.unit_price} onChange={e => updateItem(item.id, 'unit_price', Number(e.target.value))} style={{ textAlign: 'right', border: 'none', background: 'transparent', width: '80px', padding: 0 }} />
+                      : <span>{formatMoney(item.unit_price)}</span>}
+                  </td>
+                  <td style={{ padding: '0.625rem 0.25rem', textAlign: 'right', fontWeight: 600 }}>{formatMoney(item.total)}</td>
+                  {isEditable && (
+                    <td style={{ padding: '0.625rem 0' }}>
+                      <button onClick={() => removeItem(item.id)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', opacity: 0.4 }}><Trash2 size={14} /></button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+              {lineItems.length === 0 && (
+                <tr>
+                  <td colSpan={isEditable ? 5 : 4} style={{ padding: '1.5rem 0.25rem', color: 'var(--text-muted)', fontSize: '0.875rem', textAlign: 'center' }}>
+                    No line items yet. Add one below.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+
+          {isEditable && (
+            <button className="btn btn-ghost btn-sm" onClick={addLineItem} style={{ marginBottom: '2rem' }}>
+              <Plus size={14} /> Add line item
+            </button>
+          )}
+
+          {/* Totals */}
+          <div style={{ maxWidth: '320px', marginLeft: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+              <span>Subtotal</span><span>{formatMoney(subtotal)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+              <span>Tax rate (%)</span>
+              {isEditable
+                ? <input type="number" min="0" max="100" step="0.01" value={taxRate} onChange={e => setTaxRate(Number(e.target.value))} style={{ width: '70px', textAlign: 'right', background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '2px 6px', color: 'var(--text)', fontSize: '0.875rem' }} />
+                : <span>{taxRate}%</span>}
+            </div>
+            {taxAmount > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                <span>Tax ({taxRate}%)</span><span>{formatMoney(taxAmount)}</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+              <span>Discount ($)</span>
+              {isEditable
+                ? <input type="number" min="0" step="0.01" value={discount} onChange={e => setDiscount(Number(e.target.value))} style={{ width: '70px', textAlign: 'right', background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '2px 6px', color: '#22c55e', fontSize: '0.875rem' }} />
+                : discount > 0 ? <span style={{ color: '#22c55e' }}>−{formatMoney(discount)}</span> : <span>—</span>}
+            </div>
+            <hr className="divider" style={{ margin: '0.75rem 0' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '1.25rem' }}>
+              <span>Total</span><span>{formatMoney(total)}</span>
+            </div>
+          </div>
+
+          {/* Notes */}
+          <hr className="divider" style={{ marginTop: '2rem' }} />
+          <div>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Notes</p>
+            {isEditable
+              ? <textarea className="input" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Payment terms, instructions…" style={{ minHeight: '70px' }} />
+              : notes ? <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>{notes}</p> : <p style={{ fontSize: '0.875rem', color: 'var(--text-dim)' }}>None</p>}
           </div>
         </div>
 
-        {/* Notes */}
-        <hr className="divider" style={{ marginTop: '2rem' }} />
-        <div>
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Notes</p>
-          {isEditable
-            ? <textarea className="input" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Payment terms, instructions…" style={{ minHeight: '70px' }} />
-            : notes ? <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>{notes}</p> : <p style={{ fontSize: '0.875rem', color: 'var(--text-dim)' }}>None</p>}
-        </div>
+        {/* Sidebar: timeline */}
+        {timelineEvents.length > 0 && (
+          <div className="card" style={{ padding: '1.25rem', width: 220, flexShrink: 0 }}>
+            <p style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '1rem' }}>Timeline</p>
+            <Timeline events={timelineEvents} />
+          </div>
+        )}
       </div>
 
       {showVoidDialog && (
@@ -480,6 +570,9 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         @media print {
           .btn, nav, aside, header { display: none !important; }
           #invoice-print { box-shadow: none !important; border: none !important; max-width: 100% !important; }
+        }
+        @media (max-width: 700px) {
+          #invoice-sidebar { display: none; }
         }
       `}</style>
     </>
