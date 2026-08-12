@@ -4,10 +4,10 @@ import { createClient } from '@/lib/supabase'
 import { formatDate, statusBadgeClass } from '@/lib/utils'
 import { Plus, X, LogOut, CheckCircle, Circle, Clock, MessageCircle, FileText, CreditCard, LifeBuoy, Sparkles, ThumbsUp, RotateCcw, ChevronDown, ChevronRight, ClipboardList, Pencil } from 'lucide-react'
 
-type Tab = 'progress' | 'campaign' | 'brief' | 'messages' | 'invoices' | 'tickets'
+type Tab = 'home' | 'progress' | 'campaign' | 'brief' | 'messages' | 'invoices' | 'tickets' | 'posts'
 
 type Stage = { id: string; name: string; status: 'pending' | 'in_progress' | 'complete'; note?: string; completed_at?: string; sort_order: number }
-type Message = { id: string; sender: 'admin' | 'client'; sender_name: string; body: string; created_at: string }
+type Message = { id: string; sender: 'admin' | 'client'; sender_name: string; body: string; read_at: string | null; created_at: string }
 type Invoice = { id: string; invoice_number: string; status: string; issue_date: string; due_date: string; total: number; stripe_payment_link?: string }
 type Ticket = { id: string; subject: string; description: string; status: string; priority: string; created_at: string }
 type TicketComment = { id: string; ticket_id: string; is_client: boolean; body: string; created_at: string }
@@ -23,6 +23,17 @@ type Deliverable = {
   client_notes: string | null
   revision_count: number
   created_at: string
+}
+
+type SocialPost = {
+  id: string
+  title: string
+  platform: string
+  status: string
+  social_caption: string | null
+  social_image_url: string | null
+  created_at: string
+  campaign_name?: string
 }
 
 type Milestone = {
@@ -79,11 +90,12 @@ export default function CustomerPortalPage() {
   const [authLoading, setAuthLoading] = useState(false)
   const [clientId, setClientId] = useState<string | null>(null)
   const [clientName, setClientName] = useState('')
-  const [tab, setTab] = useState<Tab>('progress')
+  const [tab, setTab] = useState<Tab>('home')
 
   // Data
   const [stages, setStages] = useState<Stage[]>([])
   const [messages, setMessages] = useState<Message[]>([])
+  const [socialPosts, setSocialPosts] = useState<SocialPost[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [ticketComments, setTicketComments] = useState<Record<string, TicketComment[]>>({})
@@ -147,7 +159,7 @@ export default function CustomerPortalPage() {
 
     const [{ data: s }, { data: m }, { data: inv }, { data: t }, { data: camp }] = await Promise.all([
       supabase.from('project_stages').select('*').eq('client_id', pu.client_id).order('sort_order'),
-      supabase.from('client_messages').select('*').eq('client_id', pu.client_id).order('created_at'),
+      supabase.from('client_messages').select('id,sender,sender_name,body,read_at,created_at').eq('client_id', pu.client_id).order('created_at'),
       supabase.from('invoices').select('id,invoice_number,status,issue_date,due_date,total,stripe_payment_link').eq('client_id', pu.client_id).order('issue_date', { ascending: false }),
       supabase.from('tickets').select('*').eq('client_id', pu.client_id).order('created_at', { ascending: false }),
       supabase.from('campaigns').select('id,name,plan,status').eq('client_id', pu.client_id).eq('status', 'active').order('created_at'),
@@ -223,6 +235,27 @@ export default function CustomerPortalPage() {
 
       setCampaigns(builtCampaigns)
 
+      // Load social posts for this client's campaigns
+      if (milestoneIds.length > 0) {
+        const { data: posts } = await supabase
+          .from('deliverables')
+          .select('id,milestone_id,title,platform,status,social_caption,social_image_url,created_at')
+          .in('milestone_id', milestoneIds)
+          .eq('type', 'social_post')
+          .in('status', ['scheduled', 'published'])
+          .order('created_at', { ascending: false })
+
+        const milestoneTocamp: Record<string, string> = {}
+        for (const m of milestones ?? []) milestoneTocamp[m.id] = m.campaign_id
+        const campNameMap: Record<string, string> = {}
+        for (const c of camp) campNameMap[c.id] = c.name
+
+        setSocialPosts((posts ?? []).map(p => ({
+          ...p,
+          campaign_name: campNameMap[milestoneTocamp[p.milestone_id]] ?? '',
+        }) as SocialPost))
+      }
+
       // Auto-expand the first in_progress milestone
       const firstActive = (milestones ?? []).find(m => m.status === 'in_progress')
       if (firstActive) setExpandedMilestones(new Set([firstActive.id]))
@@ -252,6 +285,24 @@ export default function CustomerPortalPage() {
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [supabase, clientId])
+
+  // Mark admin messages as read when Messages tab is opened
+  useEffect(() => {
+    if (tab !== 'messages' || !clientId) return
+    const unread = messages.filter(m => m.sender === 'admin' && !m.read_at)
+    if (unread.length === 0) return
+    supabase
+      .from('client_messages')
+      .update({ read_at: new Date().toISOString() })
+      .eq('client_id', clientId)
+      .eq('sender', 'admin')
+      .is('read_at', null)
+      .then(() => {
+        const now = new Date().toISOString()
+        setMessages(prev => prev.map(m => m.sender === 'admin' && !m.read_at ? { ...m, read_at: now } : m))
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, clientId])
 
   // Scroll messages to bottom on new messages
   useEffect(() => {
@@ -602,13 +653,17 @@ export default function CustomerPortalPage() {
     )
   }
 
+  const unreadMessages = messages.filter(m => m.sender === 'admin' && !m.read_at).length
+
   const tabs: { id: Tab; label: string; icon: React.ReactNode; count?: number }[] = [
-    { id: 'progress', label: 'Progress', icon: <CheckCircle size={16} /> },
+    { id: 'home', label: 'Home', icon: <CheckCircle size={16} /> },
+    { id: 'progress', label: 'Progress', icon: <Clock size={16} /> },
     { id: 'campaign', label: 'Campaign', icon: <Sparkles size={16} />, count: pendingReviewCount || undefined },
     { id: 'brief', label: 'Brief', icon: <ClipboardList size={16} />, count: campaigns.length > 0 && !brief ? 1 : undefined },
-    { id: 'messages', label: 'Messages', icon: <MessageCircle size={16} />, count: messages.filter(m => m.sender === 'admin').length },
-    { id: 'invoices', label: 'Invoices', icon: <CreditCard size={16} />, count: invoices.filter(i => i.status === 'sent' || i.status === 'overdue').length },
-    { id: 'tickets', label: 'Tickets', icon: <LifeBuoy size={16} />, count: tickets.filter(t => t.status === 'open').length },
+    { id: 'posts', label: 'Posts', icon: <FileText size={16} />, count: socialPosts.length || undefined },
+    { id: 'messages', label: 'Messages', icon: <MessageCircle size={16} />, count: unreadMessages || undefined },
+    { id: 'invoices', label: 'Invoices', icon: <CreditCard size={16} />, count: invoices.filter(i => i.status === 'sent' || i.status === 'overdue').length || undefined },
+    { id: 'tickets', label: 'Tickets', icon: <LifeBuoy size={16} />, count: tickets.filter(t => t.status === 'open').length || undefined },
   ]
 
   return (
@@ -626,9 +681,9 @@ export default function CustomerPortalPage() {
       </header>
 
       {/* Tab nav */}
-      <div style={{ borderBottom: '1px solid var(--border)', padding: '0 2rem', display: 'flex', gap: '0.25rem' }}>
+      <div style={{ borderBottom: '1px solid var(--border)', padding: '0 1rem', display: 'flex', gap: '0.25rem', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
         {tabs.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.875rem 1rem', fontSize: '0.875rem', fontWeight: tab === t.id ? 600 : 400, color: tab === t.id ? 'var(--text)' : 'var(--text-muted)', background: 'none', border: 'none', borderBottomWidth: '2px', borderBottomStyle: 'solid', borderBottomColor: tab === t.id ? 'var(--text)' : 'transparent', cursor: 'pointer', transition: 'all 0.15s' }}>
+          <button key={t.id} onClick={() => setTab(t.id)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.875rem 0.875rem', fontSize: '0.875rem', fontWeight: tab === t.id ? 600 : 400, color: tab === t.id ? 'var(--text)' : 'var(--text-muted)', background: 'none', border: 'none', borderBottomWidth: '2px', borderBottomStyle: 'solid', borderBottomColor: tab === t.id ? 'var(--text)' : 'transparent', cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap', flexShrink: 0 }}>
             {t.icon} {t.label}
             {t.count ? <span style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', fontSize: '0.7rem', fontWeight: 700, padding: '0 5px', borderRadius: '100px', minWidth: '18px', textAlign: 'center' }}>{t.count}</span> : null}
           </button>
@@ -644,6 +699,76 @@ export default function CustomerPortalPage() {
           </div>
         ) : (
           <>
+            {/* HOME TAB */}
+            {tab === 'home' && (
+              <div>
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.04em', marginBottom: '0.375rem' }}>
+                  Welcome back{clientName ? `, ${clientName}` : ''}
+                </h1>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>Here&apos;s what needs your attention.</p>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+                  {pendingReviewCount > 0 && (
+                    <button onClick={() => setTab('campaign')} style={{ background: 'rgba(123,47,255,0.08)', border: '1px solid rgba(123,47,255,0.25)', borderRadius: 'var(--radius)', padding: '1.25rem', textAlign: 'left', cursor: 'pointer', transition: 'all 0.15s' }}>
+                      <p style={{ fontSize: '2rem', fontWeight: 800, color: '#7B2FFF', lineHeight: 1 }}>{pendingReviewCount}</p>
+                      <p style={{ fontWeight: 600, marginTop: '0.375rem' }}>Pending Review{pendingReviewCount !== 1 ? 's' : ''}</p>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem', marginTop: '0.25rem' }}>Deliverables waiting for your approval</p>
+                    </button>
+                  )}
+
+                  {unreadMessages > 0 && (
+                    <button onClick={() => setTab('messages')} style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.25)', borderRadius: 'var(--radius)', padding: '1.25rem', textAlign: 'left', cursor: 'pointer', transition: 'all 0.15s' }}>
+                      <p style={{ fontSize: '2rem', fontWeight: 800, color: '#3b82f6', lineHeight: 1 }}>{unreadMessages}</p>
+                      <p style={{ fontWeight: 600, marginTop: '0.375rem' }}>New Message{unreadMessages !== 1 ? 's' : ''}</p>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem', marginTop: '0.25rem' }}>From the PurePulse team</p>
+                    </button>
+                  )}
+
+                  {invoices.filter(i => i.status === 'sent' || i.status === 'overdue').length > 0 && (
+                    <button onClick={() => setTab('invoices')} style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 'var(--radius)', padding: '1.25rem', textAlign: 'left', cursor: 'pointer', transition: 'all 0.15s' }}>
+                      <p style={{ fontSize: '2rem', fontWeight: 800, color: '#f59e0b', lineHeight: 1 }}>{invoices.filter(i => i.status === 'sent' || i.status === 'overdue').length}</p>
+                      <p style={{ fontWeight: 600, marginTop: '0.375rem' }}>Invoice{invoices.filter(i => i.status === 'sent' || i.status === 'overdue').length !== 1 ? 's' : ''} Due</p>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem', marginTop: '0.25rem' }}>Awaiting payment</p>
+                    </button>
+                  )}
+
+                  {tickets.filter(t => t.status === 'open').length > 0 && (
+                    <button onClick={() => setTab('tickets')} style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 'var(--radius)', padding: '1.25rem', textAlign: 'left', cursor: 'pointer', transition: 'all 0.15s' }}>
+                      <p style={{ fontSize: '2rem', fontWeight: 800, color: '#ef4444', lineHeight: 1 }}>{tickets.filter(t => t.status === 'open').length}</p>
+                      <p style={{ fontWeight: 600, marginTop: '0.375rem' }}>Open Ticket{tickets.filter(t => t.status === 'open').length !== 1 ? 's' : ''}</p>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem', marginTop: '0.25rem' }}>Support requests in progress</p>
+                    </button>
+                  )}
+
+                  {pendingReviewCount === 0 && unreadMessages === 0 && invoices.filter(i => i.status === 'sent' || i.status === 'overdue').length === 0 && tickets.filter(t => t.status === 'open').length === 0 && (
+                    <div className="card" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem' }}>
+                      <CheckCircle size={32} style={{ margin: '0 auto 1rem', color: '#22c55e' }} />
+                      <p style={{ fontWeight: 600, marginBottom: '0.375rem' }}>All caught up!</p>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Nothing needs your attention right now.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Quick nav */}
+                <p style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.875rem' }}>Quick access</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '0.625rem' }}>
+                  {([
+                    { id: 'progress', label: 'Project Progress', icon: <Clock size={18} /> },
+                    { id: 'campaign', label: 'Campaign', icon: <Sparkles size={18} /> },
+                    { id: 'posts', label: 'Social Posts', icon: <FileText size={18} /> },
+                    { id: 'messages', label: 'Messages', icon: <MessageCircle size={18} /> },
+                    { id: 'invoices', label: 'Invoices', icon: <CreditCard size={18} /> },
+                    { id: 'tickets', label: 'Tickets', icon: <LifeBuoy size={18} /> },
+                  ] as const).map(item => (
+                    <button key={item.id} onClick={() => setTab(item.id)} className="card" style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', padding: '0.875rem 1rem', cursor: 'pointer', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', color: 'var(--text-muted)', transition: 'all 0.15s', textAlign: 'left' }}>
+                      {item.icon}
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* PROGRESS TAB */}
             {tab === 'progress' && (
               <div>
@@ -1046,6 +1171,57 @@ export default function CustomerPortalPage() {
                       After submitting, we&apos;ll generate an AI brand summary that guides all your content.
                     </p>
                   </form>
+                )}
+              </div>
+            )}
+
+            {/* POSTS TAB */}
+            {tab === 'posts' && (
+              <div>
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.04em', marginBottom: '0.5rem' }}>Social Posts</h1>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>Your scheduled and published social media content.</p>
+                {socialPosts.length === 0 ? (
+                  <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
+                    <FileText size={32} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
+                    <p style={{ color: 'var(--text-muted)' }}>No scheduled or published posts yet. They&apos;ll appear here once your social content is ready.</p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {socialPosts.map(post => {
+                      const isPublished = post.status === 'published'
+                      return (
+                        <div key={post.id} className="card">
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', marginBottom: post.social_caption ? '0.875rem' : 0 }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ fontWeight: 600, marginBottom: '0.25rem' }}>{post.title}</p>
+                              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '0.75rem', background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', borderRadius: '100px', padding: '1px 8px', color: 'var(--text-muted)', textTransform: 'capitalize' }}>
+                                  {post.platform}
+                                </span>
+                                {post.campaign_name && (
+                                  <span style={{ fontSize: '0.75rem', background: 'rgba(123,47,255,0.08)', border: '1px solid rgba(123,47,255,0.2)', borderRadius: '100px', padding: '1px 8px', color: '#7B2FFF' }}>
+                                    {post.campaign_name}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '3px 10px', borderRadius: '100px', background: isPublished ? 'rgba(34,197,94,0.1)' : 'rgba(59,130,246,0.1)', color: isPublished ? '#22c55e' : '#3b82f6', whiteSpace: 'nowrap', flexShrink: 0, textTransform: 'capitalize' }}>
+                              {post.status}
+                            </span>
+                          </div>
+                          {post.social_image_url && (
+                            <div style={{ marginBottom: '0.875rem', borderRadius: 'var(--radius-sm)', overflow: 'hidden', maxHeight: '240px' }}>
+                              <img src={post.social_image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                            </div>
+                          )}
+                          {post.social_caption && (
+                            <p style={{ fontSize: '0.9375rem', lineHeight: 1.65, color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{post.social_caption}</p>
+                          )}
+                          <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginTop: '0.75rem' }}>{formatDate(post.created_at)}</p>
+                        </div>
+                      )
+                    })}
+                  </div>
                 )}
               </div>
             )}
