@@ -18,10 +18,7 @@ async function verifySignature(req: NextRequest): Promise<Record<string, unknown
     const svixTimestamp = req.headers.get('svix-timestamp') ?? ''
     const svixSignature = req.headers.get('svix-signature') ?? ''
 
-    if (!svixId || !svixTimestamp || !svixSignature) {
-      console.error('[resend-webhook] missing svix headers', { svixId: !!svixId, svixTimestamp: !!svixTimestamp, svixSignature: !!svixSignature })
-      return null
-    }
+    if (!svixId || !svixTimestamp || !svixSignature) return null
 
     try {
       const wh = new Webhook(secret)
@@ -30,8 +27,7 @@ async function verifySignature(req: NextRequest): Promise<Record<string, unknown
         'svix-timestamp': svixTimestamp,
         'svix-signature': svixSignature,
       }) as Record<string, unknown>
-    } catch (err) {
-      console.error('[resend-webhook] signature verification failed', String(err))
+    } catch {
       return null
     }
   }
