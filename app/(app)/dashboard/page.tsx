@@ -2,12 +2,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
-import { formatMoney, formatDate } from '@/lib/utils'
+import { formatMoney, formatDate, formatHours, calcDurationHours, calcEarnings, getWeekBounds } from '@/lib/utils'
 import { PLAN_PRICES } from '@/lib/types'
 import {
   Users, DollarSign, FileText, Clock, Ticket, MessageCircle,
   Sparkles, TrendingUp, ArrowRight, CheckCircle, Plus,
-  FileCheck, Inbox, UserPlus,
+  FileCheck, Inbox, UserPlus, Gift, AlertTriangle, Calendar,
 } from 'lucide-react'
 
 // ─── Chart primitives ────────────────────────────────────────────────────────
@@ -92,6 +92,7 @@ type ActivityItem = {
   title: string
   sub: string
   time: string
+  ts: number
   href?: string
 }
 
@@ -158,6 +159,14 @@ function greeting(): string {
 
 type MonthBucket = { label: string; value: number }
 
+type ExpiringContract = {
+  id: string
+  clientName: string
+  endDate: string
+  daysLeft: number
+  plan: string
+}
+
 export default function DashboardPage() {
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
@@ -171,6 +180,16 @@ export default function DashboardPage() {
   const [openTickets, setOpenTickets] = useState(0)
   const [unreadMessages, setUnreadMessages] = useState(0)
   const [newLeads, setNewLeads] = useState(0)
+
+  // Time tracking
+  const [weekHours, setWeekHours] = useState(0)
+  const [weekEarnings, setWeekEarnings] = useState(0)
+  const [activeSession, setActiveSession] = useState(false)
+
+  // Referrals
+  const [referralConversions, setReferralConversions] = useState(0)
+  const [referralOwed, setReferralOwed] = useState(0)
+  const [activeReferrers, setActiveReferrers] = useState(0)
 
   // Revenue trend (6 months)
   const [revenueByMonth, setRevenueByMonth] = useState<MonthBucket[]>([])
@@ -197,6 +216,7 @@ export default function DashboardPage() {
   const [recentTickets, setRecentTickets] = useState<{ id: string; subject: string; priority: string; clientName: string }[]>([])
   const [pendingInvoices, setPendingInvoices] = useState<{ id: string; invoiceNumber: string; clientName: string; total: number; status: string }[]>([])
   const [activityFeed, setActivityFeed] = useState<ActivityItem[]>([])
+  const [expiringContracts, setExpiringContracts] = useState<ExpiringContract[]>([])
 
   const load = useCallback(async () => {
     const now = new Date()
@@ -204,6 +224,9 @@ export default function DashboardPage() {
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()
     const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString()
     const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString()
+    const thirtyDaysFromNow = new Date(Date.now() + 30 * 86400000).toISOString()
+    const { start: weekStart, end: weekEnd } = getWeekBounds(now)
+    const { data: { user } } = await supabase.auth.getUser()
 
     const [
       clientsRes,
@@ -218,10 +241,14 @@ export default function DashboardPage() {
       leadsRes,
       recentClientsRes,
       recentContractsRes,
+      timeEntriesRes,
+      activeSessionRes,
+      referralsRes,
+      expiringContractsRes,
     ] = await Promise.all([
       supabase.from('clients').select('id, plan, status'),
       supabase.from('contracts').select('monthly_rate, status'),
-      supabase.from('invoices').select('id, status, total, invoice_number, clients(name)'),
+      supabase.from('invoices').select('id, status, total, invoice_number, updated_at, created_at, clients(name)'),
       supabase.from('invoices').select('paid_at, total').eq('status', 'paid').gte('paid_at', sixMonthsAgo),
       supabase.from('invoices').select('total').eq('status', 'paid').gte('paid_at', lastMonthStart).lt('paid_at', monthStart),
       supabase.from('deliverables').select('status, type, published_at'),
@@ -231,6 +258,10 @@ export default function DashboardPage() {
       supabase.from('leads').select('id, name, status, created_at').gte('created_at', sevenDaysAgo).order('created_at', { ascending: false }),
       supabase.from('clients').select('id, name, status, created_at').gte('created_at', sevenDaysAgo).order('created_at', { ascending: false }),
       supabase.from('contracts').select('id, status, signed_at, clients(name)').not('signed_at', 'is', null).gte('signed_at', sevenDaysAgo).order('signed_at', { ascending: false }),
+      user ? supabase.from('time_entries').select('clock_in, clock_out, hourly_rate').eq('user_id', user.id).neq('status', 'voided').gte('clock_in', weekStart.toISOString()).lte('clock_in', weekEnd.toISOString()) : Promise.resolve({ data: [] }),
+      user ? supabase.from('time_entries').select('id').eq('user_id', user.id).is('clock_out', null).limit(1) : Promise.resolve({ data: [] }),
+      supabase.from('referrals').select('active, conversions, total_earned, total_paid'),
+      supabase.from('contracts').select('id, end_date, plan, clients(name)').in('status', ['signed', 'active']).not('end_date', 'is', null).gte('end_date', now.toISOString()).lte('end_date', thirtyDaysFromNow),
     ])
 
     // ── Clients ──
@@ -243,7 +274,6 @@ export default function DashboardPage() {
       prospect: clients.filter(c => c.status === 'prospect').length,
     })
 
-    // MRR: prefer contracts monthly_rate, fallback to plan prices
     const contracts = contractsRes.data ?? []
     const contractMrr = contracts
       .filter(c => c.status === 'active')
@@ -394,23 +424,58 @@ export default function DashboardPage() {
     const leads = leadsRes.data ?? []
     setNewLeads(leads.length)
 
+    // ── Time tracking ──
+    const timeEntries = (timeEntriesRes.data ?? []) as { clock_in: string; clock_out: string | null; hourly_rate: number }[]
+    const closedEntries = timeEntries.filter(e => e.clock_out)
+    const wHours = closedEntries.reduce((s, e) => s + calcDurationHours(e.clock_in, e.clock_out), 0)
+    const wEarnings = closedEntries.reduce((s, e) => {
+      const h = calcDurationHours(e.clock_in, e.clock_out)
+      return s + calcEarnings(h, e.hourly_rate).total
+    }, 0)
+    setWeekHours(wHours)
+    setWeekEarnings(wEarnings)
+    setActiveSession((activeSessionRes.data ?? []).length > 0)
+
+    // ── Referrals ──
+    const refs = (referralsRes.data ?? []) as { active: boolean; conversions: number; total_earned: number; total_paid: number }[]
+    setActiveReferrers(refs.filter(r => r.active).length)
+    setReferralConversions(refs.reduce((s, r) => s + r.conversions, 0))
+    setReferralOwed(refs.reduce((s, r) => s + (r.total_earned - r.total_paid), 0))
+
+    // ── Expiring contracts ──
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const expiring = (expiringContractsRes.data ?? []) as any[]
+    setExpiringContracts(
+      expiring.map(c => {
+        const end = new Date(c.end_date)
+        const days = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+        return {
+          id: c.id,
+          clientName: c.clients?.name ?? '—',
+          endDate: c.end_date,
+          daysLeft: days,
+          plan: c.plan,
+        }
+      }).sort((a, b) => a.daysLeft - b.daysLeft)
+    )
+
     // ── Activity feed ──
     const activity: ActivityItem[] = []
 
-    // Paid invoices this week
-    const recentPaid = invoices.filter(i => i.status === 'paid' && i.updated_at >= sevenDaysAgo).slice(0, 3)
+    const recentPaid = invoices.filter(i => i.status === 'paid' && (i.updated_at ?? i.created_at) >= sevenDaysAgo).slice(0, 3)
     for (const inv of recentPaid) {
+      const ts = new Date(inv.updated_at ?? inv.created_at).getTime()
       activity.push({
         id: `inv-${inv.id}`,
         icon: DollarSign, accent: '#10b981',
         title: `Invoice paid — ${formatMoney(inv.total)}`,
         sub: inv.clients?.name ?? 'Unknown client',
         time: relTime(inv.updated_at ?? inv.created_at),
+        ts,
         href: `/invoices/${inv.id}`,
       })
     }
 
-    // Signed contracts
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const recentSigned = (recentContractsRes.data ?? []) as any[]
     for (const c of recentSigned.slice(0, 2)) {
@@ -420,11 +485,11 @@ export default function DashboardPage() {
         title: 'Contract signed',
         sub: c.clients?.name ?? 'Unknown client',
         time: relTime(c.signed_at),
+        ts: new Date(c.signed_at).getTime(),
         href: `/contracts/${c.id}`,
       })
     }
 
-    // New clients
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const recentClients = (recentClientsRes.data ?? []) as any[]
     for (const c of recentClients.slice(0, 3)) {
@@ -434,11 +499,11 @@ export default function DashboardPage() {
         title: `New client: ${c.name}`,
         sub: c.status,
         time: relTime(c.created_at),
+        ts: new Date(c.created_at).getTime(),
         href: `/clients`,
       })
     }
 
-    // New leads
     for (const l of leads.slice(0, 3)) {
       activity.push({
         id: `lead-${l.id}`,
@@ -446,16 +511,12 @@ export default function DashboardPage() {
         title: `New lead: ${l.name}`,
         sub: l.status,
         time: relTime(l.created_at),
+        ts: new Date(l.created_at).getTime(),
         href: `/leads`,
       })
     }
 
-    // Sort by recency (time string won't sort well; rebuild with raw dates)
-    activity.sort((a, b) => {
-      // Use the time string comparison as a proxy — not perfect but good enough
-      return 0
-    })
-
+    activity.sort((a, b) => b.ts - a.ts)
     setActivityFeed(activity.slice(0, 8))
     setLoading(false)
   }, [supabase])
@@ -491,20 +552,44 @@ export default function DashboardPage() {
           <Link href="/invoices" className="btn btn-ghost btn-sm"><Plus size={13} /> Invoice</Link>
           <Link href="/contracts" className="btn btn-ghost btn-sm"><Plus size={13} /> Contract</Link>
           <Link href="/tickets" className="btn btn-ghost btn-sm"><Plus size={13} /> Ticket</Link>
+          <Link href="/referrals" className="btn btn-ghost btn-sm"><Gift size={13} /> Referrals</Link>
           <Link href="/clients" className="btn btn-primary btn-sm"><Plus size={13} /> Client</Link>
         </div>
       </div>
 
+      {/* ── Expiring contracts alert ── */}
+      {expiringContracts.length > 0 && (
+        <div style={{ marginBottom: '1.5rem', padding: '12px 16px', borderRadius: 8, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+          <AlertTriangle size={16} color="#f59e0b" style={{ flexShrink: 0, marginTop: 2 }} />
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#f59e0b', marginBottom: '0.375rem' }}>
+              {expiringContracts.length} contract{expiringContracts.length !== 1 ? 's' : ''} expiring within 30 days
+            </p>
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+              {expiringContracts.map(c => (
+                <Link key={c.id} href={`/contracts/${c.id}`} style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', textDecoration: 'none' }}>
+                  <strong>{c.clientName}</strong> — {c.daysLeft === 0 ? 'expires today' : `${c.daysLeft}d left`}
+                </Link>
+              ))}
+            </div>
+          </div>
+          <Link href="/contracts" className="btn btn-ghost btn-sm" style={{ flexShrink: 0 }}>
+            <Calendar size={13} /> View all
+          </Link>
+        </div>
+      )}
+
       {/* ── KPI row ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.875rem', marginBottom: '1.75rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))', gap: '0.875rem', marginBottom: '1.75rem' }}>
         <KpiTile label="Monthly Recurring" value={formatMoney(mrr)} sub="from active contracts" icon={DollarSign} accent="#10b981"
           trend={mrrTrend !== null ? { value: mrrTrend, label: 'vs last month' } : undefined} />
         <KpiTile label="Active Clients" value={activeClients} sub={`${clientsByStatus.prospect} prospects`} icon={Users} accent="#3b82f6" href="/clients" />
         <KpiTile label="Pending Revenue" value={formatMoney(pendingRevenue)} sub="sent + overdue" icon={FileText} accent="#f59e0b" href="/invoices" />
-        <KpiTile label="Published" value={publishedThisMonth} sub="this month" icon={CheckCircle} accent="#7B2FFF" href="/calendar" />
+        <KpiTile label="Week Hours" value={formatHours(weekHours)} sub={activeSession ? '● Session active' : weekEarnings > 0 ? formatMoney(weekEarnings) : 'this week'} icon={Clock} accent={activeSession ? '#22c55e' : '#6366f1'} href="/time-clock" />
         <KpiTile label="Open Tickets" value={openTickets} sub="open + in progress" icon={Ticket} accent="#ef4444" href="/tickets" />
         <KpiTile label="Unread Messages" value={unreadMessages} sub="from clients" icon={MessageCircle} accent="#f472b6" href="/messages" />
         <KpiTile label="New Leads" value={newLeads} sub="last 7 days" icon={Inbox} accent="#f59e0b" href="/leads" />
+        <KpiTile label="Published" value={publishedThisMonth} sub="this month" icon={CheckCircle} accent="#7B2FFF" href="/calendar" />
       </div>
 
       {/* ── Revenue ── */}
@@ -576,7 +661,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── Bottom row: Clients + Tickets + Campaigns + Activity ── */}
+      {/* ── Bottom row: Clients + Tickets + Referrals + Campaigns + Activity ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', marginBottom: '1.25rem' }}>
         {/* Clients by plan */}
         <div className="card" style={{ padding: '1.25rem' }}>
@@ -628,6 +713,36 @@ export default function DashboardPage() {
             ))}
             {recentTickets.length === 0 && <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>No open tickets.</p>}
           </div>
+        </div>
+
+        {/* Referrals */}
+        <div className="card" style={{ padding: '1.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <p style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Referrals</p>
+            <Link href="/referrals" className="btn btn-ghost btn-sm">View <ArrowRight size={12} /></Link>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', textAlign: 'center', marginBottom: '1rem' }}>
+            <div style={{ padding: '0.625rem', borderRadius: 8, background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)' }}>
+              <p style={{ fontSize: '1.375rem', fontWeight: 800, color: '#6366f1' }}>{activeReferrers}</p>
+              <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Referrers</p>
+            </div>
+            <div style={{ padding: '0.625rem', borderRadius: 8, background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.15)' }}>
+              <p style={{ fontSize: '1.375rem', fontWeight: 800, color: '#22c55e' }}>{referralConversions}</p>
+              <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Signups</p>
+            </div>
+            <div style={{ padding: '0.625rem', borderRadius: 8, background: referralOwed > 0 ? 'rgba(245,158,11,0.06)' : undefined, border: referralOwed > 0 ? '1px solid rgba(245,158,11,0.2)' : '1px solid var(--border)' }}>
+              <p style={{ fontSize: '1.375rem', fontWeight: 800, color: referralOwed > 0 ? '#f59e0b' : undefined }}>{formatMoney(referralOwed)}</p>
+              <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Owed</p>
+            </div>
+          </div>
+          {referralOwed > 0 && (
+            <Link href="/referrals" className="btn btn-ghost btn-sm" style={{ width: '100%', justifyContent: 'center' }}>
+              Pay commissions <ArrowRight size={12} />
+            </Link>
+          )}
+          {activeReferrers === 0 && (
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>No active referrers yet. <Link href="/referrals" style={{ color: '#6366f1' }}>Add one →</Link></p>
+          )}
         </div>
 
         {/* Campaign health */}
