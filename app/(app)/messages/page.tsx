@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Client } from '@/lib/types'
 import { formatDate } from '@/lib/utils'
-import { MessageCircle, Search, Send, Inbox, Star, Mail } from 'lucide-react'
+import { MessageCircle, Search, Send, Inbox, Star, Mail, Reply, ChevronDown, X, Loader2 } from 'lucide-react'
 
 type Message = {
   id: string
@@ -313,12 +313,132 @@ function ChatTab({ clients }: { clients: Client[] }) {
 
 // ─── Inbox tab ───────────────────────────────────────────────────────────────
 
+type Template = { id: string; name: string; subject_prefix: string; body: string }
+
+function InboxReplyComposer({ email, onClose, onSent }: { email: ReceivedEmail; onClose: () => void; onSent: () => void }) {
+  const supabase = createClient()
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [showTemplates, setShowTemplates] = useState(false)
+  const [subject, setSubject] = useState(`Re: ${email.subject}`)
+  const [body, setBody] = useState('')
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    supabase.from('email_templates').select('*').order('name').then(({ data }) => setTemplates(data ?? []))
+  }, [supabase])
+
+  function applyTemplate(tpl: Template) {
+    const firstName = email.from_name?.split(' ')[0] || email.from_email.split('@')[0]
+    setSubject(`${tpl.subject_prefix}${email.subject}`)
+    setBody(tpl.body.replace(/\{\{name\}\}/g, firstName))
+    setShowTemplates(false)
+  }
+
+  async function send() {
+    if (!body.trim()) return
+    setSending(true)
+    setError('')
+    try {
+      const res = await fetch('/api/emails/reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email_id: email.id, to: email.from_email, subject, body }),
+      })
+      if (!res.ok) { const d = await res.json(); setError(d.error || 'Failed to send'); return }
+      onSent()
+    } catch { setError('Network error') } finally { setSending(false) }
+  }
+
+  return (
+    <div style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
+      {/* Composer header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.625rem 1rem', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', fontWeight: 600 }}>
+          <Reply size={13} style={{ color: 'var(--accent)' }} />
+          Reply to {email.from_name || email.from_email}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowTemplates(v => !v)}
+              className="btn btn-ghost btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.75rem' }}
+            >
+              Templates <ChevronDown size={12} />
+            </button>
+            {showTemplates && (
+              <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: '4px', width: '200px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '10px', zIndex: 50, overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.18)' }}>
+                {templates.length === 0 ? (
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', padding: '0.75rem 1rem' }}>No templates</p>
+                ) : templates.map(tpl => (
+                  <button
+                    key={tpl.id}
+                    onClick={() => applyTemplate(tpl)}
+                    style={{ width: '100%', textAlign: 'left', padding: '0.625rem 1rem', fontSize: '0.8125rem', background: 'none', border: 'none', cursor: 'pointer', borderBottom: '1px solid var(--border)', color: 'var(--text)' }}
+                    onMouseOver={e => (e.currentTarget.style.background = 'var(--bg-card-hover)')}
+                    onMouseOut={e => (e.currentTarget.style.background = 'none')}
+                  >
+                    {tpl.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <button onClick={onClose} className="btn btn-ghost btn-sm" style={{ padding: '0.25rem' }}>
+            <X size={14} />
+          </button>
+        </div>
+      </div>
+
+      {/* Subject */}
+      <div style={{ padding: '0.625rem 1rem 0', borderBottom: '1px solid var(--border)' }}>
+        <input
+          value={subject}
+          onChange={e => setSubject(e.target.value)}
+          className="input input-sm"
+          style={{ width: '100%', background: 'transparent', border: 'none', padding: '0 0 0.5rem', borderRadius: 0 }}
+          placeholder="Subject"
+        />
+      </div>
+
+      {/* Body */}
+      <div style={{ padding: '0.75rem 1rem' }}>
+        <textarea
+          value={body}
+          onChange={e => setBody(e.target.value)}
+          rows={5}
+          className="input"
+          style={{ width: '100%', resize: 'none', background: 'transparent', border: 'none', padding: 0, fontSize: '0.9rem', lineHeight: 1.6 }}
+          placeholder="Write your reply…"
+        />
+      </div>
+
+      {/* Footer */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1rem 0.75rem' }}>
+        {error ? <p style={{ fontSize: '0.75rem', color: 'var(--accent-red)' }}>{error}</p> : <span />}
+        <button
+          onClick={send}
+          disabled={sending || !body.trim()}
+          className="btn btn-primary"
+          style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+        >
+          {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+          {sending ? 'Sending…' : 'Send Reply'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function InboxTab() {
   const supabase = createClient()
   const [emails, setEmails] = useState<ReceivedEmail[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [replying, setReplying] = useState(false)
+  const [sentBanner, setSentBanner] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -334,9 +454,20 @@ function InboxTab() {
 
   async function openEmail(email: ReceivedEmail) {
     setSelectedId(email.id)
+    setReplying(false)
+    setSentBanner(false)
     if (email.read_at) return
     await supabase.from('received_emails').update({ read_at: new Date().toISOString() }).eq('id', email.id)
     setEmails(prev => prev.map(e => e.id === email.id ? { ...e, read_at: new Date().toISOString() } : e))
+  }
+
+  function handleReplySent() {
+    setReplying(false)
+    setSentBanner(true)
+    if (selectedId) {
+      setEmails(prev => prev.map(e => e.id === selectedId ? { ...e, read_at: e.read_at || new Date().toISOString() } : e))
+    }
+    setTimeout(() => setSentBanner(false), 4000)
   }
 
   async function toggleStar(e: React.MouseEvent, email: ReceivedEmail) {
@@ -436,15 +567,38 @@ function InboxTab() {
           </div>
         ) : (
           <>
-            <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
-              <p style={{ fontWeight: 700, fontSize: '1rem', marginBottom: '0.375rem' }}>{selected.subject}</p>
-              <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-                From <strong style={{ color: 'var(--text)' }}>{selected.from_name || selected.from_email}</strong>
-                {selected.from_name && <span> &lt;{selected.from_email}&gt;</span>}
-                <span> · {formatDate(selected.created_at)}</span>
-              </p>
+            {/* Email header */}
+            <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontWeight: 700, fontSize: '1rem', marginBottom: '0.375rem' }}>{selected.subject}</p>
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+                    From <strong style={{ color: 'var(--text)' }}>{selected.from_name || selected.from_email}</strong>
+                    {selected.from_name && <span> &lt;{selected.from_email}&gt;</span>}
+                    <span> · {formatDate(selected.created_at)}</span>
+                  </p>
+                </div>
+                <button
+                  onClick={() => { setReplying(v => !v); setSentBanner(false) }}
+                  className="btn btn-ghost btn-sm"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexShrink: 0, background: replying ? 'var(--bg-card-hover)' : undefined }}
+                >
+                  <Reply size={13} />
+                  Reply
+                </button>
+              </div>
             </div>
-            <div style={{ flex: 1, overflow: 'hidden' }}>
+
+            {/* Sent banner */}
+            {sentBanner && (
+              <div style={{ padding: '0.5rem 1.5rem', background: 'rgba(34,197,94,0.1)', borderBottom: '1px solid rgba(34,197,94,0.2)', display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                <Send size={13} style={{ color: '#22c55e' }} />
+                <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#16a34a' }}>Reply sent successfully.</p>
+              </div>
+            )}
+
+            {/* Email body */}
+            <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
               {selected.html ? (
                 <iframe
                   srcDoc={selected.html}
@@ -460,6 +614,15 @@ function InboxTab() {
                 </div>
               )}
             </div>
+
+            {/* Reply composer */}
+            {replying && (
+              <InboxReplyComposer
+                email={selected}
+                onClose={() => setReplying(false)}
+                onSent={handleReplySent}
+              />
+            )}
           </>
         )}
       </div>
