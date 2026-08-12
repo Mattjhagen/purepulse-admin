@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'PurePulse <matty@app.purepulse.one>',
+        from: 'PurePulse <matty@matty.purepulse.one>',
         to: recipient.email,
         subject,
         html: personalizedHtml,
