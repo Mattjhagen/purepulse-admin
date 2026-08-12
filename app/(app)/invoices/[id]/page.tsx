@@ -1,9 +1,9 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Invoice, InvoiceLineItem, Client } from '@/lib/types'
+import { InvoiceLineItem } from '@/lib/types'
 import { formatDate, formatMoney, statusBadgeClass } from '@/lib/utils'
-import { Printer, Plus, Trash2, ChevronLeft, Save, Send, Link2 } from 'lucide-react'
+import { Printer, Plus, Trash2, ChevronLeft, Save, Send, Link2, CheckCircle, Mail } from 'lucide-react'
 import Link from 'next/link'
 import { use } from 'react'
 
@@ -13,11 +13,16 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [invoice, setInvoice] = useState<any>(null)
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([])
+  const [taxRate, setTaxRate] = useState(0)
+  const [discount, setDiscount] = useState(0)
+  const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [sendingLink, setSendingLink] = useState(false)
-  const [linkError, setLinkError] = useState('')
+  const [generatingLink, setGeneratingLink] = useState(false)
+  const [sendingEmail, setSendingEmail] = useState(false)
+  const [actionError, setActionError] = useState('')
   const [copied, setCopied] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
 
   const load = useCallback(async () => {
     const [invRes, itemsRes] = await Promise.all([
@@ -25,6 +30,9 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
       supabase.from('invoice_line_items').select('*').eq('invoice_id', id).order('sort_order'),
     ])
     setInvoice(invRes.data)
+    setTaxRate(invRes.data?.tax_rate ?? 0)
+    setDiscount(invRes.data?.discount ?? 0)
+    setNotes(invRes.data?.notes ?? '')
     setLineItems(itemsRes.data ?? [])
     setLoading(false)
   }, [supabase, id])
@@ -64,12 +72,15 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   async function save() {
     setSaving(true)
     const subtotal = lineItems.reduce((s, i) => s + i.total, 0)
-    const taxAmount = subtotal * ((invoice?.tax_rate ?? 0) / 100)
-    const total = subtotal + taxAmount - (invoice?.discount ?? 0)
+    const taxAmount = subtotal * (taxRate / 100)
+    const total = subtotal + taxAmount - discount
 
-    await supabase.from('invoices').update({ subtotal, tax_amount: taxAmount, total, updated_at: new Date().toISOString() }).eq('id', id)
+    await supabase.from('invoices').update({
+      subtotal, tax_rate: taxRate, tax_amount: taxAmount, discount, total,
+      notes: notes || null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', id)
 
-    // Upsert line items
     const existing = lineItems.filter(i => !i.id.startsWith('temp-'))
     const newItems = lineItems.filter(i => i.id.startsWith('temp-'))
 
@@ -91,19 +102,35 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     await load()
   }
 
-  async function sendInvoice() {
-    setLinkError('')
-    setSendingLink(true)
+  async function generatePayLink() {
+    setActionError('')
+    setGeneratingLink(true)
     try {
       const res = await fetch(`/api/invoices/${id}/pay-link`, { method: 'POST' })
       const result = await res.json()
       if (!res.ok) throw new Error(result.error ?? 'Failed to generate payment link.')
-      await supabase.from('invoices').update({ status: 'sent', updated_at: new Date().toISOString() }).eq('id', id)
       await load()
     } catch (err) {
-      setLinkError(err instanceof Error ? err.message : 'Failed to generate payment link.')
+      setActionError(err instanceof Error ? err.message : 'Failed.')
     } finally {
-      setSendingLink(false)
+      setGeneratingLink(false)
+    }
+  }
+
+  async function sendToClient() {
+    setActionError('')
+    setSendingEmail(true)
+    try {
+      const res = await fetch(`/api/invoices/${id}/send`, { method: 'POST' })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error ?? 'Failed to send invoice.')
+      setEmailSent(true)
+      setTimeout(() => setEmailSent(false), 3000)
+      await load()
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed.')
+    } finally {
+      setSendingEmail(false)
     }
   }
 
@@ -120,52 +147,84 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const client = Array.isArray(invoice.clients) ? invoice.clients[0] : invoice.clients as any
   const subtotal = lineItems.reduce((s, i) => s + i.total, 0)
-  const taxAmount = subtotal * ((invoice.tax_rate ?? 0) / 100)
-  const total = subtotal + taxAmount - (invoice.discount ?? 0)
+  const taxAmount = subtotal * (taxRate / 100)
+  const total = subtotal + taxAmount - discount
+  const isEditable = !['paid', 'void'].includes(invoice.status)
 
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
         <Link href="/invoices" className="btn btn-ghost btn-sm"><ChevronLeft size={14} /> Invoices</Link>
         <span className={statusBadgeClass(invoice.status)}>{invoice.status}</span>
-        <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginLeft: 'auto' }}>{invoice.invoice_number}</span>
+        <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginLeft: 'auto', fontFamily: 'monospace' }}>{invoice.invoice_number}</span>
       </div>
 
       {/* Actions */}
       <div style={{ marginBottom: '2rem' }}>
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? <span className="spinner" /> : <><Save size={14} /> Save</>}</button>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          {isEditable && (
+            <button className="btn btn-primary" onClick={save} disabled={saving}>
+              {saving ? <span className="spinner" /> : <><Save size={14} /> Save</>}
+            </button>
+          )}
           <button className="btn btn-ghost" onClick={() => window.print()}><Printer size={14} /> Print / PDF</button>
-          {invoice.status === 'draft' && (
-            <button className="btn btn-success" onClick={sendInvoice} disabled={sendingLink}>
-              {sendingLink ? <span className="spinner" /> : <><Send size={14} /> Mark Sent &amp; Generate Payment Link</>}
+
+          {/* Generate Stripe link */}
+          {isEditable && !invoice.stripe_payment_link && total > 0 && (
+            <button className="btn btn-ghost" onClick={generatePayLink} disabled={generatingLink}>
+              {generatingLink ? <span className="spinner" /> : <><Link2 size={14} /> Generate payment link</>}
             </button>
           )}
-          {invoice.status === 'sent' && !invoice.stripe_payment_link && (
-            <button className="btn btn-ghost" onClick={sendInvoice} disabled={sendingLink}>
-              {sendingLink ? <span className="spinner" /> : <><Link2 size={14} /> Generate Payment Link</>}
+
+          {/* Send to client (generates link + emails) */}
+          {isEditable && total > 0 && (
+            <button className="btn btn-success" onClick={sendToClient} disabled={sendingEmail} style={emailSent ? { background: 'rgba(34,197,94,0.15)', color: '#22c55e' } : {}}>
+              {sendingEmail
+                ? <span className="spinner" />
+                : emailSent
+                  ? <><CheckCircle size={14} /> Sent!</>
+                  : <><Mail size={14} /> {invoice.status === 'draft' ? 'Send to client' : 'Resend to client'}</>}
             </button>
           )}
-          {invoice.status === 'sent' && <button className="btn btn-success" onClick={() => updateStatus('paid')}>Mark Paid Manually</button>}
-          {!['void', 'paid'].includes(invoice.status) && <button className="btn btn-danger" onClick={() => updateStatus('void')}>Void</button>}
+
+          {/* Mark paid manually */}
+          {invoice.status === 'sent' && (
+            <button className="btn btn-ghost" onClick={() => updateStatus('paid')}>Mark paid</button>
+          )}
+
+          {/* Void */}
+          {!['void', 'paid'].includes(invoice.status) && (
+            <button className="btn btn-danger" onClick={() => updateStatus('void')}>Void</button>
+          )}
         </div>
-        {linkError && <p className="error-msg" style={{ marginTop: '0.5rem' }}>{linkError}</p>}
+
+        {actionError && <p className="error-msg" style={{ marginTop: '0.5rem' }}>{actionError}</p>}
+
+        {/* Payment link bar */}
         {invoice.stripe_payment_link && invoice.status !== 'paid' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.75rem', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-            <span>Payment link ready —</span>
-            <a href={invoice.stripe_payment_link} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text)', textDecoration: 'underline' }}>open</a>
-            <button className="btn btn-ghost btn-sm" onClick={copyLink} type="button">{copied ? 'Copied!' : 'Copy'}</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginTop: '0.875rem', padding: '0.625rem 0.875rem', background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 'var(--radius-sm)', fontSize: '0.8125rem' }}>
+            <CheckCircle size={14} color="#22c55e" style={{ flexShrink: 0 }} />
+            <span style={{ color: 'var(--text-muted)' }}>Payment link ready —</span>
+            <a href={invoice.stripe_payment_link} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text)', textDecoration: 'underline' }}>open in Stripe</a>
+            <button className="btn btn-ghost btn-sm" onClick={copyLink} type="button" style={{ marginLeft: 'auto' }}>{copied ? 'Copied!' : <><Link2 size={12} /> Copy</>}</button>
+          </div>
+        )}
+
+        {invoice.status === 'paid' && invoice.paid_at && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginTop: '0.875rem', padding: '0.625rem 0.875rem', background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 'var(--radius-sm)', fontSize: '0.8125rem', color: '#22c55e' }}>
+            <CheckCircle size={14} style={{ flexShrink: 0 }} />
+            Paid on {formatDate(invoice.paid_at)}
           </div>
         )}
       </div>
 
-      {/* Invoice doc */}
+      {/* Invoice document */}
       <div id="invoice-print" className="card-elevated" style={{ maxWidth: '760px', padding: '2.5rem' }}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2.5rem' }}>
           <div>
             <h1 style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.05em' }}>PurePulse</h1>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>contact@purepulse.one</p>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>matty@purepulse.one</p>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>purepulse.one</p>
           </div>
           <div style={{ textAlign: 'right' }}>
@@ -191,7 +250,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             </div>
             <div>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Due Date</p>
-              <p style={{ fontWeight: 500, color: invoice.status === 'overdue' ? 'var(--accent-red)' : 'inherit' }}>{formatDate(invoice.due_date)}</p>
+              <p style={{ fontWeight: 500, color: invoice.status === 'overdue' ? '#ef4444' : 'inherit' }}>{formatDate(invoice.due_date)}</p>
             </div>
           </div>
         </div>
@@ -204,62 +263,88 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
               <th style={{ textAlign: 'right', padding: '0.5rem 0.25rem', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '80px' }}>Qty</th>
               <th style={{ textAlign: 'right', padding: '0.5rem 0.25rem', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '100px' }}>Rate</th>
               <th style={{ textAlign: 'right', padding: '0.5rem 0.25rem', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '100px' }}>Total</th>
-              <th style={{ width: '32px' }} />
+              {isEditable && <th style={{ width: '32px' }} />}
             </tr>
           </thead>
           <tbody>
             {lineItems.map(item => (
               <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
                 <td style={{ padding: '0.625rem 0.25rem' }}>
-                  <input className="input input-sm" value={item.description} onChange={e => updateItem(item.id, 'description', e.target.value)} placeholder="Description" style={{ border: 'none', background: 'transparent', padding: '0', fontSize: '0.9375rem' }} />
+                  {isEditable
+                    ? <input className="input input-sm" value={item.description} onChange={e => updateItem(item.id, 'description', e.target.value)} placeholder="Description" style={{ border: 'none', background: 'transparent', padding: 0, fontSize: '0.9375rem', width: '100%' }} />
+                    : <span style={{ fontSize: '0.9375rem' }}>{item.description}</span>}
                 </td>
                 <td style={{ padding: '0.625rem 0.25rem', textAlign: 'right' }}>
-                  <input className="input input-sm" type="number" step="0.001" value={item.quantity} onChange={e => updateItem(item.id, 'quantity', Number(e.target.value))} style={{ textAlign: 'right', border: 'none', background: 'transparent', width: '60px', padding: '0' }} />
+                  {isEditable
+                    ? <input className="input input-sm" type="number" step="0.001" value={item.quantity} onChange={e => updateItem(item.id, 'quantity', Number(e.target.value))} style={{ textAlign: 'right', border: 'none', background: 'transparent', width: '60px', padding: 0 }} />
+                    : <span>{item.quantity}</span>}
                 </td>
                 <td style={{ padding: '0.625rem 0.25rem', textAlign: 'right' }}>
-                  <input className="input input-sm" type="number" step="0.01" value={item.unit_price} onChange={e => updateItem(item.id, 'unit_price', Number(e.target.value))} style={{ textAlign: 'right', border: 'none', background: 'transparent', width: '80px', padding: '0' }} />
+                  {isEditable
+                    ? <input className="input input-sm" type="number" step="0.01" value={item.unit_price} onChange={e => updateItem(item.id, 'unit_price', Number(e.target.value))} style={{ textAlign: 'right', border: 'none', background: 'transparent', width: '80px', padding: 0 }} />
+                    : <span>{formatMoney(item.unit_price)}</span>}
                 </td>
                 <td style={{ padding: '0.625rem 0.25rem', textAlign: 'right', fontWeight: 600 }}>{formatMoney(item.total)}</td>
-                <td style={{ padding: '0.625rem 0' }}>
-                  <button onClick={() => removeItem(item.id)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', opacity: 0.5 }}><Trash2 size={14} /></button>
-                </td>
+                {isEditable && (
+                  <td style={{ padding: '0.625rem 0' }}>
+                    <button onClick={() => removeItem(item.id)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', opacity: 0.4 }}><Trash2 size={14} /></button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
         </table>
 
-        <button className="btn btn-ghost btn-sm" onClick={addLineItem} style={{ marginBottom: '2rem' }}>
-          <Plus size={14} /> Add line item
-        </button>
+        {isEditable && (
+          <button className="btn btn-ghost btn-sm" onClick={addLineItem} style={{ marginBottom: '2rem' }}>
+            <Plus size={14} /> Add line item
+          </button>
+        )}
 
         {/* Totals */}
-        <div style={{ maxWidth: '280px', marginLeft: 'auto' }}>
+        <div style={{ maxWidth: '320px', marginLeft: 'auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
             <span>Subtotal</span><span>{formatMoney(subtotal)}</span>
           </div>
-          {invoice.tax_rate > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+            <span>Tax rate (%)</span>
+            {isEditable
+              ? <input type="number" min="0" max="100" step="0.01" value={taxRate} onChange={e => setTaxRate(Number(e.target.value))} style={{ width: '70px', textAlign: 'right', background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '2px 6px', color: 'var(--text)', fontSize: '0.875rem' }} />
+              : <span>{taxRate}%</span>}
+          </div>
+          {taxAmount > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-              <span>Tax ({invoice.tax_rate}%)</span><span>{formatMoney(taxAmount)}</span>
+              <span>Tax ({taxRate}%)</span><span>{formatMoney(taxAmount)}</span>
             </div>
           )}
-          {invoice.discount > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', color: 'var(--accent-green)', fontSize: '0.875rem' }}>
-              <span>Discount</span><span>−{formatMoney(invoice.discount)}</span>
-            </div>
-          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+            <span>Discount ($)</span>
+            {isEditable
+              ? <input type="number" min="0" step="0.01" value={discount} onChange={e => setDiscount(Number(e.target.value))} style={{ width: '70px', textAlign: 'right', background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '2px 6px', color: '#22c55e', fontSize: '0.875rem' }} />
+              : discount > 0 ? <span style={{ color: '#22c55e' }}>−{formatMoney(discount)}</span> : <span>—</span>}
+          </div>
           <hr className="divider" style={{ margin: '0.75rem 0' }} />
           <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '1.25rem' }}>
             <span>Total</span><span>{formatMoney(total)}</span>
           </div>
         </div>
 
-        {invoice.notes && (
-          <>
-            <hr className="divider" />
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}><strong style={{ color: 'var(--text)' }}>Notes:</strong> {invoice.notes}</p>
-          </>
-        )}
+        {/* Notes */}
+        <hr className="divider" style={{ marginTop: '2rem' }} />
+        <div>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>Notes</p>
+          {isEditable
+            ? <textarea className="input" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Payment terms, instructions…" style={{ minHeight: '70px' }} />
+            : notes ? <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>{notes}</p> : <p style={{ fontSize: '0.875rem', color: 'var(--text-dim)' }}>None</p>}
+        </div>
       </div>
+
+      <style>{`
+        @media print {
+          .btn, nav, aside, header { display: none !important; }
+          #invoice-print { box-shadow: none !important; border: none !important; max-width: 100% !important; }
+        }
+      `}</style>
     </>
   )
 }
