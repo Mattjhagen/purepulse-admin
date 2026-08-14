@@ -84,14 +84,14 @@ export async function POST(req: NextRequest) {
   }
 
   // Create Supabase auth user + magic link for dashboard access
-  const dashboardUrl = `${appUrl}/affiliates/dashboard`
+  const callbackUrl = `${appUrl}/auth/callback?next=/affiliates/dashboard`
   let inviteLink = `${appUrl}/affiliates/login`
   try {
     const { data: linkData } = await supabase.auth.admin.generateLink({
       type: 'invite',
       email: affiliate.email,
       options: {
-        redirectTo: dashboardUrl,
+        redirectTo: callbackUrl,
         data: { full_name: affiliate.name, role: 'affiliate', affiliate_id: affiliate.id },
       },
     })

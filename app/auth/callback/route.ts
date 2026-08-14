@@ -24,7 +24,8 @@ export async function GET(request: NextRequest) {
       }
     )
     const { error } = await supabase.auth.exchangeCodeForSession(code)
-    if (!error) return NextResponse.redirect(`${origin}/portal`)
+    const next = searchParams.get('next') ?? '/portal'
+    if (!error) return NextResponse.redirect(`${origin}${next}`)
   }
 
   return NextResponse.redirect(`${origin}/portal`)
