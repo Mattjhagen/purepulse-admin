@@ -6,6 +6,7 @@ import { Resend } from 'resend'
 import type Stripe from 'stripe'
 import { bootstrapCampaign } from '@/lib/campaign-bootstrap'
 import type { Plan } from '@/lib/types'
+import { calculateMonthlyCommission, AFFILIATE_COMMISSION_RATES } from '@/lib/affiliate-utils'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest) {
 
     const { data: contract } = await supabase
       .from('contracts')
-      .select('id, plan, client_id, clients(name, email, referral_code)')
+      .select('id, plan, client_id, monthly_rate, clients(name, email, referral_code)')
       .eq('id', contractId)
       .single()
 
@@ -89,10 +90,7 @@ export async function POST(req: NextRequest) {
       console.error('[stripe webhook] campaign bootstrap threw:', err)
     }
 
-    // Auto-record a referral commission if this client was attributed to one.
-    // Commission = the plan's recurring monthly rate (the "first payment" is
-    // deposit + first month combined; this is that first payment minus the
-    // deposit portion).
+    // Record commission in the legacy referrals table (simple referral links)
     if (client?.referral_code) {
       try {
         const { data: referral } = await supabase
@@ -143,6 +141,47 @@ export async function POST(req: NextRequest) {
         }
       } catch (err) {
         console.error('[stripe webhook] referral commission error:', err)
+      }
+    }
+
+    // Create affiliate referral record (tiered affiliate program)
+    if (contract.client_id) {
+      try {
+        const { data: clientRecord } = await supabase
+          .from('clients')
+          .select('id, plan, referral_code')
+          .eq('id', contract.client_id)
+          .single()
+
+        if (clientRecord?.referral_code) {
+          const { data: affiliate } = await supabase
+            .from('affiliates')
+            .select('id')
+            .eq('referral_code', clientRecord.referral_code)
+            .eq('status', 'active')
+            .single()
+
+          if (affiliate) {
+            const plan = clientRecord.plan ?? contract.plan
+            const monthlyRate = Number((contract as { monthly_rate?: number }).monthly_rate ?? 0)
+            const commissionRate = AFFILIATE_COMMISSION_RATES[plan as keyof typeof AFFILIATE_COMMISSION_RATES] ?? 0.10
+            const monthlyCommission = calculateMonthlyCommission(plan, monthlyRate)
+
+            await supabase
+              .from('affiliate_referrals')
+              .upsert({
+                affiliate_id: affiliate.id,
+                client_id: clientRecord.id,
+                plan,
+                status: 'active',
+                commission_rate: commissionRate,
+                monthly_commission: monthlyCommission,
+                activated_at: new Date().toISOString(),
+              }, { onConflict: 'affiliate_id,client_id' })
+          }
+        }
+      } catch (err) {
+        console.error('[stripe webhook] affiliate referral error:', err)
       }
     }
 

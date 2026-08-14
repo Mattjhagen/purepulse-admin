@@ -1,6 +1,7 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 
 const PLANS = [
   {
@@ -149,8 +150,17 @@ function EnterpriseForm({ onClose }: { onClose: () => void }) {
   )
 }
 
-export default function PricingPage() {
+function PricingContent() {
   const [showEnterprise, setShowEnterprise] = useState(false)
+  const searchParams = useSearchParams()
+  const [refCode, setRefCode] = useState('')
+
+  useEffect(() => {
+    const ref = searchParams.get('ref')
+    if (ref) setRefCode(ref)
+  }, [searchParams])
+
+  const refSuffix = refCode ? `&ref=${refCode}` : ''
 
   return (
     <div style={s.page}>
@@ -201,7 +211,7 @@ export default function PricingPage() {
                 ))}
               </ul>
               <Link
-                href={`/pricing/start?plan=${plan.id}`}
+                href={`/pricing/start?plan=${plan.id}${refSuffix}`}
                 style={{ ...s.btn, ...(plan.popular ? s.btnPrimary : s.btnSecondary) }}
               >
                 Get Started
@@ -248,6 +258,14 @@ export default function PricingPage() {
 
       {showEnterprise && <EnterpriseForm onClose={() => setShowEnterprise(false)} />}
     </div>
+  )
+}
+
+export default function PricingPage() {
+  return (
+    <Suspense>
+      <PricingContent />
+    </Suspense>
   )
 }
 

@@ -1,0 +1,63 @@
+import { NextResponse } from 'next/server'
+import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { createClient } from '@supabase/supabase-js'
+
+function adminSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE!
+  )
+}
+
+export async function GET() {
+  const supabase = await createServerSupabaseClient()
+  const { data: { session } } = await supabase.auth.getSession()
+
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const admin = adminSupabase()
+
+  const { data: affiliate, error } = await admin
+    .from('affiliates')
+    .select('*')
+    .eq('auth_user_id', session.user.id)
+    .single()
+
+  if (error || !affiliate) {
+    return NextResponse.json({ error: 'Affiliate not found' }, { status: 404 })
+  }
+
+  const { data: referrals } = await admin
+    .from('affiliate_referrals')
+    .select('*, clients(name, email, company)')
+    .eq('affiliate_id', affiliate.id)
+    .order('created_at', { ascending: false })
+
+  const { data: commissions } = await admin
+    .from('affiliate_commissions')
+    .select('*')
+    .eq('affiliate_id', affiliate.id)
+    .order('period_month', { ascending: false })
+
+  const activeReferrals = (referrals ?? []).filter(r => r.status === 'active')
+  const monthlyEarnings = activeReferrals.reduce((sum, r) => sum + Number(r.monthly_commission), 0)
+  const lifetimeEarnings = (commissions ?? []).reduce((sum, c) => sum + Number(c.amount), 0)
+
+  // Check free plan eligibility: at least 1 active referral
+  const freePlanEligible = activeReferrals.length >= 1
+
+  return NextResponse.json({
+    affiliate,
+    referrals: referrals ?? [],
+    commissions: commissions ?? [],
+    stats: {
+      total_referrals: (referrals ?? []).length,
+      active_referrals: activeReferrals.length,
+      monthly_earnings: monthlyEarnings,
+      lifetime_earnings: lifetimeEarnings,
+      free_plan_eligible: freePlanEligible,
+    },
+  })
+}

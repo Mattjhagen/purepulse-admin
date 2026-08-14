@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Clock, Users, Ticket, FileText, FileCheck, Receipt, LayoutDashboard, Settings, LogOut, ChevronRight, Inbox, Mail, MessageCircle, Sparkles, CalendarDays, Share2, UsersRound, Gift, Megaphone } from 'lucide-react'
+import { Clock, Users, Ticket, FileText, FileCheck, Receipt, LayoutDashboard, Settings, LogOut, ChevronRight, Inbox, Mail, MessageCircle, Sparkles, CalendarDays, Share2, UsersRound, Gift, Megaphone, Link2 } from 'lucide-react'
 import { signOut } from '@/lib/auth'
 
 const nav = [
@@ -22,6 +22,7 @@ const nav = [
   { label: '1099 Docs', href: '/documents', icon: Receipt },
   { label: 'Referrals', href: '/referrals', icon: Gift },
   { label: 'Settings', href: '/settings', icon: Settings },
+  { label: 'Affiliates', href: '/affiliates', icon: Link2 },
 ]
 
 export default function Nav({ email }: { email?: string }) {

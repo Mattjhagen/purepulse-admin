@@ -14,14 +14,14 @@ function adminSupabase() {
 }
 
 export async function POST(req: NextRequest) {
-  let body: { name?: string; email?: string; company?: string; plan?: string; description?: string }
+  let body: { name?: string; email?: string; company?: string; plan?: string; description?: string; ref_code?: string }
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 })
   }
 
-  const { name, email, company, plan, description } = body
+  const { name, email, company, plan, description, ref_code } = body
 
   if (!name?.trim() || !email?.trim() || !plan) {
     return NextResponse.json({ error: 'name, email, and plan are required.' }, { status: 400 })
@@ -57,6 +57,18 @@ export async function POST(req: NextRequest) {
       })
       .eq('id', clientId)
   } else {
+    // Validate ref_code if provided
+    let validRefCode: string | null = null
+    if (ref_code?.trim()) {
+      const { data: aff } = await supabase
+        .from('affiliates')
+        .select('id')
+        .eq('referral_code', ref_code.trim().toUpperCase())
+        .eq('status', 'active')
+        .single()
+      if (aff) validRefCode = ref_code.trim().toUpperCase()
+    }
+
     const { data: newClient, error: clientError } = await supabase
       .from('clients')
       .insert({
@@ -66,6 +78,7 @@ export async function POST(req: NextRequest) {
         plan: validPlan,
         hourly_rate: 85,
         status: 'prospect',
+        referral_code: validRefCode,
       })
       .select('id, name, email, company, phone, hourly_rate')
       .single()

@@ -10,6 +10,7 @@ function StartForm() {
   const searchParams = useSearchParams()
   const planParam = searchParams.get('plan') as Plan | null
   const plan: Plan = planParam && (PLAN_IDS as readonly string[]).includes(planParam) ? planParam : 'starter'
+  const refCode = searchParams.get('ref') ?? ''
 
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -29,7 +30,7 @@ function StartForm() {
       const res = await fetch('/api/pricing/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, company, plan }),
+        body: JSON.stringify({ name, email, company, plan, ref_code: refCode || undefined }),
       })
       const data = await res.json()
       if (data.error) { setError(data.error); return }
