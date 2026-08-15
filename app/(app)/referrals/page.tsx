@@ -153,6 +153,16 @@ export default function ReferralsPage() {
 
   return (
     <>
+      {/* Affiliate intro video */}
+      <div style={{ marginBottom: '2rem', borderRadius: 12, overflow: 'hidden', background: '#07070D', aspectRatio: '16/9', maxHeight: 480 }}>
+        <video
+          src="https://ouwyuxqlvjvxdobjnezu.supabase.co/storage/v1/object/public/media/affiliate-video.mp4"
+          controls
+          playsInline
+          style={{ width: '100%', height: '100%', display: 'block', objectFit: 'contain' }}
+        />
+      </div>
+
       <div className="page-header">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
