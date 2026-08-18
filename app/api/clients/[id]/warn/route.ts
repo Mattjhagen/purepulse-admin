@@ -56,6 +56,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   if (process.env.RESEND_API_KEY) {
     const adminEmail = process.env.ADMIN_EMAIL ?? 'matty@purepulse.one'
+    const fromEmail = process.env.RESEND_FROM_EMAIL ?? 'PurePulse <contracts@login.purepulse.one>'
 
     await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -64,7 +65,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'PurePulse Billing <billing@purepulse.one>',
+        from: fromEmail,
         to: client.email,
         reply_to: adminEmail,
         subject: `⚠️ Payment Reminder: Past Due Invoices for ${websiteDomain}`,
