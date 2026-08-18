@@ -29,7 +29,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   // Load overdue invoices
   const { data: overdueInvoices } = await supabase
     .from('invoices')
-    .select('id, invoice_number, total, due_date, stripe_payment_link')
+    .select('id, invoice_number, total, due_date, created_at, stripe_payment_link')
     .eq('client_id', id)
     .in('status', ['overdue', 'sent'])
     .order('due_date', { ascending: true })

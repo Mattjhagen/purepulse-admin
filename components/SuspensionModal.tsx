@@ -178,7 +178,7 @@ export function SuspensionModal({ client, onClose, onSuccess }: SuspensionModalP
                 <div style={{ background: 'rgba(239, 68, 68, 0.06)', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: '10px', padding: '0.875rem 1rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
                   <AlertTriangle size={16} color="#ef4444" style={{ flexShrink: 0, marginTop: '2px' }} />
                   <div style={{ fontSize: '0.8125rem', lineHeight: 1.5, color: 'rgba(244, 244, 255, 0.8)' }}>
-                    Suspending this client will take their public website offline, halt maintenance, and notify <strong style="color: #fff;">{client.email}</strong> with immediate payment and restoration instructions.
+                    Suspending this client will take their public website offline, halt maintenance, and notify <strong style={{ color: '#fff' }}>{client.email}</strong> with immediate payment and restoration instructions.
                   </div>
                 </div>
 
