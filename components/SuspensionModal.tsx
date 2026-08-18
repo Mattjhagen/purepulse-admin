@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Client } from '@/lib/types'
 import { formatMoney } from '@/lib/utils'
-import { X, Ban, AlertTriangle, Eye, Settings2, Mail, CheckCircle2, ShieldAlert } from 'lucide-react'
+import { renderSuspensionEmailHtml, SuspensionEmailData } from '@/lib/suspension-email'
+import { X, Ban, AlertTriangle, Eye, Settings2, Mail, CheckCircle2, ShieldAlert, DollarSign, Calculator } from 'lucide-react'
 
 interface SuspensionModalProps {
   client: Client
@@ -21,20 +22,21 @@ export function SuspensionModal({ client, onClose, onSuccess }: SuspensionModalP
 
   // Form inputs
   const [websiteDomain, setWebsiteDomain] = useState('')
-  const [reason, setReason] = useState('Overdue balance & unfulfilled payments')
+  const [amountDue, setAmountDue] = useState('1000')
+  const [invoiceRef, setInvoiceRef] = useState('10-Month Term Unfulfilled ($100/mo × 10)')
+  const [reason, setReason] = useState('Unfulfilled contract terms & delinquent account')
   const [customReason, setCustomReason] = useState('')
   const [terminationDays, setTerminationDays] = useState(14)
   const [paymentUrl, setPaymentUrl] = useState('')
   const [customNote, setCustomNote] = useState('')
   const [sendEmail, setSendEmail] = useState(true)
 
-  // Preview & invoice data from GET endpoint
-  const [previewHtml, setPreviewHtml] = useState('')
-  const [totalOwed, setTotalOwed] = useState(0)
+  // Server state
+  const [detectedTotal, setDetectedTotal] = useState(0)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [invoices, setInvoices] = useState<any[]>([])
 
-  // Load preview data from server
+  // Load initial preview data from server
   const loadPreview = useCallback(async () => {
     setLoading(true)
     setError('')
@@ -43,11 +45,20 @@ export function SuspensionModal({ client, onClose, onSuccess }: SuspensionModalP
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to load suspension preview')
 
-      setWebsiteDomain(data.emailData?.websiteDomain ?? '')
+      const initialDomain = data.emailData?.websiteDomain ?? ''
+      setWebsiteDomain(initialDomain)
       setPaymentUrl(data.emailData?.paymentUrl ?? '')
-      setTotalOwed(data.totalOwed ?? 0)
+      setDetectedTotal(data.totalOwed ?? 0)
       setInvoices(data.invoices ?? [])
-      setPreviewHtml(data.html ?? '')
+
+      // If overdue invoices exist, use their total; otherwise default to 10-mo contract buyout ($1,000)
+      if (data.totalOwed && data.totalOwed > 0) {
+        setAmountDue(String(data.totalOwed))
+        setInvoiceRef(data.invoices?.[0]?.invoiceNumber ?? 'INV-DELINQUENT')
+      } else {
+        setAmountDue('1000')
+        setInvoiceRef('10-Month Contract Non-Fulfillment ($100/mo × 10)')
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error loading preview')
     } finally {
@@ -59,15 +70,39 @@ export function SuspensionModal({ client, onClose, onSuccess }: SuspensionModalP
     loadPreview()
   }, [loadPreview])
 
-  // Re-generate local preview when inputs change
-  useEffect(() => {
-    if (!previewHtml || !websiteDomain) return
-    // Simple fast client-side string replacement in preview HTML
-    let updatedHtml = previewHtml
-    if (websiteDomain) {
-      updatedHtml = updatedHtml.replaceAll('{{website_domain}}', websiteDomain)
+  // Real-time computed email HTML for Live Preview
+  const computedPreviewHtml = useMemo(() => {
+    const numAmount = Number(String(amountDue).replace(/[^0-9.]/g, '')) || 0
+    const now = new Date()
+    const suspensionDate = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    const terminationDate = new Date(Date.now() + terminationDays * 86_400_000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    const finalReason = reason === 'custom' ? (customReason.trim() || 'Contractual non-fulfillment') : reason
+
+    const emailData: SuspensionEmailData = {
+      clientName: client.name,
+      clientEmail: client.email,
+      companyName: client.company,
+      websiteDomain: websiteDomain || 'yourdomain.com',
+      invoiceNumber: invoiceRef.trim() || 'CONTRACT-DELINQUENT',
+      totalOwed: numAmount,
+      maxDaysOverdue: 15,
+      suspensionDate,
+      terminationDate,
+      reason: finalReason,
+      paymentUrl: paymentUrl || 'https://login.purepulse.one/portal',
+      portalUrl: 'https://login.purepulse.one/portal',
+      invoices: [{
+        invoiceNumber: invoiceRef.trim() || 'CONTRACT-DELINQUENT',
+        total: numAmount,
+        dueDate: now.toISOString(),
+        daysOverdue: 15,
+        paymentLink: paymentUrl || 'https://login.purepulse.one/portal',
+      }],
+      customNote: customNote.trim(),
     }
-  }, [websiteDomain, reason, customReason, terminationDays, paymentUrl, customNote, previewHtml])
+
+    return renderSuspensionEmailHtml(emailData)
+  }, [amountDue, invoiceRef, client, websiteDomain, terminationDays, reason, customReason, paymentUrl, customNote])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -83,6 +118,8 @@ export function SuspensionModal({ client, onClose, onSuccess }: SuspensionModalP
         body: JSON.stringify({
           reason: finalReason,
           websiteDomain: websiteDomain.trim(),
+          amountDue: Number(String(amountDue).replace(/[^0-9.]/g, '')) || 0,
+          invoiceRef: invoiceRef.trim(),
           terminationDays,
           paymentUrl: paymentUrl.trim(),
           customNote: customNote.trim(),
@@ -120,6 +157,8 @@ export function SuspensionModal({ client, onClose, onSuccess }: SuspensionModalP
           isTest: true,
           reason: finalReason,
           websiteDomain: websiteDomain.trim(),
+          amountDue: Number(String(amountDue).replace(/[^0-9.]/g, '')) || 0,
+          invoiceRef: invoiceRef.trim(),
           terminationDays,
           paymentUrl: paymentUrl.trim(),
           customNote: customNote.trim(),
@@ -129,7 +168,7 @@ export function SuspensionModal({ client, onClose, onSuccess }: SuspensionModalP
 
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed sending test email')
-      setTestMsg('✅ Test copy sent to your admin email!')
+      setTestMsg('✅ Test email sent to your inbox (matty@purepulse.one)!')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed sending test email')
     } finally {
@@ -137,13 +176,15 @@ export function SuspensionModal({ client, onClose, onSuccess }: SuspensionModalP
     }
   }
 
+  const currentNumAmount = Number(String(amountDue).replace(/[^0-9.]/g, '')) || 0
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div
         className="modal"
         onClick={e => e.stopPropagation()}
         style={{
-          maxWidth: activeTab === 'preview' ? '860px' : '620px',
+          maxWidth: activeTab === 'preview' ? '880px' : '640px',
           width: '95%',
           transition: 'max-width 0.25s ease',
           padding: '1.75rem',
@@ -160,7 +201,7 @@ export function SuspensionModal({ client, onClose, onSuccess }: SuspensionModalP
                 Suspend Client Services
               </h2>
               <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-                {client.name} &middot; <span style={{ color: '#ef4444', fontWeight: 600 }}>{formatMoney(totalOwed)} past due</span>
+                {client.name} &middot; <span style={{ color: '#ef4444', fontWeight: 700 }}>{formatMoney(currentNumAmount)} balance due</span>
               </p>
             </div>
           </div>
@@ -188,7 +229,7 @@ export function SuspensionModal({ client, onClose, onSuccess }: SuspensionModalP
             onClick={() => setActiveTab('preview')}
             style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}
           >
-            <Eye size={13} /> Live Email Preview
+            <Eye size={13} /> Live Email Preview ({formatMoney(currentNumAmount)})
           </button>
         </div>
 
@@ -211,32 +252,84 @@ export function SuspensionModal({ client, onClose, onSuccess }: SuspensionModalP
                 <div style={{ background: 'rgba(239, 68, 68, 0.06)', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: '10px', padding: '0.875rem 1rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
                   <AlertTriangle size={16} color="#ef4444" style={{ flexShrink: 0, marginTop: '2px' }} />
                   <div style={{ fontSize: '0.8125rem', lineHeight: 1.5, color: 'rgba(244, 244, 255, 0.8)' }}>
-                    Suspending this client will take their public website offline, halt maintenance, and notify <strong style={{ color: '#fff' }}>{client.email}</strong> with immediate payment and restoration instructions.
+                    Suspending this client will take their public website offline, halt maintenance, and notify <strong style={{ color: '#fff' }}>{client.email}</strong> with settlement instructions for <strong style={{ color: '#FF6B6B' }}>{formatMoney(currentNumAmount)}</strong>.
                   </div>
                 </div>
 
-                {/* Overdue Invoices Breakdown Summary */}
-                {invoices.length > 0 && (
-                  <div style={{ background: 'rgba(123, 47, 255, 0.05)', border: '1px solid rgba(123, 47, 255, 0.18)', borderRadius: '10px', padding: '0.875rem 1rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#A066FF' }}>
-                        Detected Delinquent Invoices ({invoices.length})
-                      </span>
-                      <span style={{ fontSize: '0.875rem', fontWeight: 800, color: '#ef4444' }}>
-                        Total: {formatMoney(totalOwed)}
-                      </span>
+                {/* Amount Due & Reference Inputs */}
+                <div style={{ background: 'rgba(123, 47, 255, 0.06)', border: '1px solid rgba(123, 47, 255, 0.25)', borderRadius: '12px', padding: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '1rem' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#FF6B6B', marginBottom: '0.375rem' }}>
+                        Total Balance Due ($ USD) *
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        className="input"
+                        required
+                        value={amountDue}
+                        onChange={e => setAmountDue(e.target.value)}
+                        placeholder="1000.00"
+                        style={{ fontSize: '1.125rem', fontWeight: 800, color: '#FF6B6B' }}
+                      />
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
-                      {invoices.map((inv, idx) => (
-                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-                          <span style={{ fontFamily: 'monospace' }}>{inv.invoiceNumber}</span>
-                          <span style={{ color: '#f59e0b' }}>+{inv.daysOverdue}d overdue</span>
-                          <span style={{ fontWeight: 600, color: 'var(--text)' }}>{formatMoney(inv.total)}</span>
-                        </div>
-                      ))}
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '0.375rem' }}>
+                        Item / Contract Description *
+                      </label>
+                      <input
+                        type="text"
+                        className="input"
+                        required
+                        value={invoiceRef}
+                        onChange={e => setInvoiceRef(e.target.value)}
+                        placeholder="e.g. 10-Month Contract Term ($100/mo × 10)"
+                      />
                     </div>
                   </div>
-                )}
+
+                  {/* Quick Preset Buttons */}
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 600 }}>Quick Presets:</span>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      style={{ fontSize: '0.75rem', padding: '3px 8px', color: '#A066FF', borderColor: 'rgba(160, 102, 255, 0.3)' }}
+                      onClick={() => {
+                        setAmountDue('1000')
+                        setInvoiceRef('10-Month Contract Term Non-Fulfillment ($100/mo × 10)')
+                      }}
+                    >
+                      $1,000 (10 Months Left @ $100/mo)
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      style={{ fontSize: '0.75rem', padding: '3px 8px', color: 'var(--text-muted)' }}
+                      onClick={() => {
+                        setAmountDue('100')
+                        setInvoiceRef('Monthly Maintenance & Hosting ($100.00)')
+                      }}
+                    >
+                      $100 (1 Month)
+                    </button>
+                    {detectedTotal > 0 && (
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        style={{ fontSize: '0.75rem', padding: '3px 8px', color: '#f59e0b' }}
+                        onClick={() => {
+                          setAmountDue(String(detectedTotal))
+                          setInvoiceRef(invoices[0]?.invoiceNumber ?? 'INV-DELINQUENT')
+                        }}
+                      >
+                        {formatMoney(detectedTotal)} (Delinquent Invoices)
+                      </button>
+                    )}
+                  </div>
+                </div>
 
                 {/* Grid row 1: Target Domain & Termination Grace Period */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1rem' }}>
@@ -249,7 +342,7 @@ export function SuspensionModal({ client, onClose, onSuccess }: SuspensionModalP
                       required
                       value={websiteDomain}
                       onChange={e => setWebsiteDomain(e.target.value)}
-                      placeholder="e.g. clientwebsite.com"
+                      placeholder="e.g. schmidtconstruction.com"
                     />
                   </div>
                   <div className="form-group">
@@ -279,8 +372,8 @@ export function SuspensionModal({ client, onClose, onSuccess }: SuspensionModalP
                     value={reason}
                     onChange={e => setReason(e.target.value)}
                   >
-                    <option value="Overdue balance & unfulfilled payments">Overdue balance &amp; unfulfilled payments</option>
                     <option value="Unfulfilled contract terms & delinquent account">Unfulfilled contract terms &amp; delinquent account</option>
+                    <option value="Overdue balance & contractual non-fulfillment">Overdue balance &amp; contractual non-fulfillment</option>
                     <option value="Breach of PurePulse Website Service Agreement">Breach of PurePulse Website Service Agreement</option>
                     <option value="Non-payment of monthly maintenance & hosting plan">Non-payment of monthly maintenance &amp; hosting plan</option>
                     <option value="custom">Custom Reason...</option>
@@ -305,7 +398,7 @@ export function SuspensionModal({ client, onClose, onSuccess }: SuspensionModalP
                 {/* Payment Checkout URL */}
                 <div className="form-group">
                   <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Payment Checkout / Portal Link
+                    Payment Checkout / Stripe / Portal Link
                   </label>
                   <input
                     className="input"
@@ -325,7 +418,7 @@ export function SuspensionModal({ client, onClose, onSuccess }: SuspensionModalP
                     rows={2}
                     value={customNote}
                     onChange={e => setCustomNote(e.target.value)}
-                    placeholder="e.g. Please note that DNS zones will be released if payment is not confirmed by the retention date."
+                    placeholder="e.g. Contract buyout terms require settling the remaining 10 months of services ($1,000.00) to transfer website files."
                   />
                 </div>
 
@@ -343,15 +436,18 @@ export function SuspensionModal({ client, onClose, onSuccess }: SuspensionModalP
             ) : (
               /* Tab 2: Live HTML Email Preview */
               <div>
-                <div style={{ marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
                   <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
                     Recipient: <strong style={{ color: 'var(--text)' }}>{client.email}</strong> &middot; Subject: <strong style={{ color: '#ef4444' }}>URGENT: Website Services Suspended — {websiteDomain}</strong>
                   </span>
+                  <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#FF6B6B' }}>
+                    Total: {formatMoney(currentNumAmount)}
+                  </span>
                 </div>
-                <div style={{ width: '100%', height: '480px', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--border)', background: '#07070D' }}>
+                <div style={{ width: '100%', height: '520px', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--border)', background: '#07070D' }}>
                   <iframe
                     title="Suspension Email Preview"
-                    srcDoc={previewHtml}
+                    srcDoc={computedPreviewHtml}
                     style={{ width: '100%', height: '100%', border: 'none', background: '#07070D' }}
                   />
                 </div>
@@ -398,7 +494,7 @@ export function SuspensionModal({ client, onClose, onSuccess }: SuspensionModalP
                   ) : (
                     <>
                       <Ban size={14} style={{ marginRight: '4px' }} />
-                      {sendEmail ? 'Suspend & Send Notice' : 'Suspend Without Email'}
+                      {sendEmail ? `Suspend & Send Notice (${formatMoney(currentNumAmount)})` : 'Suspend Without Email'}
                     </>
                   )}
                 </button>
