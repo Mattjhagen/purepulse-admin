@@ -137,6 +137,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const suspensionDate = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
   const terminationDate = new Date(Date.now() + terminationDays * 86_400_000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
   const portalUrl = process.env.NEXT_PUBLIC_PORTAL_URL ?? 'https://login.purepulse.one/portal'
+  const paymentUrl = body.paymentUrl?.trim() || invoices.find(i => i.stripe_payment_link)?.stripe_payment_link || portalUrl
+  const shouldSendEmail = body.sendEmail !== false
   const rawAmount = body.amountDue !== undefined && body.amountDue !== '' ? Number(String(body.amountDue).replace(/[^0-9.]/g, '')) : NaN
   const finalTotalOwed = !isNaN(rawAmount) && rawAmount >= 0 ? rawAmount : (totalOwed > 0 ? totalOwed : 1000)
   const invoiceRef = body.invoiceRef?.trim() || (invoices[0]?.invoice_number ?? 'CONTRACT-UNFULFILLED')
