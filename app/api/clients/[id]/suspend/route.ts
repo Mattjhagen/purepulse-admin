@@ -153,7 +153,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (process.env.RESEND_API_KEY && shouldSendEmail) {
     const adminEmail = process.env.ADMIN_EMAIL ?? 'matty@purepulse.one'
-    const fromEmail = process.env.RESEND_FROM_EMAIL ?? 'PurePulse <contracts@login.purepulse.one>'
+    const fromEmail = process.env.RESEND_FROM_EMAIL ?? 'PurePulse <matty@purepulse.one>'
 
     const emailData: SuspensionEmailData = {
       clientName: client.name,
