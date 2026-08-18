@@ -15,6 +15,8 @@ export function SuspensionModal({ client, onClose, onSuccess }: SuspensionModalP
   const [activeTab, setActiveTab] = useState<'config' | 'preview'>('config')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [sendingTest, setSendingTest] = useState(false)
+  const [testMsg, setTestMsg] = useState('')
   const [error, setError] = useState('')
 
   // Form inputs
@@ -101,6 +103,37 @@ export function SuspensionModal({ client, onClose, onSuccess }: SuspensionModalP
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to suspend client')
       setSubmitting(false)
+    }
+  }
+
+  async function handleSendTest() {
+    setSendingTest(true)
+    setTestMsg('')
+    setError('')
+    const finalReason = reason === 'custom' ? (customReason.trim() || 'Contractual non-fulfillment') : reason
+
+    try {
+      const res = await fetch(`/api/clients/${client.id}/suspend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          isTest: true,
+          reason: finalReason,
+          websiteDomain: websiteDomain.trim(),
+          terminationDays,
+          paymentUrl: paymentUrl.trim(),
+          customNote: customNote.trim(),
+          sendEmail: true,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed sending test email')
+      setTestMsg('✅ Test copy sent to your admin email!')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed sending test email')
+    } finally {
+      setSendingTest(false)
     }
   }
 
@@ -325,31 +358,51 @@ export function SuspensionModal({ client, onClose, onSuccess }: SuspensionModalP
               </div>
             )}
 
+            {testMsg && (
+              <div style={{ marginTop: '1rem', padding: '8px 12px', borderRadius: '8px', background: 'rgba(34, 197, 94, 0.12)', border: '1px solid rgba(34, 197, 94, 0.3)', color: '#22c55e', fontSize: '0.8125rem' }}>
+                {testMsg}
+              </div>
+            )}
+
             {/* Modal Actions */}
-            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1.5rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
-              <button type="button" className="btn btn-ghost" onClick={onClose} disabled={submitting}>
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="btn"
-                disabled={submitting}
-                style={{
-                  background: '#ef4444',
-                  color: '#FFFFFF',
-                  fontWeight: 700,
-                  boxShadow: '0 0 16px rgba(239, 68, 68, 0.4)',
-                }}
-              >
-                {submitting ? (
-                  <span className="spinner" />
-                ) : (
-                  <>
-                    <Ban size={14} style={{ marginRight: '4px' }} />
-                    {sendEmail ? 'Suspend & Send Notice' : 'Suspend Without Email'}
-                  </>
-                )}
-              </button>
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', borderTop: '1px solid var(--border)', paddingTop: '1rem', flexWrap: 'wrap' }}>
+              <div>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={handleSendTest}
+                  disabled={sendingTest || submitting}
+                  style={{ color: '#00D4FF', borderColor: 'rgba(0, 212, 255, 0.3)' }}
+                >
+                  {sendingTest ? <span className="spinner" /> : <><Mail size={13} style={{ marginRight: '4px' }} /> Send test to my email</>}
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button type="button" className="btn btn-ghost" onClick={onClose} disabled={submitting}>
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn"
+                  disabled={submitting}
+                  style={{
+                    background: '#ef4444',
+                    color: '#FFFFFF',
+                    fontWeight: 700,
+                    boxShadow: '0 0 16px rgba(239, 68, 68, 0.4)',
+                  }}
+                >
+                  {submitting ? (
+                    <span className="spinner" />
+                  ) : (
+                    <>
+                      <Ban size={14} style={{ marginRight: '4px' }} />
+                      {sendEmail ? 'Suspend & Send Notice' : 'Suspend Without Email'}
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </form>
         )}

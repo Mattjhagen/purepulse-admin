@@ -140,13 +140,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const paymentUrl = body.paymentUrl?.trim() || invoices.find(i => i.stripe_payment_link)?.stripe_payment_link || portalUrl
   const shouldSendEmail = body.sendEmail !== false
 
-  // Suspend the client record in Supabase
-  await supabase.from('clients').update({
-    suspended: true,
-    suspended_at: now.toISOString(),
-    suspension_reason: reason,
-    updated_at: now.toISOString(),
-  }).eq('id', id)
+  const isTest = body.isTest === true
+
+  // If this is a test send, do NOT update database status
+  if (!isTest) {
+    await supabase.from('clients').update({
+      suspended: true,
+      suspended_at: now.toISOString(),
+      suspension_reason: reason,
+      updated_at: now.toISOString(),
+    }).eq('id', id)
+  }
 
   let emailSent = false
   let emailError: string | null = null
@@ -174,6 +178,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const htmlContent = renderSuspensionEmailHtml(emailData)
     const textContent = renderSuspensionEmailText(emailData)
+
+    if (isTest) {
+      // Send test email directly to admin inbox
+      try {
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: fromEmail,
+            to: adminEmail,
+            reply_to: adminEmail,
+            subject: `[TEST PREVIEW] URGENT: Website Services Suspended — ${customWebsiteDomain}`,
+            html: htmlContent,
+            text: textContent,
+          }),
+        })
+        if (res.ok) emailSent = true
+      } catch (err) {
+        emailError = err instanceof Error ? err.message : 'Failed sending test email'
+      }
+
+      return NextResponse.json({
+        ok: true,
+        isTest: true,
+        emailSent,
+        emailError,
+      })
+    }
 
     // 1. Send Suspension Email to Client
     if (client.email) {
@@ -205,7 +240,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
     }
 
-    // 2. Send Notification to PurePulse Admin
+    // 2. Send Notification to PurePulse Admin (includes full copy of client email)
     try {
       await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -218,17 +253,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           to: adminEmail,
           subject: `[ADMIN NOTICE] Client Suspended: ${client.name} (${customWebsiteDomain}) — ${formatMoney(totalOwed)} overdue`,
           html: `
-            <div style="font-family:sans-serif;padding:20px;color:#111">
-              <h2 style="color:#ef4444;margin-bottom:8px">Client Suspended</h2>
-              <p><strong>Client:</strong> ${client.name} (${client.email})</p>
-              <p><strong>Website / Domain:</strong> ${customWebsiteDomain}</p>
-              <p><strong>Reason:</strong> ${reason}</p>
-              <p><strong>Overdue Balance:</strong> ${formatMoney(totalOwed)}</p>
-              <p><strong>Data Retention Cutoff:</strong> ${terminationDate} (${terminationDays} days)</p>
-              <p><strong>Client Email Sent:</strong> ${emailSent ? 'Yes' : 'No / Skipped'}</p>
-              <hr style="margin:16px 0;border:0;border-top:1px solid #eee">
-              <p style="font-size:12px;color:#888">PurePulse Admin Automation System</p>
+            <div style="font-family:sans-serif;background-color:#07070D;padding:24px;color:#F4F4FF;">
+              <div style="max-width:600px;margin:0 auto;background:#0E0E18;border:1px solid rgba(239,68,68,0.4);border-radius:12px;padding:20px;margin-bottom:20px;">
+                <h2 style="color:#ef4444;margin:0 0 10px 0;font-size:18px;">🛑 Client Suspended Alert (Admin Record)</h2>
+                <p style="margin:4px 0;font-size:14px;"><strong>Client:</strong> ${client.name} (${client.email})</p>
+                <p style="margin:4px 0;font-size:14px;"><strong>Target Domain:</strong> ${customWebsiteDomain}</p>
+                <p style="margin:4px 0;font-size:14px;"><strong>Reason:</strong> ${reason}</p>
+                <p style="margin:4px 0;font-size:14px;"><strong>Overdue Balance:</strong> ${formatMoney(totalOwed)}</p>
+                <p style="margin:4px 0;font-size:14px;"><strong>Data Retention Cutoff:</strong> ${terminationDate} (${terminationDays} days)</p>
+                <p style="margin:4px 0;font-size:14px;color:#22c55e;"><strong>Client Email Delivered:</strong> ${emailSent ? 'Yes (sent to ' + client.email + ')' : 'No / Skipped'}</p>
+              </div>
+              <p style="font-size:12px;color:#888;text-align:center;margin-bottom:16px;">⬇️ Below is an exact copy of the suspension notice sent to the client ⬇️</p>
             </div>
+            ${htmlContent}
           `,
         }),
       })
