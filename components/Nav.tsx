@@ -1,11 +1,12 @@
 'use client'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Clock, Users, Ticket, FileText, FileCheck, Receipt, LayoutDashboard, Settings, LogOut, ChevronRight, Inbox, Mail, MessageCircle, Sparkles, CalendarDays, Share2, UsersRound, Gift, Megaphone, Link2 } from 'lucide-react'
+import { Clock, Users, Ticket, FileText, FileCheck, Receipt, LayoutDashboard, Settings, LogOut, ChevronRight, Inbox, Mail, MessageCircle, Sparkles, CalendarDays, Share2, UsersRound, Gift, Megaphone, Link2, ShoppingBag } from 'lucide-react'
 import { signOut } from '@/lib/auth'
 
 const nav = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { label: 'Velour E-Com', href: '/velour', icon: ShoppingBag },
   { label: 'Inbox', href: '/inbox', icon: Mail },
   { label: 'Leads', href: '/leads', icon: Inbox },
   { label: 'Clients', href: '/clients', icon: Users },
