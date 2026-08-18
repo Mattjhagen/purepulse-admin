@@ -51,12 +51,23 @@ export async function POST(req: NextRequest) {
   const supabase = adminSupabase()
 
   if (type === 'email.received') {
-    const fromEmail = (data.from as string) ?? ''
-    const fromName = (data.from_name as string) ?? null
+    const rawFrom = (data.from as string) ?? ''
+    let fromEmail = rawFrom
+    let fromName = (data.from_name as string) ?? null
+
+    if (rawFrom.includes('<')) {
+      const match = rawFrom.match(/(.*?)\s*<(.+?)>/)
+      if (match) {
+        if (!fromName && match[1]) fromName = match[1].replace(/["']/g, '').trim()
+        fromEmail = match[2].trim()
+      }
+    }
+
     const subject = (data.subject as string) ?? '(no subject)'
     const html = (data.html as string) ?? null
     const text = (data.text as string) ?? null
-    const toEmail = Array.isArray(data.to) ? data.to[0] : (data.to as string) ?? 'matty@purepulse.one'
+    const rawTo = Array.isArray(data.to) ? data.to[0] : (data.to as string) ?? 'matty@purepulse.one'
+    const toEmail = typeof rawTo === 'string' && rawTo.includes('<') ? (rawTo.match(/<(.+?)>/)?.[1] ?? rawTo) : rawTo
 
     // 1. Save to received_emails inbox
     await supabase.from('received_emails').insert({
