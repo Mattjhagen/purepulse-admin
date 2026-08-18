@@ -313,6 +313,8 @@ function TemplatesTab() {
   const [editing, setEditing] = useState<Partial<Template> | null | false>(false)
   const [deleting, setDeleting] = useState<string | null>(null)
 
+  const [seeding, setSeeding] = useState(false)
+
   const load = useCallback(async () => {
     const res = await fetch('/api/email-templates')
     const data = await res.json()
@@ -321,6 +323,23 @@ function TemplatesTab() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  async function handleSeedTemplates() {
+    setSeeding(true)
+    try {
+      const res = await fetch('/api/email-templates/seed', { method: 'POST' })
+      const data = await res.json()
+      if (data.templates) {
+        setTemplates(data.templates)
+      } else {
+        load()
+      }
+    } catch {
+      load()
+    } finally {
+      setSeeding(false)
+    }
+  }
 
   async function deleteTemplate(id: string) {
     setDeleting(id)
@@ -345,12 +364,24 @@ function TemplatesTab() {
 
   return (
     <div className="space-y-4 max-w-2xl">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-sm text-muted-foreground">{templates.length} template{templates.length !== 1 ? 's' : ''}</p>
-        <button onClick={() => setEditing({})}
-          className="btn btn-primary btn-sm">
-          <Plus size={13} style={{ marginRight: '4px' }} /> New Template
-        </button>
+        <div className="flex items-center gap-2">
+          {templates.length === 0 && (
+            <button
+              onClick={handleSeedTemplates}
+              disabled={seeding}
+              className="btn btn-ghost btn-sm"
+              style={{ color: '#00D4FF', borderColor: 'rgba(0, 212, 255, 0.3)' }}
+            >
+              {seeding ? <span className="spinner" /> : <><Sparkles size={13} style={{ marginRight: '4px' }} /> Load Default Marketing Templates</>}
+            </button>
+          )}
+          <button onClick={() => setEditing({})}
+            className="btn btn-primary btn-sm">
+            <Plus size={13} style={{ marginRight: '4px' }} /> New Template
+          </button>
+        </div>
       </div>
 
       {editing !== false && (editing as Template | null)?.id === undefined && (
@@ -360,8 +391,15 @@ function TemplatesTab() {
       {templates.length === 0 && editing === false && (
         <div className="rounded-xl border bg-card p-10 text-center" style={{ background: '#0E0E18', border: '1px solid var(--border)' }}>
           <FileText size={32} className="mx-auto mb-3 opacity-20" />
-          <p className="text-muted-foreground text-sm">No templates yet</p>
-          <p className="text-xs text-muted-foreground mt-1">Create templates to quickly reply to common emails.</p>
+          <p className="text-muted-foreground text-sm font-semibold">No templates yet</p>
+          <p className="text-xs text-muted-foreground mt-1 mb-4">Create templates to quickly reply to leads or send client marketing updates.</p>
+          <button
+            onClick={handleSeedTemplates}
+            disabled={seeding}
+            className="btn btn-primary btn-sm"
+          >
+            {seeding ? <span className="spinner" /> : <><Sparkles size={13} style={{ marginRight: '4px' }} /> Load 7 Built-In Marketing &amp; Reply Templates</>}
+          </button>
         </div>
       )}
 
