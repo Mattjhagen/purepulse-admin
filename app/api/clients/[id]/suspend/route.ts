@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import {
+  inferClientDomain,
+  renderSuspensionEmailHtml,
+  renderSuspensionEmailText,
+  OverdueInvoiceSummary,
+  SuspensionEmailData
+} from '@/lib/suspension-email'
+import { formatMoney } from '@/lib/utils'
 
 function adminSupabase() {
   return createClient(
@@ -8,15 +16,86 @@ function adminSupabase() {
   )
 }
 
-function fmt(n: number) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
+// ─── GET: Preview Suspension Data & Email ─────────────────────────────────────
+
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const supabase = adminSupabase()
+
+  const { data: client, error: clientErr } = await supabase
+    .from('clients')
+    .select('*')
+    .eq('id', id)
+    .single()
+
+  if (clientErr || !client) {
+    return NextResponse.json({ error: 'Client not found' }, { status: 404 })
+  }
+
+  // Load all overdue/pending invoices
+  const { data: overdueInvoices } = await supabase
+    .from('invoices')
+    .select('id, invoice_number, total, due_date, stripe_payment_link')
+    .eq('client_id', id)
+    .in('status', ['overdue', 'sent'])
+    .order('due_date', { ascending: true })
+
+  const invoices = overdueInvoices ?? []
+  const totalOwed = invoices.reduce((s, i) => s + (i.total ?? 0), 0)
+  const now = new Date()
+
+  const invoiceSummaries: OverdueInvoiceSummary[] = invoices.map(i => {
+    const dueDate = new Date(i.due_date ?? i.created_at ?? now)
+    const daysOverdue = Math.max(0, Math.floor((now.getTime() - dueDate.getTime()) / 86_400_000))
+    return {
+      invoiceNumber: i.invoice_number,
+      total: i.total ?? 0,
+      dueDate: dueDate.toISOString(),
+      daysOverdue,
+      paymentLink: i.stripe_payment_link,
+    }
+  })
+
+  const maxDaysOverdue = invoiceSummaries.reduce((max, i) => Math.max(max, i.daysOverdue), 0)
+  const websiteDomain = inferClientDomain(client)
+  const suspensionDate = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  const terminationDate = new Date(Date.now() + 14 * 86_400_000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  const portalUrl = process.env.NEXT_PUBLIC_PORTAL_URL ?? 'https://login.purepulse.one/portal'
+  const defaultPaymentUrl = invoices.find(i => i.stripe_payment_link)?.stripe_payment_link || portalUrl
+
+  const emailData: SuspensionEmailData = {
+    clientName: client.name,
+    clientEmail: client.email,
+    companyName: client.company,
+    websiteDomain,
+    invoiceNumber: invoices[0]?.invoice_number ?? 'INV-DELINQUENT',
+    totalOwed: totalOwed > 0 ? totalOwed : (client.hourly_rate ?? 150),
+    maxDaysOverdue: maxDaysOverdue > 0 ? maxDaysOverdue : 15,
+    suspensionDate,
+    terminationDate,
+    reason: client.suspension_reason ?? 'Overdue balance & contractual non-fulfillment',
+    paymentUrl: defaultPaymentUrl,
+    portalUrl,
+    invoices: invoiceSummaries,
+  }
+
+  const html = renderSuspensionEmailHtml(emailData)
+
+  return NextResponse.json({
+    client,
+    emailData,
+    invoices: invoiceSummaries,
+    totalOwed: emailData.totalOwed,
+    html,
+  })
 }
+
+// ─── POST: Execute Suspension & Send Email ────────────────────────────────────
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = adminSupabase()
   const body = await req.json().catch(() => ({}))
-  const reason: string = body.reason ?? 'Overdue balance'
 
   const { data: client } = await supabase
     .from('clients')
@@ -32,19 +111,36 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .from('invoices')
     .select('id, invoice_number, total, due_date, stripe_payment_link')
     .eq('client_id', id)
-    .eq('status', 'overdue')
+    .in('status', ['overdue', 'sent'])
     .order('due_date', { ascending: true })
 
   const invoices = overdueInvoices ?? []
   const totalOwed = invoices.reduce((s, i) => s + (i.total ?? 0), 0)
   const now = new Date()
 
-  const invoiceRows = invoices.map(i => {
-    const daysOverdue = Math.floor((now.getTime() - new Date(i.due_date).getTime()) / 86_400_000)
-    return `<tr><td style="padding:6px 0;border-bottom:1px solid #eee">${i.invoice_number}</td><td style="padding:6px 0;border-bottom:1px solid #eee;text-align:right">${fmt(i.total)}</td><td style="padding:6px 0;border-bottom:1px solid #eee;text-align:right;color:#ef4444">+${daysOverdue}d overdue</td></tr>`
-  }).join('')
+  const invoiceSummaries: OverdueInvoiceSummary[] = invoices.map(i => {
+    const dueDate = new Date(i.due_date ?? i.created_at ?? now)
+    const daysOverdue = Math.max(0, Math.floor((now.getTime() - dueDate.getTime()) / 86_400_000))
+    return {
+      invoiceNumber: i.invoice_number,
+      total: i.total ?? 0,
+      dueDate: dueDate.toISOString(),
+      daysOverdue,
+      paymentLink: i.stripe_payment_link,
+    }
+  })
 
-  // Suspend the client
+  const maxDaysOverdue = invoiceSummaries.reduce((max, i) => Math.max(max, i.daysOverdue), 0)
+  const reason: string = body.reason?.trim() || 'Overdue balance & contractual non-fulfillment'
+  const customWebsiteDomain: string = body.websiteDomain?.trim() || inferClientDomain(client)
+  const terminationDays = Number(body.terminationDays) || 14
+  const suspensionDate = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  const terminationDate = new Date(Date.now() + terminationDays * 86_400_000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  const portalUrl = process.env.NEXT_PUBLIC_PORTAL_URL ?? 'https://login.purepulse.one/portal'
+  const paymentUrl = body.paymentUrl?.trim() || invoices.find(i => i.stripe_payment_link)?.stripe_payment_link || portalUrl
+  const shouldSendEmail = body.sendEmail !== false
+
+  // Suspend the client record in Supabase
   await supabase.from('clients').update({
     suspended: true,
     suspended_at: now.toISOString(),
@@ -52,11 +148,65 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     updated_at: now.toISOString(),
   }).eq('id', id)
 
-  if (process.env.RESEND_API_KEY) {
-    const adminEmail = process.env.ADMIN_EMAIL ?? 'matty@purepulse.one'
+  let emailSent = false
+  let emailError: string | null = null
 
-    // Client suspension email
+  if (process.env.RESEND_API_KEY && shouldSendEmail) {
+    const adminEmail = process.env.ADMIN_EMAIL ?? 'matty@purepulse.one'
+    const fromEmail = 'PurePulse Billing <billing@purepulse.one>'
+
+    const emailData: SuspensionEmailData = {
+      clientName: client.name,
+      clientEmail: client.email,
+      companyName: client.company,
+      websiteDomain: customWebsiteDomain,
+      invoiceNumber: invoices[0]?.invoice_number ?? 'INV-DELINQUENT',
+      totalOwed: totalOwed > 0 ? totalOwed : (client.hourly_rate ?? 150),
+      maxDaysOverdue: maxDaysOverdue > 0 ? maxDaysOverdue : 15,
+      suspensionDate,
+      terminationDate,
+      reason,
+      paymentUrl,
+      portalUrl,
+      invoices: invoiceSummaries,
+      customNote: body.customNote?.trim(),
+    }
+
+    const htmlContent = renderSuspensionEmailHtml(emailData)
+    const textContent = renderSuspensionEmailText(emailData)
+
+    // 1. Send Suspension Email to Client
     if (client.email) {
+      try {
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: fromEmail,
+            to: client.email,
+            reply_to: adminEmail,
+            subject: `URGENT: Website Services Suspended — ${customWebsiteDomain}`,
+            html: htmlContent,
+            text: textContent,
+          }),
+        })
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}))
+          emailError = errData.message ?? 'Failed sending client email via Resend'
+        } else {
+          emailSent = true
+        }
+      } catch (err) {
+        emailError = err instanceof Error ? err.message : 'Unknown email error'
+      }
+    }
+
+    // 2. Send Notification to PurePulse Admin
+    try {
       await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
@@ -64,77 +214,41 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: 'PurePulse <matty@purepulse.one>',
-          to: client.email,
-          subject: '🚫 Your portal access has been suspended',
+          from: fromEmail,
+          to: adminEmail,
+          subject: `[ADMIN NOTICE] Client Suspended: ${client.name} (${customWebsiteDomain}) — ${formatMoney(totalOwed)} overdue`,
           html: `
-            <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:2rem;color:#111">
-              <h2 style="font-size:1.5rem;font-weight:800;margin-bottom:0.25rem">PurePulse</h2>
-              <p style="color:#666;margin-bottom:2rem;font-size:0.875rem">Account Notice</p>
-
-              <p style="margin-bottom:1rem">Hi ${client.name},</p>
-
-              <div style="background:#fff5f5;border:1px solid #ef4444;border-radius:8px;padding:1rem;margin-bottom:1.5rem">
-                <p style="color:#dc2626;font-weight:700;margin-bottom:0.25rem">🚫 Portal access suspended</p>
-                <p style="color:#555;font-size:0.875rem;margin:0">
-                  Your client portal access has been suspended due to an outstanding balance of <strong>${fmt(totalOwed)}</strong>.
-                </p>
-              </div>
-
-              ${invoices.length > 0 ? `
-              <table style="width:100%;border-collapse:collapse;margin-bottom:1.5rem">
-                <thead><tr>
-                  <th style="text-align:left;font-size:0.75rem;color:#999;padding-bottom:6px">Invoice</th>
-                  <th style="text-align:right;font-size:0.75rem;color:#999;padding-bottom:6px">Amount</th>
-                  <th style="text-align:right;font-size:0.75rem;color:#999;padding-bottom:6px">Status</th>
-                </tr></thead>
-                <tbody>${invoiceRows}</tbody>
-                <tfoot><tr>
-                  <td colspan="2" style="padding-top:8px;font-weight:700">Total due</td>
-                  <td style="padding-top:8px;font-weight:700;text-align:right;color:#dc2626">${fmt(totalOwed)}</td>
-                </tr></tfoot>
-              </table>
-              ` : ''}
-
-              <p style="color:#555;margin-bottom:1.5rem;line-height:1.6">
-                To restore your portal access, please settle your outstanding balance and contact us at
-                <a href="mailto:${adminEmail}" style="color:#000">${adminEmail}</a>.
-                Access will be restored within 24 hours of payment confirmation.
-              </p>
-
-              <a href="mailto:${adminEmail}" style="display:inline-block;background:#000;color:#fff;padding:0.875rem 2rem;border-radius:8px;text-decoration:none;font-weight:700;font-size:1rem;margin-bottom:2rem">
-                Contact us to resolve →
-              </a>
-
-              <p style="color:#bbb;font-size:0.75rem">
-                If you believe this is an error, please reply to this email immediately.
-              </p>
+            <div style="font-family:sans-serif;padding:20px;color:#111">
+              <h2 style="color:#ef4444;margin-bottom:8px">Client Suspended</h2>
+              <p><strong>Client:</strong> ${client.name} (${client.email})</p>
+              <p><strong>Website / Domain:</strong> ${customWebsiteDomain}</p>
+              <p><strong>Reason:</strong> ${reason}</p>
+              <p><strong>Overdue Balance:</strong> ${formatMoney(totalOwed)}</p>
+              <p><strong>Data Retention Cutoff:</strong> ${terminationDate} (${terminationDays} days)</p>
+              <p><strong>Client Email Sent:</strong> ${emailSent ? 'Yes' : 'No / Skipped'}</p>
+              <hr style="margin:16px 0;border:0;border-top:1px solid #eee">
+              <p style="font-size:12px;color:#888">PurePulse Admin Automation System</p>
             </div>
           `,
         }),
       })
+    } catch {
+      // Non-blocking admin notification error
     }
-
-    // Admin notification
-    await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: 'PurePulse <matty@purepulse.one>',
-        to: adminEmail,
-        subject: `Client suspended: ${client.name} — ${fmt(totalOwed)} overdue`,
-        html: `<p>Client <strong>${client.name}</strong> (${client.email}) has been suspended.<br>Reason: ${reason}<br>Overdue balance: ${fmt(totalOwed)}</p>`,
-      }),
-    })
   }
 
-  return NextResponse.json({ ok: true, suspended: true, totalOwed })
+  return NextResponse.json({
+    ok: true,
+    suspended: true,
+    totalOwed,
+    websiteDomain: customWebsiteDomain,
+    emailSent,
+    emailError,
+  })
 }
 
-// Unsuspend
+// ─── DELETE: Unsuspend Client ─────────────────────────────────────────────────
+
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = adminSupabase()

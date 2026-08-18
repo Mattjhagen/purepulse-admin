@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { use } from 'react'
+import { SuspensionModal } from '@/components/SuspensionModal'
 
 const PLANS: Plan[] = ['starter', 'growth', 'premium', 'business']
 const STATUSES = ['active', 'inactive', 'prospect']
@@ -184,6 +185,7 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   const [portalLinked, setPortalLinked] = useState(false)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
+  const [suspending, setSuspending] = useState(false)
   const [inviting, setInviting] = useState(false)
   const [inviteMsg, setInviteMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [actionLoading, setActionLoading] = useState<'warn' | 'suspend' | 'unsuspend' | null>(null)
@@ -316,15 +318,19 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
               {actionLoading === 'warn' ? <span className="spinner" /> : <><AlertTriangle size={13} /> Send warning</>}
             </button>
           )}
-          {canSuspend && (
-            <button className="btn btn-ghost btn-sm" style={{ color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }} onClick={suspendClient} disabled={actionLoading === 'suspend'}>
-              {actionLoading === 'suspend' ? <span className="spinner" /> : <><Ban size={13} /> Suspend</>}
+          {!client.suspended ? (
+            <button className="btn btn-ghost btn-sm" style={{ color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }} onClick={() => setSuspending(true)}>
+              <Ban size={13} /> Suspend client
             </button>
-          )}
-          {client.suspended && (
-            <button className="btn btn-ghost btn-sm" style={{ color: '#22c55e', borderColor: 'rgba(34,197,94,0.3)' }} onClick={unsuspendClient} disabled={actionLoading === 'unsuspend'}>
-              {actionLoading === 'unsuspend' ? <span className="spinner" /> : <><ShieldOff size={13} /> Restore access</>}
-            </button>
+          ) : (
+            <>
+              <button className="btn btn-ghost btn-sm" style={{ color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }} onClick={() => setSuspending(true)}>
+                <Ban size={13} /> View / Resend Notice
+              </button>
+              <button className="btn btn-ghost btn-sm" style={{ color: '#22c55e', borderColor: 'rgba(34,197,94,0.3)' }} onClick={unsuspendClient} disabled={actionLoading === 'unsuspend'}>
+                {actionLoading === 'unsuspend' ? <span className="spinner" /> : <><ShieldOff size={13} /> Restore access</>}
+              </button>
+            </>
           )}
           <button className="btn btn-ghost btn-sm" onClick={() => setEditing(true)}><Edit3 size={13} /> Edit</button>
           <Link href={`/time-clock?client=${client.id}`} className="btn btn-ghost btn-sm"><Clock size={13} /> Clock in</Link>
@@ -346,13 +352,20 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', padding: '0.875rem 1rem', background: alertBg('239,68,68'), border: `1px solid ${alertBorder('239,68,68')}`, borderRadius: 'var(--radius)', fontSize: '0.875rem' }}>
           <Ban size={16} color="#ef4444" style={{ flexShrink: 0 }} />
           <div style={{ flex: 1 }}>
-            <p style={{ fontWeight: 700, color: '#ef4444', marginBottom: '0.125rem' }}>Portal access suspended</p>
+            <p style={{ fontWeight: 700, color: '#ef4444', marginBottom: '0.125rem' }}>Website Services &amp; Portal Suspended</p>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
               {client.suspension_reason ?? 'Overdue balance'}
               {client.suspended_at ? ` · since ${formatDate(client.suspended_at)}` : ''}
               {overdueTotal > 0 ? ` · ${formatMoney(overdueTotal)} owed` : ''}
             </p>
           </div>
+          <button
+            className="btn btn-ghost btn-sm"
+            style={{ color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)', flexShrink: 0 }}
+            onClick={() => setSuspending(true)}
+          >
+            Review Suspension Notice
+          </button>
         </div>
       )}
       {!client.suspended && overdueInvoices.length > 0 && (
@@ -428,6 +441,33 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
               <Link href={`/time-clock?client=${client.id}`} className="btn btn-ghost btn-sm" style={{ justifyContent: 'flex-start' }}>
                 <Clock size={13} /> Clock in
               </Link>
+              {!client.suspended ? (
+                <button
+                  className="btn btn-ghost btn-sm"
+                  style={{ justifyContent: 'flex-start', color: '#ef4444', borderColor: 'rgba(239,68,68,0.25)', background: 'rgba(239,68,68,0.06)', marginTop: '0.25rem' }}
+                  onClick={() => setSuspending(true)}
+                >
+                  <Ban size={13} /> Suspend website / portal
+                </button>
+              ) : (
+                <>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{ justifyContent: 'flex-start', color: '#ef4444', borderColor: 'rgba(239,68,68,0.25)', background: 'rgba(239,68,68,0.06)', marginTop: '0.25rem' }}
+                    onClick={() => setSuspending(true)}
+                  >
+                    <Ban size={13} /> Review suspension notice
+                  </button>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{ justifyContent: 'flex-start', color: '#22c55e', borderColor: 'rgba(34,197,94,0.25)', background: 'rgba(34,197,94,0.06)' }}
+                    onClick={unsuspendClient}
+                    disabled={actionLoading === 'unsuspend'}
+                  >
+                    {actionLoading === 'unsuspend' ? <span className="spinner" /> : <><ShieldOff size={13} /> Restore access</>}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -620,6 +660,18 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
           client={client}
           onClose={() => setEditing(false)}
           onSave={() => { setEditing(false); load() }}
+        />
+      )}
+
+      {suspending && (
+        <SuspensionModal
+          client={client}
+          onClose={() => setSuspending(false)}
+          onSuccess={(msg) => {
+            setSuspending(false)
+            setActionMsg({ type: 'ok', text: msg })
+            load()
+          }}
         />
       )}
     </>
