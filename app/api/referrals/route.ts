@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { Resend } from 'resend'
+import { getResend } from '@/lib/resend'
 import { getStripe } from '@/lib/stripe'
 
 function adminSupabase() {
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
         console.warn('[api/referrals] Stripe account setup notice:', stripeErr)
       }
 
-      const resend = new Resend(process.env.RESEND_API_KEY)
+      const resend = getResend()
       const referralCode = data.code
       const referralUrl = `${appUrl}/ref/${referralCode}`
       const setupPayoutUrl = `${appUrl}/referrals/connect/${data.id}`

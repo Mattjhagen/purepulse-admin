@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { Resend } from 'resend'
+import { getResend } from '@/lib/resend'
 import { generateContractContent } from '@/lib/contract-template'
 import { PLAN_PRICES, PLAN_LABELS, type Plan } from '@/lib/types'
 
@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Send sign link email
-  const resend = new Resend(process.env.RESEND_API_KEY)
+  const resend = getResend()
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://login.purepulse.one'
   const signingUrl = `${appUrl}/sign/${token}`
   const firstName = name.trim().split(' ')[0]
