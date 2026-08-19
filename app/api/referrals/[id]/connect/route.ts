@@ -2,10 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getStripe } from '@/lib/stripe'
 import { requireAdmin } from '@/lib/require-admin'
-import { Resend } from 'resend'
+import { getResend } from '@/lib/resend'
 import type Stripe from 'stripe'
-
-const resend = new Resend(process.env.RESEND_API_KEY)
 
 function adminSupabase() {
   return createClient(
@@ -65,6 +63,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   let emailed = false
   if (referral.email) {
     try {
+      const resend = getResend()
       const { error: emailErr } = await resend.emails.send({
         from: 'Matty at PurePulse <matty@purepulse.one>',
         to: referral.email,

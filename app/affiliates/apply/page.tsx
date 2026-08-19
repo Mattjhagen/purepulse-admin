@@ -47,6 +47,7 @@ export default function ApplyPage() {
   const [submitError, setSubmitError] = useState('')
   const [referralCode, setReferralCode] = useState('')
   const [resultEmail, setResultEmail] = useState('')
+  const [actionLink, setActionLink] = useState('')
 
   function validateStep1() {
     if (!name.trim()) { setStep1Error('Please enter your name.'); return false }
@@ -94,6 +95,9 @@ export default function ApplyPage() {
       if (data.error) { setSubmitError(data.error); setSubmitting(false); return }
       setReferralCode(data.referral_code)
       setResultEmail(data.email)
+      if (data.action_link) {
+        setActionLink(data.action_link)
+      }
       setStep(3)
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch {
@@ -107,8 +111,15 @@ export default function ApplyPage() {
   return (
     <div style={s.page}>
       <header style={s.header}>
-        <Link href="/affiliates" style={s.logo}>PurePulse</Link>
-        <span style={s.headerTag}>Affiliate Program</span>
+        <Link href="/affiliates" style={s.logo}>
+          Pure<span style={{ color: '#7B2FFF' }}>Pulse</span>
+        </Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <span style={s.headerTag}>Affiliate Program</span>
+          <Link href="/affiliates/login" style={{ fontSize: '0.8125rem', color: '#6b7280', textDecoration: 'none' }}>
+            Sign In
+          </Link>
+        </div>
       </header>
 
       {/* Progress */}
@@ -125,7 +136,7 @@ export default function ApplyPage() {
                 {n}
               </div>
               <span style={{ ...s.progressLabel, color: step >= Number(n) ? '#111' : '#9ca3af' }}>
-                {n === '1' ? 'Your Info' : 'Sign Agreement'}
+                {n === '1' ? 'Your Information' : 'Sign Agreement'}
               </span>
             </div>
           ))}
@@ -136,33 +147,59 @@ export default function ApplyPage() {
         {/* ── STEP 1: Personal Info ── */}
         {step === 1 && (
           <div style={s.card}>
-            <h1 style={s.h1}>Apply to become an affiliate</h1>
-            <p style={s.sub}>Join hundreds of people earning recurring income by referring clients to PurePulse.</p>
+            <div style={{ marginBottom: 24 }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#7B2FFF' }}>
+                Partner Onboarding
+              </span>
+              <h1 style={s.h1}>Apply to become a PurePulse Affiliate</h1>
+              <p style={s.sub}>
+                Earn up to $50/mo recurring commission on every active client you refer, plus free business plan perks.
+              </p>
+            </div>
 
             <div style={s.form}>
               <div style={s.row}>
                 <div style={s.field}>
                   <label style={s.label}>Full name *</label>
-                  <input style={s.input} required value={name} onChange={e => setName(e.target.value)} placeholder="Jane Smith" />
+                  <input
+                    style={s.input}
+                    required
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    placeholder="Jane Smith"
+                  />
                 </div>
                 <div style={s.field}>
-                  <label style={s.label}>Email *</label>
-                  <input style={s.input} type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="jane@example.com" />
+                  <label style={s.label}>Email address *</label>
+                  <input
+                    style={s.input}
+                    type="email"
+                    required
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    placeholder="jane@example.com"
+                  />
                 </div>
               </div>
 
               <div style={s.field}>
                 <label style={s.label}>Phone number</label>
-                <input style={s.input} type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="(555) 000-0000" />
+                <input
+                  style={s.input}
+                  type="tel"
+                  value={phone}
+                  onChange={e => setPhone(e.target.value)}
+                  placeholder="(555) 000-0000"
+                />
               </div>
 
               <div style={s.field}>
                 <label style={s.label}>How do you plan to promote PurePulse?</label>
                 <textarea
-                  style={{ ...s.input, minHeight: 100, resize: 'vertical' }}
+                  style={{ ...s.input, minHeight: 90, resize: 'vertical' }}
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
-                  placeholder="Social media, in-person networking, job boards, YouTube, local businesses, etc."
+                  placeholder="Local business networking, flyers in co-working spaces, LinkedIn/social media, agency client referrals, etc."
                 />
               </div>
 
@@ -173,7 +210,7 @@ export default function ApplyPage() {
               </button>
 
               <p style={s.fine}>
-                No credit card required. Free to join. You&apos;ll sign the affiliate agreement on the next step.
+                No fee or credit card required. Free to join. You&apos;ll sign the affiliate agreement on the next step.
               </p>
             </div>
           </div>
@@ -182,8 +219,15 @@ export default function ApplyPage() {
         {/* ── STEP 2: Terms + Signature ── */}
         {step === 2 && (
           <div style={s.card}>
-            <h1 style={s.h1}>Affiliate Program Agreement</h1>
-            <p style={s.sub}>Please read the agreement below, then sign to complete your application.</p>
+            <div style={{ marginBottom: 20 }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#7B2FFF' }}>
+                Agreement
+              </span>
+              <h1 style={s.h1}>Affiliate Program Agreement</h1>
+              <p style={s.sub}>
+                Review the terms below, sign electronically, and your portal will be activated immediately.
+              </p>
+            </div>
 
             {/* Terms scroll box */}
             <div style={s.termsBox}>
@@ -191,7 +235,7 @@ export default function ApplyPage() {
             </div>
 
             {/* Signature area */}
-            <div style={{ marginTop: 28 }}>
+            <div style={{ marginTop: 24 }}>
               <div style={s.field}>
                 <label style={s.label}>Full legal name</label>
                 <input
@@ -203,7 +247,7 @@ export default function ApplyPage() {
               </div>
 
               {/* Sig mode toggle */}
-              <div style={{ display: 'flex', gap: 0, marginBottom: 12, border: '1.5px solid #d1d5db', borderRadius: 8, overflow: 'hidden', width: 'fit-content' }}>
+              <div style={{ display: 'flex', gap: 0, margin: '14px 0 10px', border: '1.5px solid #d1d5db', borderRadius: 8, overflow: 'hidden', width: 'fit-content' }}>
                 {(['draw', 'type'] as const).map(mode => (
                   <button
                     key={mode}
@@ -219,7 +263,7 @@ export default function ApplyPage() {
                       color: sigMode === mode ? '#fff' : '#374151',
                     }}
                   >
-                    {mode === 'draw' ? '✍ Draw' : 'Aa Type'}
+                    {mode === 'draw' ? '✍ Draw Signature' : 'Aa Type Signature'}
                   </button>
                 ))}
               </div>
@@ -227,19 +271,19 @@ export default function ApplyPage() {
               {sigMode === 'draw' && (
                 <div style={{ marginBottom: 16 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <label style={s.label}>Draw your signature</label>
+                    <label style={s.label}>Draw your signature below</label>
                     <button
                       type="button"
-                      onClick={() => { padRef.current?.clear(); setPadEmpty(true) }}
+                      onClick={() => { padRef.current?.clear(); setPadEmpty(false) }}
                       style={{ fontSize: '0.75rem', color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer' }}
                     >
                       Clear
                     </button>
                   </div>
-                  <SignaturePad ref={padRef} height={160} onBegin={() => setPadEmpty(false)} />
+                  <SignaturePad ref={padRef} height={150} onBegin={() => setPadEmpty(false)} />
                   {padEmpty && (
                     <p style={{ fontSize: '0.75rem', color: '#9ca3af', margin: '6px 0 0', textAlign: 'center' }}>
-                      Sign above using your mouse or finger
+                      Sign above using your finger or mouse
                     </p>
                   )}
                 </div>
@@ -248,26 +292,28 @@ export default function ApplyPage() {
               {sigMode === 'type' && (
                 <div style={{ marginBottom: 16 }}>
                   <label style={s.label}>Signature preview</label>
-                  <div style={{ background: '#fafafa', border: '1.5px solid #d1d5db', borderRadius: 8, padding: '16px 20px', minHeight: 80, display: 'flex', alignItems: 'center' }}>
+                  <div style={{ background: '#fafafa', border: '1.5px solid #d1d5db', borderRadius: 8, padding: '16px 20px', minHeight: 70, display: 'flex', alignItems: 'center' }}>
                     {signedBy.trim() ? (
                       <span style={{ fontFamily: '"Dancing Script","Brush Script MT",cursive', fontSize: 'clamp(1.5rem,5vw,2.25rem)', color: '#111', borderBottom: '1.5px solid #374151', paddingBottom: 2 }}>
                         {signedBy}
                       </span>
                     ) : (
-                      <span style={{ color: '#9ca3af', fontSize: '0.875rem' }}>Your name will appear here in signature style</span>
+                      <span style={{ color: '#9ca3af', fontSize: '0.875rem' }}>Type your legal name above to generate signature</span>
                     )}
                   </div>
                 </div>
               )}
 
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: '0.875rem', color: '#374151', lineHeight: 1.5, marginBottom: 24, cursor: 'pointer' }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: '0.875rem', color: '#374151', lineHeight: 1.5, marginBottom: 20, cursor: 'pointer' }}>
                 <input
                   type="checkbox"
                   checked={agreed}
                   onChange={e => setAgreed(e.target.checked)}
-                  style={{ marginTop: 2, accentColor: '#111', flexShrink: 0 }}
+                  style={{ marginTop: 3, accentColor: '#7B2FFF', width: 16, height: 16, flexShrink: 0 }}
                 />
-                I have read and agree to the PurePulse Affiliate Program Agreement, including all commission terms, prohibited conduct, and termination policies.
+                <span>
+                  I have read and agree to the PurePulse Affiliate Program Agreement, including recurring commission terms, performance bonuses, and conduct standards.
+                </span>
               </label>
 
               {submitError && <p style={{ ...s.errorMsg, marginBottom: 16 }}>{submitError}</p>}
@@ -275,82 +321,117 @@ export default function ApplyPage() {
               <button
                 onClick={submitApplication}
                 disabled={!canSign || submitting}
-                style={{ ...s.btn, opacity: (!canSign || submitting) ? 0.45 : 1, cursor: (!canSign || submitting) ? 'not-allowed' : 'pointer', marginBottom: 12 }}
+                style={{ ...s.btn, background: '#7B2FFF', opacity: (!canSign || submitting) ? 0.45 : 1, cursor: (!canSign || submitting) ? 'not-allowed' : 'pointer', marginBottom: 12 }}
               >
-                {submitting ? 'Creating your account…' : 'Sign & Create My Account →'}
+                {submitting ? 'Creating your affiliate portal…' : 'Sign Terms & Open Affiliate Portal →'}
               </button>
 
               <button
                 onClick={() => { setStep(1); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
                 style={{ ...s.btn, background: '#f3f4f6', color: '#111' }}
               >
-                ← Back
+                ← Back to info
               </button>
 
               <p style={{ ...s.fine, marginTop: 16 }}>
-                This electronic signature is legally binding under the ESIGN Act and UETA.
-                Your IP address and timestamp will be recorded.
+                Electronic signature legally binding under ESIGN Act &amp; UETA. Timestamp and IP logged.
               </p>
             </div>
           </div>
         )}
 
-        {/* ── STEP 3: Success ── */}
+        {/* ── STEP 3: Success & Portal Entry ── */}
         {step === 3 && (
           <div style={s.card}>
             <div style={s.successIcon}>✓</div>
-            <h1 style={{ ...s.h1, textAlign: 'center', marginBottom: 8 }}>You&apos;re in!</h1>
-            <p style={{ ...s.sub, textAlign: 'center', marginBottom: 32 }}>
-              Your affiliate account is active. Check <strong>{resultEmail}</strong> for a link to set your password and access your dashboard.
+            <h1 style={{ ...s.h1, textAlign: 'center', marginBottom: 6 }}>You&apos;re officially a partner! 🎉</h1>
+            <p style={{ ...s.sub, textAlign: 'center', marginBottom: 28, maxWidth: 500, margin: '0 auto 28px' }}>
+              Your affiliate portal is active. We sent a backup login link to <strong>{resultEmail}</strong>. You can enter your portal right now below.
             </p>
 
-            {/* Referral code box */}
+            {/* Referral code & Link box */}
             <div style={s.codeBox}>
-              <p style={s.codeLabel}>Your Referral Code</p>
+              <p style={s.codeLabel}>Your Unique Partner Code</p>
               <p style={s.code}>{referralCode}</p>
-              <p style={s.codeLabel}>Your Referral Link</p>
-              <p style={s.codeUrl}>{referralUrl}</p>
-              <CopyButton text={referralUrl} />
+              
+              <p style={{ ...s.codeLabel, marginTop: 16 }}>Your Referral Link</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
+                <code style={{ background: '#fff', border: '1px solid #e5e7eb', padding: '8px 14px', borderRadius: 8, fontSize: '0.875rem', color: '#7B2FFF', wordBreak: 'break-all' }}>
+                  {referralUrl}
+                </code>
+                <CopyButton text={referralUrl} label="Copy Link" />
+              </div>
+            </div>
+
+            {/* Direct Portal CTA */}
+            <div style={{ background: 'linear-gradient(135deg, rgba(123,47,255,0.08), rgba(0,212,255,0.06))', border: '1.5px solid #e0d4fc', borderRadius: 12, padding: '24px 20px', marginBottom: 24, textAlign: 'center' }}>
+              <h3 style={{ margin: '0 0 6px', fontSize: '1.125rem', fontWeight: 800, color: '#111' }}>
+                Ready to explore your partner tools?
+              </h3>
+              <p style={{ margin: '0 0 16px', fontSize: '0.875rem', color: '#555', lineHeight: 1.5 }}>
+                Inside your portal: download high-res printable flyers, generate social media graphics and campaigns, track commissions live, and link your bank account.
+              </p>
+              <a
+                href={actionLink || '/affiliates/dashboard'}
+                style={{
+                  display: 'inline-block',
+                  background: '#111',
+                  color: '#fff',
+                  padding: '14px 32px',
+                  borderRadius: 8,
+                  fontWeight: 700,
+                  fontSize: '1rem',
+                  textDecoration: 'none',
+                  boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
+                }}
+              >
+                Enter Affiliate Portal Now →
+              </a>
             </div>
 
             {/* QR code */}
             <div style={s.qrWrap}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=8&data=${encodeURIComponent(referralUrl)}`}
+                src={`/api/qr?data=${encodeURIComponent(referralUrl)}&size=360`}
                 alt="Referral QR code"
-                width={200}
-                height={200}
-                style={{ display: 'block', borderRadius: 8 }}
+                width={160}
+                height={160}
+                style={{ display: 'block', margin: '0 auto', borderRadius: 10, border: '1px solid #e5e7eb' }}
               />
-              <p style={{ fontSize: '0.8125rem', color: '#9ca3af', marginTop: 8 }}>Scan to share your link</p>
+              <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: 8 }}>
+                Scan with your phone to preview your partner landing page
+              </p>
             </div>
 
             <div style={s.nextSteps}>
-              <p style={s.nextStepsLabel}>What&apos;s next</p>
-              <ol style={s.nextStepsList}>
-                <li>Check your email to set your dashboard password</li>
-                <li>Share your link or QR code with potential clients</li>
-                <li>Track your referrals and earnings in the dashboard</li>
-                <li>Refer 1+ clients/month → unlock free vibecodes.space Business plan</li>
-              </ol>
+              <p style={s.nextStepsLabel}>What&apos;s available in your portal:</p>
+              <ul style={s.nextStepsList}>
+                <li><strong>Printable Assets:</strong> Full-page flyers, business cards, tear-off tab posters &amp; vector QR codes</li>
+                <li><strong>Social Media Studio:</strong> 1:1, 9:16, 16:9 graphic generator &amp; pre-written high-converting copy</li>
+                <li><strong>Commission Tracking:</strong> Live breakdown of active clients, MRR earnings, and payout dates</li>
+                <li><strong>Bank &amp; Payouts:</strong> Direct deposit setup via Stripe Connect for automatic monthly deposits</li>
+              </ul>
             </div>
 
-            <Link href="/affiliates/login" style={s.btn}>
-              Go to Affiliate Dashboard →
-            </Link>
+            <a
+              href={actionLink || '/affiliates/dashboard'}
+              style={{ ...s.btn, background: '#7B2FFF', marginTop: 8 }}
+            >
+              Open Affiliate Portal →
+            </a>
           </div>
         )}
       </main>
 
       <footer style={s.footer}>
-        © {new Date().getFullYear()} PurePulse · <Link href="/affiliates" style={{ color: '#9ca3af' }}>Affiliate Program</Link>
+        © {new Date().getFullYear()} PurePulse · <Link href="/affiliates" style={{ color: '#9ca3af' }}>Affiliate Program</Link> · <a href="https://purepulse.one" style={{ color: '#9ca3af' }}>purepulse.one</a>
       </footer>
     </div>
   )
 }
 
-function CopyButton({ text }: { text: string }) {
+function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false)
 
   function copy() {
@@ -362,22 +443,22 @@ function CopyButton({ text }: { text: string }) {
 
   return (
     <button
+      type="button"
       onClick={copy}
       style={{
-        marginTop: 12,
-        padding: '8px 20px',
+        padding: '8px 16px',
         background: copied ? '#22c55e' : '#111',
         color: '#fff',
         border: 'none',
         borderRadius: 6,
         fontWeight: 600,
-        fontSize: '0.875rem',
+        fontSize: '0.8125rem',
         cursor: 'pointer',
         fontFamily: 'inherit',
         transition: 'background 0.2s',
       }}
     >
-      {copied ? '✓ Copied!' : 'Copy Link'}
+      {copied ? '✓ Copied!' : label}
     </button>
   )
 }
@@ -392,7 +473,7 @@ const s: Record<string, React.CSSProperties> = {
   progressLine: { width: 48, height: 2, flexShrink: 0 },
   progressLabel: { fontSize: '0.8125rem', fontWeight: 600 },
   main: { maxWidth: 680, margin: '40px auto', padding: '0 24px 80px' },
-  card: { background: '#fff', border: '1.5px solid #e5e7eb', borderRadius: 14, padding: '36px 32px' },
+  card: { background: '#fff', border: '1.5px solid #e5e7eb', borderRadius: 14, padding: '36px 32px', boxShadow: '0 2px 10px rgba(0,0,0,0.03)' },
   h1: { fontSize: 'clamp(1.4rem, 4vw, 1.875rem)', fontWeight: 800, letterSpacing: '-0.03em', margin: '0 0 8px' },
   sub: { fontSize: '0.9375rem', color: '#6b7280', margin: '0 0 28px', lineHeight: 1.6 },
   form: { display: 'flex', flexDirection: 'column', gap: 18 },
@@ -403,16 +484,15 @@ const s: Record<string, React.CSSProperties> = {
   errorMsg: { color: '#b91c1c', fontSize: '0.875rem', margin: 0 },
   btn: { display: 'block', width: '100%', padding: '14px', background: '#111', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: '1rem', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center', textDecoration: 'none', boxSizing: 'border-box' },
   fine: { fontSize: '0.8125rem', color: '#9ca3af', textAlign: 'center', margin: 0, lineHeight: 1.6 },
-  termsBox: { background: '#fafafa', border: '1.5px solid #e5e7eb', borderRadius: 8, padding: '20px 24px', maxHeight: '40vh', overflowY: 'auto' },
+  termsBox: { background: '#fafafa', border: '1.5px solid #e5e7eb', borderRadius: 8, padding: '20px 24px', maxHeight: '38vh', overflowY: 'auto' },
   termsPre: { whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: '0.8125rem', lineHeight: 1.8, color: '#374151', margin: 0 },
-  successIcon: { width: 56, height: 56, borderRadius: '50%', background: '#22c55e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '1.5rem', margin: '0 auto 20px', lineHeight: '56px', textAlign: 'center' },
-  codeBox: { background: '#f8f8f8', border: '1.5px solid #e5e7eb', borderRadius: 10, padding: '20px 24px', marginBottom: 24, textAlign: 'center' },
+  successIcon: { width: 56, height: 56, borderRadius: '50%', background: '#22c55e', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '1.5rem', margin: '0 auto 16px', lineHeight: '56px', textAlign: 'center' },
+  codeBox: { background: '#f8f8f8', border: '1.5px solid #e5e7eb', borderRadius: 10, padding: '20px 24px', marginBottom: 20, textAlign: 'center' },
   codeLabel: { fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#9ca3af', margin: '0 0 6px' },
-  code: { fontSize: '2rem', fontWeight: 800, letterSpacing: '0.1em', color: '#111', margin: '0 0 16px', fontFamily: 'monospace' },
-  codeUrl: { fontSize: '0.875rem', color: '#7B2FFF', wordBreak: 'break-all', margin: 0 },
-  qrWrap: { textAlign: 'center', marginBottom: 28 },
-  nextSteps: { background: '#f9f9f9', borderRadius: 10, padding: '16px 20px', marginBottom: 24 },
-  nextStepsLabel: { fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#9ca3af', margin: '0 0 8px' },
-  nextStepsList: { margin: 0, paddingLeft: 20, color: '#374151', fontSize: '0.875rem', lineHeight: 2 },
+  code: { fontSize: '2.25rem', fontWeight: 800, letterSpacing: '0.1em', color: '#111', margin: 0, fontFamily: 'monospace' },
+  qrWrap: { textAlign: 'center', marginBottom: 20 },
+  nextSteps: { background: '#f9f9f9', borderRadius: 10, padding: '16px 20px', marginBottom: 20 },
+  nextStepsLabel: { fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#374151', margin: '0 0 8px' },
+  nextStepsList: { margin: 0, paddingLeft: 18, color: '#4b5563', fontSize: '0.875rem', lineHeight: 1.8 },
   footer: { textAlign: 'center', padding: '32px 24px', color: '#9ca3af', fontSize: '0.8rem', borderTop: '1px solid #e5e7eb' },
 }

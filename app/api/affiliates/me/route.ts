@@ -29,34 +29,64 @@ export async function GET() {
     return NextResponse.json({ error: 'Affiliate not found' }, { status: 404 })
   }
 
+  // Fetch referrals
   const { data: referrals } = await admin
     .from('affiliate_referrals')
     .select('*, clients(name, email, company)')
     .eq('affiliate_id', affiliate.id)
     .order('created_at', { ascending: false })
 
+  // Fetch commissions
   const { data: commissions } = await admin
     .from('affiliate_commissions')
     .select('*')
     .eq('affiliate_id', affiliate.id)
     .order('period_month', { ascending: false })
 
-  const activeReferrals = (referrals ?? []).filter(r => r.status === 'active')
-  const monthlyEarnings = activeReferrals.reduce((sum, r) => sum + Number(r.monthly_commission), 0)
-  const lifetimeEarnings = (commissions ?? []).reduce((sum, c) => sum + Number(c.amount), 0)
+  // Fetch recent clicks / source attribution
+  const { data: recentClicks } = await admin
+    .from('affiliate_clicks')
+    .select('id, source, converted, created_at')
+    .eq('affiliate_id', affiliate.id)
+    .order('created_at', { ascending: false })
+    .limit(100)
 
-  // Check free plan eligibility: at least 1 active referral
+  const activeReferrals = (referrals ?? []).filter(r => r.status === 'active')
+  const monthlyEarnings = activeReferrals.reduce((sum, r) => sum + Number(r.monthly_commission || 0), 0)
+  const lifetimeEarnings = (commissions ?? []).reduce((sum, c) => sum + Number(c.amount || 0), 0)
+  const pendingCommissions = (commissions ?? [])
+    .filter(c => c.status === 'pending')
+    .reduce((sum, c) => sum + Number(c.amount || 0), 0)
+
+  const totalClicksCount = Math.max(affiliate.clicks || 0, (recentClicks ?? []).length)
+  const conversionRate = totalClicksCount > 0
+    ? Math.round(((referrals ?? []).length / totalClicksCount) * 1000) / 10
+    : 0
+
+  // Aggregate clicks by campaign source
+  const sourceBreakdown: Record<string, number> = {}
+  for (const c of recentClicks ?? []) {
+    const src = c.source || 'direct'
+    sourceBreakdown[src] = (sourceBreakdown[src] || 0) + 1
+  }
+
+  // Free plan eligibility: at least 1 active referral
   const freePlanEligible = activeReferrals.length >= 1
 
   return NextResponse.json({
     affiliate,
     referrals: referrals ?? [],
     commissions: commissions ?? [],
+    recent_clicks: recentClicks ?? [],
+    source_breakdown: sourceBreakdown,
     stats: {
       total_referrals: (referrals ?? []).length,
       active_referrals: activeReferrals.length,
       monthly_earnings: monthlyEarnings,
       lifetime_earnings: lifetimeEarnings,
+      pending_commissions: pendingCommissions,
+      total_clicks: totalClicksCount,
+      conversion_rate: conversionRate,
       free_plan_eligible: freePlanEligible,
     },
   })

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { DEFAULT_TEMPLATES } from '../route'
+import { DEFAULT_TEMPLATES } from '@/lib/email-templates'
 
 function adminSupabase() {
   return createClient(

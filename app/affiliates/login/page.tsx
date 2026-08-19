@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createBrowserClient } from '@supabase/ssr'
+import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 
 export default function AffiliateLoginPage() {
@@ -13,10 +13,7 @@ export default function AffiliateLoginPage() {
   const [error, setError] = useState('')
   const [sent, setSent] = useState(false)
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  const supabase = createClient()
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://login.purepulse.one'
 

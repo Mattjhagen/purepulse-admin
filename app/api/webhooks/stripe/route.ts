@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getStripe, PLAN_CENTS } from '@/lib/stripe'
 import { generatePortalLink } from '@/lib/portal-auth-link'
-import { Resend } from 'resend'
+import { getResend } from '@/lib/resend'
 import type Stripe from 'stripe'
 import { bootstrapCampaign } from '@/lib/campaign-bootstrap'
 import type { Plan } from '@/lib/types'
 import { calculateMonthlyCommission, AFFILIATE_COMMISSION_RATES } from '@/lib/affiliate-utils'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+const resend = getResend()
 
 function adminSupabase() {
   return createClient(

@@ -1,8 +1,7 @@
-import { Resend } from 'resend'
-
-const resend = new Resend(process.env.RESEND_API_KEY)
+import { getResend } from '@/lib/resend'
 
 export async function sendPortalInviteEmail(params: { email: string; name?: string; url: string }) {
+  const resend = getResend()
   return resend.emails.send({
     from: 'Matty at PurePulse <matty@purepulse.one>',
     to: params.email,

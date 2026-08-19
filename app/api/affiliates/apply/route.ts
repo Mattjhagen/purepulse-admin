@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to create affiliate account.' }, { status: 500 })
   }
 
-  // Create Supabase auth user + magic link for dashboard access
+  // Create Supabase auth user + magic link for instant dashboard access
   const callbackUrl = `${appUrl}/auth/callback?next=/affiliates/dashboard`
   let inviteLink = `${appUrl}/affiliates/login`
   try {
@@ -97,7 +97,6 @@ export async function POST(req: NextRequest) {
     })
     if (linkData?.properties?.action_link) {
       inviteLink = linkData.properties.action_link
-      // Link auth user to affiliate record
       const authUserId = linkData.user?.id
       if (authUserId) {
         await supabase
@@ -132,28 +131,28 @@ export async function POST(req: NextRequest) {
     await resend.emails.send({
       from: 'Matty at PurePulse <matty@purepulse.one>',
       to: affiliate.email,
-      subject: `Welcome to the PurePulse Affiliate Program — your link is ready`,
+      subject: `Welcome to PurePulse Affiliates — Your Portal & Referral Link Are Ready`,
       html: `
         <div style="font-family:system-ui,sans-serif;max-width:620px;margin:0 auto">
-          <div style="background:#111;padding:24px 32px;border-radius:12px 12px 0 0">
-            <span style="font-size:20px;font-weight:800;color:#fff;letter-spacing:-0.03em">PurePulse</span>
-            <span style="font-size:12px;color:#666;margin-left:12px">Affiliate Program</span>
+          <div style="background:#07070D;padding:24px 32px;border-radius:12px 12px 0 0">
+            <span style="font-size:20px;font-weight:800;color:#fff;letter-spacing:-0.03em">Pure<span style="color:#A066FF">Pulse</span></span>
+            <span style="font-size:12px;color:#888;margin-left:12px">Affiliate Portal</span>
           </div>
           <div style="padding:36px 32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px">
             <h2 style="margin:0 0 8px;color:#111;font-size:22px">Welcome, ${firstName}! 🎉</h2>
             <p style="color:#555;line-height:1.7;margin:0 0 24px">
-              You're officially part of the PurePulse Affiliate Program. Your account is active and your
-              unique referral link is ready to share.
+              You're officially enrolled in the PurePulse Affiliate Program. Your partner dashboard is set up and your
+              unique referral link and assets are ready to share.
             </p>
 
             <div style="background:#f8f8f8;border-radius:10px;padding:20px 24px;margin-bottom:24px;border:1px solid #e5e7eb">
-              <p style="margin:0 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#999">Your Referral Code</p>
+              <p style="margin:0 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#999">Your Partner Code</p>
               <p style="margin:0 0 16px;font-size:28px;font-weight:800;letter-spacing:0.06em;color:#111;font-family:monospace">${referralCode}</p>
               <p style="margin:0 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#999">Your Referral Link</p>
               <p style="margin:0;font-size:14px;color:#7B2FFF;word-break:break-all">${referralUrl}</p>
             </div>
 
-            <h3 style="margin:0 0 12px;font-size:15px;color:#111">Your commission rates</h3>
+            <h3 style="margin:0 0 12px;font-size:15px;color:#111">Recurring monthly commission rates</h3>
             <table style="width:100%;border-collapse:collapse;margin-bottom:24px;border:1px solid #f3f4f6;border-radius:8px;overflow:hidden">
               <thead>
                 <tr style="background:#f9f9f9">
@@ -169,37 +168,37 @@ export async function POST(req: NextRequest) {
             <div style="background:#f0fdf4;border-radius:10px;padding:16px 20px;margin-bottom:24px;border:1px solid #bbf7d0">
               <p style="margin:0 0 4px;font-size:13px;font-weight:700;color:#166534">⭐ Performance Bonus</p>
               <p style="margin:0;font-size:13px;color:#166534;line-height:1.6">
-                Refer at least <strong>1 new client per month</strong> and get a free
-                <strong>vibecodes.space Business Plan</strong> ($49/mo value) for your own use.
+                Refer at least <strong>1 new client per month</strong> and unlock complimentary access to the
+                <strong>vibecodes.space Business Plan</strong> ($49/mo value) for your business.
               </p>
             </div>
 
             <h3 style="margin:0 0 14px;font-size:15px;color:#111">Your Partner Toolkit:</h3>
             <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px">
               <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px">
-                <p style="margin:0 0 3px;font-weight:700;font-size:13px;color:#111">📄 1. Generate &amp; Print Full-Page Flyers</p>
-                <p style="margin:0;font-size:12px;color:#666;line-height:1.5">Print high-res flyers with your unique QR code to share at local businesses or events.</p>
+                <p style="margin:0 0 3px;font-weight:700;font-size:13px;color:#111">📄 1. Printable Asset Hub</p>
+                <p style="margin:0;font-size:12px;color:#666;line-height:1.5">Download full-page flyers, business cards, tear-off tab posters, and high-res vector QR codes.</p>
               </div>
               <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px">
-                <p style="margin:0 0 3px;font-weight:700;font-size:13px;color:#111">💳 2. Add Your Payout Method</p>
-                <p style="margin:0;font-size:12px;color:#666;line-height:1.5">Add your direct deposit or Stripe payout details to receive automated monthly commissions.</p>
+                <p style="margin:0 0 3px;font-weight:700;font-size:13px;color:#111">📱 2. Social Media Campaign Studio</p>
+                <p style="margin:0;font-size:12px;color:#666;line-height:1.5">Generate ready-to-post graphics (1:1, 9:16, 16:9), copy pre-written captions, and share in 1 click.</p>
               </div>
               <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px">
-                <p style="margin:0 0 3px;font-weight:700;font-size:13px;color:#111">📊 3. Real-Time Tracking</p>
-                <p style="margin:0;font-size:12px;color:#666;line-height:1.5">Track your clicks, active clients, and accrued monthly recurring payouts live.</p>
+                <p style="margin:0 0 3px;font-weight:700;font-size:13px;color:#111">💳 3. Bank Account &amp; Payout Setup</p>
+                <p style="margin:0;font-size:12px;color:#666;line-height:1.5">Connect your bank account via Stripe Connect for direct monthly commission deposits.</p>
               </div>
             </div>
 
             <a href="${inviteLink}" style="display:inline-block;background:#111;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;margin-bottom:12px">
-              Set Up Your Dashboard &amp; Payouts →
+              Open Your Affiliate Portal →
             </a>
             <p style="margin:0 0 24px;font-size:12px;color:#999">
-              Click above to set your password and access your affiliate dashboard to generate flyers, add payouts, and track your performance.
+              Click above to access your affiliate portal, download your marketing assets, and link your payout bank account.
             </p>
 
             <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0">
             <p style="font-size:12px;color:#999;margin:0;line-height:1.6">
-              Questions? Reply to this email or contact <a href="mailto:contact@purepulse.one" style="color:#555">contact@purepulse.one</a><br>
+              Questions? Reply directly to this email or contact <a href="mailto:contact@purepulse.one" style="color:#555">contact@purepulse.one</a><br>
               PurePulse · Web Design &amp; Maintenance · purepulse.one
             </p>
           </div>
@@ -224,5 +223,10 @@ export async function POST(req: NextRequest) {
     })
   } catch {}
 
-  return NextResponse.json({ referral_code: referralCode, email: affiliate.email, success: true })
+  return NextResponse.json({
+    success: true,
+    referral_code: referralCode,
+    email: affiliate.email,
+    action_link: inviteLink,
+  })
 }

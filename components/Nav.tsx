@@ -1,11 +1,12 @@
 'use client'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Clock, Users, Ticket, FileText, FileCheck, Receipt, LayoutDashboard, Settings, LogOut, ChevronRight, Inbox, Mail, MessageCircle, Sparkles, CalendarDays, Share2, UsersRound, Gift, Megaphone, Link2, ShoppingBag } from 'lucide-react'
+import { Clock, Users, Ticket, FileText, FileCheck, Receipt, LayoutDashboard, Settings, LogOut, ChevronRight, Inbox, Mail, MessageCircle, Sparkles, CalendarDays, Share2, UsersRound, Gift, Megaphone, Link2, ShoppingBag, Video } from 'lucide-react'
 import { signOut } from '@/lib/auth'
 
 const nav = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { label: 'Interviews', href: '/interviews', icon: Video },
   { label: 'Velour E-Com', href: '/velour', icon: ShoppingBag },
   { label: 'Inbox', href: '/inbox', icon: Mail },
   { label: 'Leads', href: '/leads', icon: Inbox },
@@ -22,8 +23,8 @@ const nav = [
   { label: 'Contracts', href: '/contracts', icon: FileCheck },
   { label: '1099 Docs', href: '/documents', icon: Receipt },
   { label: 'Referrals', href: '/referrals', icon: Gift },
-  { label: 'Settings', href: '/settings', icon: Settings },
   { label: 'Affiliates', href: '/affiliates', icon: Link2 },
+  { label: 'Settings', href: '/settings', icon: Settings },
 ]
 
 export default function Nav({ email }: { email?: string }) {

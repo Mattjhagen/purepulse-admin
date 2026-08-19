@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { Resend } from 'resend'
-
-const resend = new Resend(process.env.RESEND_API_KEY)
+import { getResend } from '@/lib/resend'
 
 function adminSupabase() {
   return createClient(
@@ -51,6 +49,7 @@ export async function POST(
   }
 
   // Send email
+  const resend = getResend()
   const { error: emailError } = await resend.emails.send({
     from: 'PurePulse <contracts@login.purepulse.one>',
     to: client.email,

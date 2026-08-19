@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { Resend } from 'resend'
-
-const resend = new Resend(process.env.RESEND_API_KEY)
+import { getResend } from '@/lib/resend'
 
 function adminSupabase() {
   return createClient(
@@ -91,6 +89,7 @@ export async function POST(
 
   // Send admin notification (non-fatal)
   try {
+    const resend = getResend()
     const { error: adminEmailError } = await resend.emails.send({
       from: 'PurePulse <contracts@login.purepulse.one>',
       to: 'matty@purepulse.one',
@@ -115,6 +114,7 @@ export async function POST(
   // Send client portal invite email (non-fatal)
   if (client?.email) {
     try {
+      const resend = getResend()
       // Generate a Supabase invite link so the client can set up their portal account
       const { data: inviteData } = await supabase.auth.admin.generateLink({
         type: 'invite',
