@@ -975,17 +975,32 @@ export default function InterviewClient({ token }: { token?: string }) {
         </ul>
       </div>
 
-      <a
-        href="https://purepulse.one"
-        style={{
-          display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-          background: 'rgba(255,255,255,0.06)', border: '1px solid #2D2D42',
-          color: '#fff', fontWeight: 600, fontSize: '0.9375rem',
-          padding: '0.75rem 1.75rem', borderRadius: '100px', textDecoration: 'none',
-        }}
-      >
-        <Building2 size={16} /> Return to PurePulse.one
-      </a>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
+        <a
+          href={`/affiliates/apply?name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+            background: 'linear-gradient(135deg, #7B2FFF, #9747FF)',
+            color: '#fff', fontWeight: 700, fontSize: '1rem',
+            padding: '0.875rem 2.25rem', borderRadius: '100px', textDecoration: 'none',
+            boxShadow: '0 4px 16px rgba(123,47,255,0.4)',
+          }}
+        >
+          Sign Partner Agreement &amp; Open Portal →
+        </a>
+
+        <a
+          href="https://purepulse.one"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+            background: 'rgba(255,255,255,0.06)', border: '1px solid #2D2D42',
+            color: '#9CA3AF', fontWeight: 600, fontSize: '0.875rem',
+            padding: '0.625rem 1.5rem', borderRadius: '100px', textDecoration: 'none',
+          }}
+        >
+          <Building2 size={15} /> Return to PurePulse.one
+        </a>
+      </div>
     </div>
   )
 }
