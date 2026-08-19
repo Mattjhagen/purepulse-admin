@@ -143,13 +143,19 @@ tr:hover td { background: rgba(255,255,255,0.02); }
     --accent-blue: #1d4ed8;
   }
 
-  nav, header, .no-print,
+  nav, header, aside, .desktop-nav, .no-print,
   .btn, button, a.btn { display: none !important; }
 
   body, html {
     background: #ffffff !important;
     color: #111111 !important;
     font-size: 11pt;
+  }
+
+  .app-main {
+    margin-left: 0 !important;
+    padding: 0 !important;
+    max-width: 100% !important;
   }
 
   #contract-print {
@@ -174,8 +180,6 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   }
 
   .divider, hr { border-color: #d1d5db !important; }
-
-  @page { margin: 2cm; }
 }
 
 @media (max-width: 768px) {

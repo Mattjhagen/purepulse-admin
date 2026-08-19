@@ -174,12 +174,27 @@ export async function POST(req: NextRequest) {
               </p>
             </div>
 
+            <h3 style="margin:0 0 14px;font-size:15px;color:#111">Your Partner Toolkit:</h3>
+            <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px">
+              <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px">
+                <p style="margin:0 0 3px;font-weight:700;font-size:13px;color:#111">📄 1. Generate &amp; Print Full-Page Flyers</p>
+                <p style="margin:0;font-size:12px;color:#666;line-height:1.5">Print high-res flyers with your unique QR code to share at local businesses or events.</p>
+              </div>
+              <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px">
+                <p style="margin:0 0 3px;font-weight:700;font-size:13px;color:#111">💳 2. Add Your Payout Method</p>
+                <p style="margin:0;font-size:12px;color:#666;line-height:1.5">Add your direct deposit or Stripe payout details to receive automated monthly commissions.</p>
+              </div>
+              <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px">
+                <p style="margin:0 0 3px;font-weight:700;font-size:13px;color:#111">📊 3. Real-Time Tracking</p>
+                <p style="margin:0;font-size:12px;color:#666;line-height:1.5">Track your clicks, active clients, and accrued monthly recurring payouts live.</p>
+              </div>
+            </div>
+
             <a href="${inviteLink}" style="display:inline-block;background:#111;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;margin-bottom:12px">
-              Set Up Your Dashboard →
+              Set Up Your Dashboard &amp; Payouts →
             </a>
             <p style="margin:0 0 24px;font-size:12px;color:#999">
-              Click above to set your password and access your affiliate dashboard where you can
-              track referrals, earnings, and download marketing materials.
+              Click above to set your password and access your affiliate dashboard to generate flyers, add payouts, and track your performance.
             </p>
 
             <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0">
