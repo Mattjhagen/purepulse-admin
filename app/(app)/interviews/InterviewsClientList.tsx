@@ -14,6 +14,9 @@ import {
   UserCheck,
   FileText,
   Mail,
+  Link2,
+  ExternalLink,
+  ShieldCheck,
 } from 'lucide-react'
 
 interface InterviewItem {
@@ -45,22 +48,47 @@ export default function InterviewsClientList({
   const [copiedIndeed, setCopiedIndeed] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
 
+  // Custom Unique Link Generator State
+  const [customCandidateName, setCustomCandidateName] = useState('')
+  const [customCandidateEmail, setCustomCandidateEmail] = useState('')
+  const [generatedUniqueUrl, setGeneratedUniqueUrl] = useState('')
+  const [copiedCustomLink, setCopiedCustomLink] = useState(false)
+
+  const baseUrl = publicInterviewUrl.replace(/\/interview$/, '')
+
+  const indeedPrescreenUrl = `https://login.purepulse.one/interview/prescreen?src=indeed&applicant={CANDIDATE_NAME}`
+
   const indeedTemplateText = `Hi {CANDIDATE_FIRST_NAME},
 
-Thanks for applying to our {JOB_TITLE} position at {COMPANY_NAME}! We are excited about your background and would love to invite you to the next step of our hiring process.
+Thanks for applying to our {JOB_TITLE} position at {COMPANY_NAME}! We reviewed your application and would love to invite you to the next step of our hiring process.
 
-To help us learn more about your outreach approach and communication style, please complete our quick virtual video interview. 
+To help us learn more about your outreach approach and communication style, please complete our virtual pre-screen interview. 
 
 Before starting, you'll watch a 2-minute overview of the role, commission structure, and partner toolkit, followed by guided interview questions and a short roleplay:
 
-👉 Virtual Video Interview Link:
-https://login.purepulse.one/interview?name={CANDIDATE_FIRST_NAME}
+👉 Virtual Pre-Screen Interview Link:
+${indeedPrescreenUrl}
 
-You can complete this on any smartphone, laptop, or tablet with a camera. Once submitted, our hiring team will review your responses within 24-48 hours.
+You can complete this on any smartphone, laptop, or tablet with a camera. Once submitted, our hiring team will review your responses within 24–48 hours.
 
 Best regards,
 Hiring Team at {COMPANY_NAME}
 hiring@purepulse.one`
+
+  const generateCustomLink = () => {
+    const cleanSlug = customCandidateName.trim()
+      ? customCandidateName.trim().toLowerCase().replace(/[^a-z0-9]/g, '-')
+      : 'candidate'
+    const randomHex = Math.random().toString(36).substring(2, 8)
+    const token = `inv-${cleanSlug}-${randomHex}`
+    const queryParams = new URLSearchParams()
+    if (customCandidateName.trim()) queryParams.set('applicant', customCandidateName.trim())
+    if (customCandidateEmail.trim()) queryParams.set('email', customCandidateEmail.trim())
+    queryParams.set('src', 'direct-invite')
+
+    const fullUrl = `${baseUrl}/interview/${token}?${queryParams.toString()}`
+    setGeneratedUniqueUrl(fullUrl)
+  }
 
   const filtered = interviews.filter((item) => {
     const matchSearch =
@@ -97,7 +125,7 @@ hiring@purepulse.one`
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <button
             onClick={() => {
-              navigator.clipboard.writeText(publicInterviewUrl)
+              navigator.clipboard.writeText(`https://login.purepulse.one/interview/prescreen?src=indeed`)
               setCopiedLink(true)
               setTimeout(() => setCopiedLink(false), 2000)
             }}
@@ -109,7 +137,7 @@ hiring@purepulse.one`
             }}
           >
             {copiedLink ? <CheckCircle2 size={14} color="#10B981" /> : <Copy size={14} />}
-            {copiedLink ? 'Copied Link!' : 'Copy Public Link'}
+            {copiedLink ? 'Copied Pre-Screen Link!' : 'Copy Pre-Screen Link'}
           </button>
 
           <button
@@ -123,9 +151,28 @@ hiring@purepulse.one`
               boxShadow: '0 4px 12px rgba(123,47,255,0.3)',
             }}
           >
-            <Mail size={14} /> Indeed Automation Template
+            <Mail size={14} /> Indeed Automation &amp; Unique Links
           </button>
         </div>
+      </div>
+
+      {/* Unique Link Generator Banner */}
+      <div style={{ background: '#0D0D14', border: '1px solid #1F1F2E', borderRadius: '12px', padding: '1.25rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#00F5FF', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <Link2 size={14} /> Dedicated Pre-Screen URLs
+          </span>
+          <p style={{ margin: '0.25rem 0 0', color: '#D1D5DB', fontSize: '0.8125rem' }}>
+            <strong>Indeed Automation URL:</strong> <code style={{ color: '#A066FF', background: '#14141F', padding: '2px 6px', borderRadius: '4px', fontSize: '0.8125rem' }}>https://login.purepulse.one/interview/prescreen?src=indeed&amp;applicant=&#123;CANDIDATE_NAME&#125;</code>
+          </p>
+        </div>
+
+        <button
+          onClick={() => setShowIndeedModal(true)}
+          style={{ background: '#14141F', border: '1px solid #2D2D42', color: '#D1D5DB', fontSize: '0.75rem', fontWeight: 600, padding: '0.4rem 0.875rem', borderRadius: '6px', cursor: 'pointer' }}
+        >
+          Generate 1-on-1 Candidate Token Link →
+        </button>
       </div>
 
       {/* Filter Tabs */}
@@ -282,17 +329,17 @@ hiring@purepulse.one`
         </div>
       )}
 
-      {/* Indeed Automation Modal */}
+      {/* Indeed & Unique Link Modal */}
       {showIndeedModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem', zIndex: 100 }}>
-          <div style={{ background: '#0D0D14', border: '1px solid #2D2D42', borderRadius: '16px', maxWidth: '640px', width: '100%', padding: '2rem', boxShadow: '0 24px 48px rgba(0,0,0,0.8)' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem', zIndex: 100 }}>
+          <div style={{ background: '#0D0D14', border: '1px solid #2D2D42', borderRadius: '16px', maxWidth: '700px', width: '100%', maxHeight: '90vh', overflowY: 'auto', padding: '2rem', boxShadow: '0 24px 48px rgba(0,0,0,0.8)' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
               <div>
                 <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#A066FF', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                  Indeed Employer Automation
+                  Interview Invitation Links &amp; Automations
                 </span>
                 <h2 style={{ fontSize: '1.35rem', fontWeight: 800, margin: '0.25rem 0 0', color: '#F4F4FF' }}>
-                  Message New Candidates Template
+                  Pre-Screen Virtual Interview Links
                 </h2>
               </div>
               <button
@@ -303,40 +350,116 @@ hiring@purepulse.one`
               </button>
             </div>
 
-            <p style={{ color: '#9CA3AF', fontSize: '0.875rem', lineHeight: 1.5, margin: '0 0 1.25rem' }}>
-              Paste this template directly into your Indeed Employer Dashboard under <strong>Automations &gt; Message new candidates</strong> (as configured in your screenshot). It automatically inserts the candidate&apos;s name and directs them to the video interview:
-            </p>
+            {/* Option 1: Indeed Bulk Message Automation */}
+            <div style={{ background: '#14141F', border: '1px solid #2D2D42', borderRadius: '12px', padding: '1.25rem', marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                <strong style={{ fontSize: '0.9375rem', color: '#F4F4FF' }}>
+                  Option A: Indeed Bulk Message Automation Template
+                </strong>
+                <span style={{ fontSize: '0.75rem', color: '#00F5FF', background: 'rgba(0,245,255,0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
+                  Automatic for All Applicants
+                </span>
+              </div>
+              <p style={{ color: '#9CA3AF', fontSize: '0.8125rem', lineHeight: 1.5, margin: '0 0 1rem' }}>
+                Uses the dedicated <code style={{ color: '#A066FF' }}>/interview/prescreen</code> slug and Indeed&apos;s full-name tag <code style={{ color: '#A066FF' }}>&#123;CANDIDATE_NAME&#125;</code>:
+              </p>
 
-            <div style={{ position: 'relative', background: '#14141F', border: '1px solid #2D2D42', borderRadius: '8px', padding: '1rem', marginBottom: '1.25rem' }}>
-              <pre style={{ margin: 0, color: '#D1D5DB', fontSize: '0.8125rem', lineHeight: 1.6, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>
-                {indeedTemplateText}
-              </pre>
+              <div style={{ background: '#0D0D14', border: '1px solid #2D2D42', borderRadius: '8px', padding: '0.875rem', marginBottom: '0.875rem' }}>
+                <pre style={{ margin: 0, color: '#D1D5DB', fontSize: '0.8125rem', lineHeight: 1.6, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>
+                  {indeedTemplateText}
+                </pre>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(indeedTemplateText)
+                    setCopiedIndeed(true)
+                    setTimeout(() => setCopiedIndeed(false), 2000)
+                  }}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+                    background: copiedIndeed ? '#10B981' : 'linear-gradient(135deg, #7B2FFF, #9747FF)',
+                    color: '#fff', fontWeight: 700, fontSize: '0.8125rem',
+                    padding: '0.5rem 1.25rem', borderRadius: '6px', border: 'none', cursor: 'pointer',
+                  }}
+                >
+                  {copiedIndeed ? <CheckCircle2 size={14} /> : <Copy size={14} />}
+                  {copiedIndeed ? 'Copied Template!' : 'Copy Indeed Automation Template'}
+                </button>
+              </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-              <button
-                onClick={() => setShowIndeedModal(false)}
-                style={{ background: 'transparent', border: '1px solid #2D2D42', color: '#9CA3AF', padding: '0.625rem 1.25rem', borderRadius: '8px', fontSize: '0.875rem', cursor: 'pointer' }}
-              >
-                Close
-              </button>
+            {/* Option 2: 1-on-1 Unique Token Link Generator */}
+            <div style={{ background: '#14141F', border: '1px solid #2D2D42', borderRadius: '12px', padding: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                <strong style={{ fontSize: '0.9375rem', color: '#F4F4FF' }}>
+                  Option B: Generate 100% Unique Candidate Link (1-on-1)
+                </strong>
+                <span style={{ fontSize: '0.75rem', color: '#10B981', background: 'rgba(16,185,129,0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
+                  Custom Tokenized
+                </span>
+              </div>
+              <p style={{ color: '#9CA3AF', fontSize: '0.8125rem', lineHeight: 1.5, margin: '0 0 1rem' }}>
+                Generate an individual, unique cryptographic session link to email or direct-message a specific applicant:
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.875rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', color: '#9CA3AF', marginBottom: '0.25rem' }}>Candidate Name</label>
+                  <input
+                    type="text"
+                    value={customCandidateName}
+                    onChange={(e) => setCustomCandidateName(e.target.value)}
+                    placeholder="e.g. Jordan Smith"
+                    style={{ width: '100%', background: '#0D0D14', border: '1px solid #2D2D42', borderRadius: '6px', padding: '0.5rem 0.75rem', color: '#fff', fontSize: '0.8125rem', outline: 'none' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', color: '#9CA3AF', marginBottom: '0.25rem' }}>Candidate Email</label>
+                  <input
+                    type="email"
+                    value={customCandidateEmail}
+                    onChange={(e) => setCustomCandidateEmail(e.target.value)}
+                    placeholder="e.g. jordan@example.com"
+                    style={{ width: '100%', background: '#0D0D14', border: '1px solid #2D2D42', borderRadius: '6px', padding: '0.5rem 0.75rem', color: '#fff', fontSize: '0.8125rem', outline: 'none' }}
+                  />
+                </div>
+              </div>
 
               <button
-                onClick={() => {
-                  navigator.clipboard.writeText(indeedTemplateText)
-                  setCopiedIndeed(true)
-                  setTimeout(() => setCopiedIndeed(false), 2000)
-                }}
+                onClick={generateCustomLink}
                 style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-                  background: copiedIndeed ? '#10B981' : 'linear-gradient(135deg, #7B2FFF, #9747FF)',
-                  color: '#fff', fontWeight: 700, fontSize: '0.875rem',
-                  padding: '0.625rem 1.5rem', borderRadius: '8px', border: 'none', cursor: 'pointer',
+                  background: '#2D2D42', color: '#fff', fontSize: '0.8125rem', fontWeight: 600,
+                  padding: '0.5rem 1rem', borderRadius: '6px', border: 'none', cursor: 'pointer', marginBottom: '0.875rem',
                 }}
               >
-                {copiedIndeed ? <CheckCircle2 size={16} /> : <Copy size={16} />}
-                {copiedIndeed ? 'Copied to Clipboard!' : 'Copy Indeed Message Template'}
+                ⚡ Generate Unique Private Link
               </button>
+
+              {generatedUniqueUrl && (
+                <div style={{ background: '#0D0D14', border: '1px solid #2D2D42', borderRadius: '8px', padding: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#A066FF', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                    {generatedUniqueUrl}
+                  </span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(generatedUniqueUrl)
+                      setCopiedCustomLink(true)
+                      setTimeout(() => setCopiedCustomLink(false), 2000)
+                    }}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+                      background: copiedCustomLink ? '#10B981' : '#7B2FFF',
+                      color: '#fff', fontSize: '0.75rem', fontWeight: 700,
+                      padding: '0.4rem 0.75rem', borderRadius: '6px', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {copiedCustomLink ? <CheckCircle2 size={12} /> : <Copy size={12} />}
+                    {copiedCustomLink ? 'Copied!' : 'Copy'}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

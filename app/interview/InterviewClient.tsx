@@ -105,12 +105,24 @@ const QUESTIONS: Question[] = [
   },
 ]
 
-export default function InterviewClient() {
+export default function InterviewClient({ token }: { token?: string }) {
   const searchParams = useSearchParams()
   const [step, setStep] = useState<'welcome' | 'device_check' | 'questions' | 'review' | 'submitted'>('welcome')
   
-  // Candidate Form
-  const [name, setName] = useState(searchParams.get('name') || '')
+  // Unique Session ID for this interview attempt
+  const [sessionId] = useState(() => {
+    if (token && token !== 'prescreen' && token !== 'affiliate-prescreen') return token
+    const rand = Math.random().toString(36).substring(2, 8).toUpperCase()
+    return `SES-${rand}`
+  })
+
+  // Candidate Form — reads from applicant, candidate, or name query params
+  const [name, setName] = useState(
+    searchParams.get('applicant') ||
+    searchParams.get('candidate') ||
+    searchParams.get('name') ||
+    ''
+  )
   const [email, setEmail] = useState(searchParams.get('email') || '')
   const [phone, setPhone] = useState(searchParams.get('phone') || '')
   const [formError, setFormError] = useState('')
