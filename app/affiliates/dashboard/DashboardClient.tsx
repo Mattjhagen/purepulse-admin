@@ -647,6 +647,21 @@ export default function AffiliateDashboardClient({
                   </p>
                 </div>
               </div>
+
+              <a
+                href="https://teams.live.com/l/community/FAAT7_iyVqeIobIvQ?v=g1"
+                target="_blank"
+                rel="noreferrer"
+                style={{ ...s.actionTile, textDecoration: 'none', color: 'inherit' }}
+              >
+                <div style={{ ...s.actionIconWrap, background: 'rgba(91,95,199,0.12)' }}>
+                  <span style={{ fontSize: 18, fontWeight: 900, color: '#5B5FC7' }}>💬</span>
+                </div>
+                <div>
+                  <h3 style={s.actionTitle}>Partner Teams Community</h3>
+                  <p style={s.actionDesc}>Join live deal support, closing scripts &amp; partner chat.</p>
+                </div>
+              </a>
             </div>
 
             {/* Commission Tiers Visualizer */}

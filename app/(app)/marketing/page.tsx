@@ -211,7 +211,15 @@ const TEMPLATES = [
         <li style="margin-bottom:8px;">Sign in to your partner portal to view your unique link and QR code.</li>
         <li style="margin-bottom:8px;">Download high-res printable flyers, tear-off tab posters, and business cards.</li>
         <li style="margin-bottom:8px;">Connect your bank account via Stripe Connect in the Payouts tab for direct deposits.</li>
+        <li style="margin-bottom:8px;">Join our Microsoft Teams community for deal coaching, custom pitch scripts, and real-time support.</li>
       </ol>
+
+      <div style="background:#111118;border:1.5px solid #2D2D42;border-radius:12px;padding:20px 22px;margin:0 0 24px;text-align:center;color:#fff;">
+        <p style="margin:0 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#7B83EB;">💬 Partner Community</p>
+        <p style="margin:0 0 6px;font-size:15px;font-weight:800;color:#F4F4FF;">Join the PurePulse Affiliate Teams Community</p>
+        <p style="margin:0 0 14px;font-size:13px;color:#9CA3AF;line-height:1.5;">Connect directly with our team, get custom outreach scripts, ask closing questions, and celebrate deal closures.</p>
+        <a href="https://teams.live.com/l/community/FAAT7_iyVqeIobIvQ?v=g1" style="display:inline-block;background:linear-gradient(135deg, #5B5FC7, #464EB8);color:#ffffff;padding:10px 24px;border-radius:8px;font-weight:700;text-decoration:none;font-size:13px;box-shadow:0 4px 12px rgba(91,95,199,0.4);">Join Teams Community Channel →</a>
+      </div>
 
       <div style="margin-bottom:28px;">
         <a href="https://login.purepulse.one/affiliates/login" style="display:inline-block;background:#7B2FFF;color:#FFFFFF;padding:12px 28px;border-radius:10px;font-weight:700;text-decoration:none;font-size:14px;box-shadow:0 4px 16px rgba(123,47,255,0.4);">Enter Partner Portal →</a>
