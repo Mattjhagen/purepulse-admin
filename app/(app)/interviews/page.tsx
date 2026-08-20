@@ -1,14 +1,7 @@
-import { createClient } from '@supabase/supabase-js'
+import { adminSupabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { Video, Clock, CheckCircle2, AlertCircle, Sparkles, Search, ArrowUpRight, Copy, UserCheck } from 'lucide-react'
 import InterviewsClientList from './InterviewsClientList'
-
-function adminSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE!
-  )
-}
 
 export const dynamic = 'force-dynamic'
 

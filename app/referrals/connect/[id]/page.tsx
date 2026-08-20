@@ -1,13 +1,7 @@
-import { createClient } from '@supabase/supabase-js'
+import { adminSupabase } from '@/lib/supabase'
 import { getStripe } from '@/lib/stripe'
-import { redirect } from 'next/navigation'
 
-function adminSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-}
+export const dynamic = 'force-dynamic'
 
 function StatusMessage({ title, body, success }: { title: string; body: string; success?: boolean }) {
   return (
@@ -23,36 +17,32 @@ function StatusMessage({ title, body, success }: { title: string; body: string; 
 export default async function ReferralConnectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = adminSupabase()
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://login.purepulse.one'
 
-  const { data: referral } = await supabase
-    .from('referrals')
-    .select('id, stripe_account_id')
-    .eq('id', id)
-    .single()
+  let referral: { id: string; stripe_account_id: string } | null = null
+  try {
+    const { data } = await supabase
+      .from('referrals')
+      .select('id, stripe_account_id')
+      .eq('id', id)
+      .single()
+    if (data) referral = data
+  } catch {
+    // ignore
+  }
 
   if (!referral?.stripe_account_id) {
     return <StatusMessage title="Nothing to set up yet" body="This payout setup link isn't active. Ask PurePulse to send you a new one." />
   }
 
-  const stripe = getStripe()
-  const account = await stripe.accounts.retrieve(referral.stripe_account_id)
-
-  if (account.payouts_enabled) {
-    await supabase.from('referrals').update({
-      stripe_payouts_enabled: true,
-      updated_at: new Date().toISOString(),
-    }).eq('id', id)
-
-    return <StatusMessage title="You're all set!" body="Your payout details are confirmed. PurePulse can now pay your referral commissions directly to your bank account." success />
+  try {
+    const stripe = getStripe()
+    const account = await stripe.accounts.retrieve(referral.stripe_account_id)
+    if (account.charges_enabled && account.payouts_enabled) {
+      return <StatusMessage title="Payouts active" body="Your bank account is connected and ready to receive commissions." success />
+    }
+  } catch {
+    // ignore
   }
 
-  const link = await stripe.accountLinks.create({
-    account: referral.stripe_account_id,
-    refresh_url: `${appUrl}/referrals/connect/${id}`,
-    return_url: `${appUrl}/referrals/connect/${id}`,
-    type: 'account_onboarding',
-  })
-
-  redirect(link.url)
+  return <StatusMessage title="Setup Pending" body="Please follow the payout setup link sent to your email to link your bank account." />
 }

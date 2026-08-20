@@ -1,13 +1,6 @@
-import { createClient } from '@supabase/supabase-js'
+import { adminSupabase } from '@/lib/supabase'
 import { notFound } from 'next/navigation'
 import ScorecardClient from './ScorecardClient'
-
-function adminSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE!
-  )
-}
 
 export const dynamic = 'force-dynamic'
 

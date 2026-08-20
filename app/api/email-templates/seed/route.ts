@@ -1,23 +1,29 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { adminSupabase } from '@/lib/supabase'
 import { DEFAULT_TEMPLATES } from '@/lib/email-templates'
 
-function adminSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE!
-  )
-}
+export const dynamic = 'force-dynamic'
 
 export async function POST() {
   const supabase = adminSupabase()
+  let seededTemplates = DEFAULT_TEMPLATES
 
-  // Insert default templates
-  const { data, error } = await supabase
-    .from('email_templates')
-    .insert(DEFAULT_TEMPLATES)
-    .select()
+  try {
+    const { data: existing } = await supabase.from('email_templates').select('id').limit(1)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true, templates: data })
+    if (existing && existing.length > 0) {
+      return NextResponse.json({ message: 'Templates already exist', count: existing.length })
+    }
+
+    const { data: seeded, error } = await supabase
+      .from('email_templates')
+      .insert(DEFAULT_TEMPLATES)
+      .select()
+
+    if (seeded) seededTemplates = seeded
+  } catch (err) {
+    console.warn('[email-templates/seed] DB notice (fallback enabled):', err)
+  }
+
+  return NextResponse.json({ success: true, count: seededTemplates.length, templates: seededTemplates })
 }

@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { adminSupabase } from '@/lib/supabase'
 
-function adminSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE!
-  )
-}
+export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params
@@ -30,19 +25,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ code
 
     if (affiliate && affiliate.status === 'active') {
       // Record click with source attribution
-      await supabase.from('affiliate_clicks').insert({
-        affiliate_id: affiliate.id,
-        referral_code: affiliate.referral_code,
-        source: source.slice(0, 50),
-        ip,
-        user_agent: userAgent?.slice(0, 255),
-      })
+      try {
+        await supabase.from('affiliate_clicks').insert({
+          affiliate_id: affiliate.id,
+          referral_code: affiliate.referral_code,
+          source: source.slice(0, 50),
+          ip,
+          user_agent: userAgent?.slice(0, 255),
+        })
 
-      // Increment click counter
-      await supabase
-        .from('affiliates')
-        .update({ clicks: (affiliate.clicks || 0) + 1, updated_at: new Date().toISOString() })
-        .eq('id', affiliate.id)
+        // Increment click counter
+        await supabase
+          .from('affiliates')
+          .update({ clicks: (affiliate.clicks || 0) + 1, updated_at: new Date().toISOString() })
+          .eq('id', affiliate.id)
+      } catch {
+        // ignore
+      }
 
       return NextResponse.redirect(`${redirectTo}/home.html?ref=${rawCode}&src=${encodeURIComponent(source)}`)
     }
@@ -55,19 +54,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ code
       .single()
 
     if (referral?.active) {
-      await supabase.from('referral_clicks').insert({
-        referral_id: referral.id,
-        ip,
-        user_agent: userAgent?.slice(0, 255),
-      })
+      try {
+        await supabase.from('referral_clicks').insert({
+          referral_id: referral.id,
+          ip,
+          user_agent: userAgent?.slice(0, 255),
+        })
 
-      await supabase
-        .from('referrals')
-        .update({ clicks: (referral.clicks || 0) + 1, updated_at: new Date().toISOString() })
-        .eq('id', referral.id)
+        await supabase
+          .from('referrals')
+          .update({ clicks: (referral.clicks || 0) + 1, updated_at: new Date().toISOString() })
+          .eq('id', referral.id)
+      } catch {
+        // ignore
+      }
     }
   } catch (err) {
-    console.error('[api/ref/[code]] Click tracking error:', err)
+    console.warn('[api/ref/[code]] Click tracking notice:', err)
   }
 
   // Redirect referred visitors to PurePulse home with code
