@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { adminSupabase } from '@/lib/supabase'
 import { getStripe } from '@/lib/stripe'
 import { requireAdmin } from '@/lib/require-admin'
 import { getResend } from '@/lib/resend'
 import type Stripe from 'stripe'
-
-function adminSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-}
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!(await requireAdmin())) {

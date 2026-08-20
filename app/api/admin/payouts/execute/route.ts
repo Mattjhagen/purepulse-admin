@@ -1,18 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { adminSupabase } from '@/lib/supabase'
 import { requireAdmin } from '@/lib/require-admin'
 import {
   createOutboundPayment,
   dollarsToCents,
   formatCentsToMoney,
 } from '@/lib/stripe-global-payouts'
-
-function adminSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE!
-  )
-}
 
 export async function POST(req: NextRequest) {
   if (!(await requireAdmin())) {

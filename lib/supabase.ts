@@ -9,7 +9,12 @@ export function createClient() {
 }
 
 export function adminSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://cucksfwkdmrkeiwmdlut.supabase.co'
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://cucksfwkdmrkeiwmdlut.supabase.co'
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-service-key'
-  return createSupabaseClient(url, key)
+  return createSupabaseClient(url, key, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  })
 }

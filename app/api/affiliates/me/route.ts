@@ -1,14 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
-import { createClient } from '@supabase/supabase-js'
+import { adminSupabase } from '@/lib/supabase'
 import { resolveAuthenticatedAffiliate } from '@/lib/affiliate-auth'
-
-function adminSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE!
-  )
-}
 
 export async function GET() {
   const supabase = await createServerSupabaseClient()

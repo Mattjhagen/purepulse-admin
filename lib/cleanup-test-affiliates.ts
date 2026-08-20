@@ -1,11 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
-
-function adminSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE!
-  )
-}
+import { adminSupabase } from '@/lib/supabase'
 
 export const TEST_EMAILS_TO_REMOVE = [
   'admin@p3lending.space',

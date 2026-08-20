@@ -1,33 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { adminSupabase } from '@/lib/supabase'
 import { getResend } from '@/lib/resend'
 import { getStripe } from '@/lib/stripe'
-import { TEST_EMAILS_TO_REMOVE, cleanupTestAffiliates } from '@/lib/cleanup-test-affiliates'
-
-function adminSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE!
-  )
-}
+import { TEST_EMAILS_TO_REMOVE } from '@/lib/cleanup-test-affiliates'
 
 export async function GET() {
   try {
-    // Run cleanup of specified test accounts
-    try {
-      await cleanupTestAffiliates()
-    } catch (cleanErr) {
-      console.warn('Auto-cleanup test affiliates notice:', cleanErr)
-    }
-
     const supabase = adminSupabase()
 
     const [
-      { data: affData },
-      { data: refData },
+      { data: affData, error: affErr },
+      { data: refData, error: refErr },
       { data: affRefs },
       { data: affComms },
-      { data: interviewData },
+      { data: interviewData, error: ivErr },
     ] = await Promise.all([
       supabase.from('affiliates').select('*').order('created_at', { ascending: false }),
       supabase.from('referrals').select('*').order('created_at', { ascending: false }),
@@ -35,6 +21,10 @@ export async function GET() {
       supabase.from('affiliate_commissions').select('id, affiliate_id, amount, status'),
       supabase.from('interviews').select('id, candidate_name, candidate_email, candidate_phone, status, created_at').order('created_at', { ascending: false }),
     ])
+
+    if (affErr) console.warn('[api/referrals] affiliates query notice:', affErr)
+    if (refErr) console.warn('[api/referrals] referrals query notice:', refErr)
+    if (ivErr) console.warn('[api/referrals] interviews query notice:', ivErr)
 
     const merged: Array<{
       id: string

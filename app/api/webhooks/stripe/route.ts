@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { adminSupabase } from '@/lib/supabase'
 import { getStripe, PLAN_CENTS } from '@/lib/stripe'
 import { generatePortalLink } from '@/lib/portal-auth-link'
 import { getResend } from '@/lib/resend'
@@ -10,13 +10,6 @@ import { calculateMonthlyCommission, AFFILIATE_COMMISSION_RATES } from '@/lib/af
 import { mapStripeRecipientStatus, type StripeV2Account } from '@/lib/stripe-global-payouts'
 
 const resend = getResend()
-
-function adminSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE!
-  )
-}
 
 export async function POST(req: NextRequest) {
   const body = await req.text()
