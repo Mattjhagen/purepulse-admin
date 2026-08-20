@@ -19,7 +19,7 @@ import {
   Loader2,
 } from 'lucide-react'
 
-const INTRO_VIDEO_URL = 'https://ouwyuxqlvjvxdobjnezu.supabase.co/storage/v1/object/public/media/videoplayback.mp4'
+const INTRO_VIDEO_URL = 'https://cucksfwkdmrkeiwmdlut.supabase.co/storage/v1/object/public/media/videoplayback.mp4'
 
 interface Question {
   id: string
