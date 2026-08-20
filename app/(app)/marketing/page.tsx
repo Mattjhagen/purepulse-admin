@@ -397,7 +397,7 @@ export default function MarketingPage() {
   const [customSubject, setCustomSubject] = useState(TEMPLATES[0].subject)
   const [customBody, setCustomBody] = useState(TEMPLATES[0].body)
   const [recipientGroups, setRecipientGroups] = useState<string[]>(['clients'])
-  const [previewMode, setPreviewMode] = useState(false)
+  const [previewMode, setPreviewMode] = useState(true)
   const [sending, setSending] = useState(false)
   const [sendingTest, setSendingTest] = useState(false)
   const [testResult, setTestResult] = useState<string | null>(null)
