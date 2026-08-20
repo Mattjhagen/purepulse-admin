@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { adminSupabase } from '@/lib/supabase'
-import { resolveAuthenticatedAffiliate } from '@/lib/affiliate-auth'
+import { ensureAuthenticatedAffiliate } from '@/lib/affiliate-auth'
 import {
   getGlobalPayoutRecipient,
   mapStripeRecipientStatus,
@@ -18,10 +18,10 @@ export async function GET() {
   }
 
   const admin = adminSupabase()
-  const { affiliate, error: affError } = await resolveAuthenticatedAffiliate(authUser, admin)
+  const affiliate = await ensureAuthenticatedAffiliate(authUser, admin)
 
-  if (affError || !affiliate) {
-    return NextResponse.json({ error: affError || 'Affiliate record not found' }, { status: 404 })
+  if (!affiliate) {
+    return NextResponse.json({ error: 'Affiliate record not found' }, { status: 404 })
   }
 
   // If no Stripe recipient exists yet, return default setup_required status
