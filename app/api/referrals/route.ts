@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getResend } from '@/lib/resend'
 import { getStripe } from '@/lib/stripe'
-import { TEST_EMAILS_TO_REMOVE, cleanupTestAffiliates } from '@/app/api/admin/cleanup-test-affiliates/route'
+import { TEST_EMAILS_TO_REMOVE, cleanupTestAffiliates } from '@/lib/cleanup-test-affiliates'
 
 function adminSupabase() {
   return createClient(
@@ -158,7 +158,7 @@ export async function GET() {
       }
     }
 
-    const testEmailSet = new Set(TEST_EMAILS_TO_REMOVE.map(e => e.toLowerCase().trim()))
+    const testEmailSet = new Set(TEST_EMAILS_TO_REMOVE.map((e: string) => e.toLowerCase().trim()))
     const finalMerged = merged.filter(m => {
       if (!m.email) return true
       return !testEmailSet.has(m.email.toLowerCase().trim())

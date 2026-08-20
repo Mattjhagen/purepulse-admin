@@ -15,18 +15,19 @@ export type Affiliate = {
   phone: string | null
   referral_code: string
   status: string
-  stripe_account_id: string | null
-  stripe_payouts_enabled: boolean
-  payout_method: string
-  payout_details: {
-    bank_name?: string
-    account_holder_name?: string
-    routing_number?: string
-    account_number_last4?: string
-    paypal_email?: string
-    venmo_handle?: string
-    notes?: string
-  } | null
+  stripe_account_id?: string | null
+  stripe_payouts_enabled?: boolean
+  stripe_global_payout_recipient_id?: string | null
+  stripe_payout_method_id?: string | null
+  payout_onboarding_status?: string
+  payouts_enabled?: boolean
+  payout_country?: string
+  payout_entity_type?: 'individual' | 'company'
+  payout_requirements_due?: string[]
+  payout_onboarded_at?: string | null
+  last_payout_status_sync_at?: string | null
+  payout_method?: string
+  payout_details?: Record<string, unknown> | null
   clicks: number
   created_at: string
 }
@@ -113,20 +114,23 @@ export default function AffiliateDashboardClient({
   const [generatingGraphic, setGeneratingGraphic] = useState(false)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
-  // Payouts state
-  const [connectingStripe, setConnectingStripe] = useState(false)
-  const [stripeError, setStripeError] = useState('')
-  const [savingBackup, setSavingBackup] = useState(false)
-  const [backupSuccess, setBackupSuccess] = useState(false)
-  const [backupForm, setBackupForm] = useState({
-    payout_method: affiliate.payout_method || 'stripe',
-    bank_name: affiliate.payout_details?.bank_name || '',
-    account_holder_name: affiliate.payout_details?.account_holder_name || '',
-    routing_number: affiliate.payout_details?.routing_number || '',
-    account_number_last4: affiliate.payout_details?.account_number_last4 || '',
-    paypal_email: affiliate.payout_details?.paypal_email || '',
-    venmo_handle: affiliate.payout_details?.venmo_handle || '',
-  })
+  // Stripe Global Payouts state
+  const [payoutStatus, setPayoutStatus] = useState<string>(
+    affiliate.payout_onboarding_status || (affiliate.payouts_enabled ? 'ready_for_payouts' : 'setup_required')
+  )
+  const [payoutsEnabled, setPayoutsEnabled] = useState<boolean>(
+    Boolean(affiliate.payouts_enabled || affiliate.stripe_payouts_enabled)
+  )
+  const [payoutCountry, setPayoutCountry] = useState<string>(affiliate.payout_country || 'US')
+  const [payoutEntityType, setPayoutEntityType] = useState<'individual' | 'company'>(
+    affiliate.payout_entity_type || 'individual'
+  )
+  const [requirementsDue, setRequirementsDue] = useState<string[]>(
+    Array.isArray(affiliate.payout_requirements_due) ? affiliate.payout_requirements_due : []
+  )
+  const [syncingPayoutStatus, setSyncingPayoutStatus] = useState(false)
+  const [connectingGlobalPayouts, setConnectingGlobalPayouts] = useState(false)
+  const [globalPayoutsError, setGlobalPayoutsError] = useState('')
 
   const origin = typeof window !== 'undefined' && window.location.origin
     ? window.location.origin
@@ -412,53 +416,57 @@ export default function AffiliateDashboardClient({
     link.click()
   }
 
-  async function connectStripe(action?: 'reauth') {
-    setConnectingStripe(true)
-    setStripeError('')
+  const syncPayoutStatus = useCallback(async () => {
+    setSyncingPayoutStatus(true)
+    setGlobalPayoutsError('')
     try {
-      const url = `/api/affiliates/connect${action ? `?action=${action}` : ''}`
-      const res = await fetch(url, { method: 'POST' })
+      const res = await fetch('/api/affiliates/payouts/status')
+      if (res.ok) {
+        const data = await res.json()
+        if (data.status) setPayoutStatus(data.status)
+        if (typeof data.payouts_enabled === 'boolean') setPayoutsEnabled(data.payouts_enabled)
+        if (Array.isArray(data.requirements_due)) setRequirementsDue(data.requirements_due)
+        if (data.country) setPayoutCountry(data.country)
+        if (data.entity_type) setPayoutEntityType(data.entity_type)
+      }
+    } catch (e) {
+      console.error('Failed to sync payout status:', e)
+    } finally {
+      setSyncingPayoutStatus(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      if (params.get('tab') === 'payouts' || params.get('returned') === '1' || params.get('reauth') === '1') {
+        setActiveTab('payouts')
+        syncPayoutStatus()
+      }
+    }
+  }, [syncPayoutStatus])
+
+  async function startGlobalPayoutsOnboarding() {
+    setConnectingGlobalPayouts(true)
+    setGlobalPayoutsError('')
+    try {
+      const res = await fetch('/api/affiliates/payouts/onboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          country: payoutCountry,
+          entity_type: payoutEntityType,
+        }),
+      })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
       if (data.url) {
         window.location.href = data.url
       }
     } catch (err) {
-      setStripeError(err instanceof Error ? err.message : 'Stripe setup failed.')
+      setGlobalPayoutsError(err instanceof Error ? err.message : 'Stripe Global Payouts setup failed.')
     } finally {
-      setConnectingStripe(false)
-    }
-  }
-
-  async function saveBackupPayouts(e: React.FormEvent) {
-    e.preventDefault()
-    setSavingBackup(true)
-    setBackupSuccess(false)
-    try {
-      const res = await fetch('/api/affiliates/payout-settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          payout_method: backupForm.payout_method,
-          payout_details: {
-            bank_name: backupForm.bank_name,
-            account_holder_name: backupForm.account_holder_name,
-            routing_number: backupForm.routing_number,
-            account_number_last4: backupForm.account_number_last4,
-            paypal_email: backupForm.paypal_email,
-            venmo_handle: backupForm.venmo_handle,
-          },
-        }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setBackupSuccess(true)
-        setTimeout(() => setBackupSuccess(false), 3000)
-      }
-    } catch {
-      alert('Failed to save payout settings')
-    } finally {
-      setSavingBackup(false)
+      setConnectingGlobalPayouts(false)
     }
   }
 
@@ -1802,146 +1810,189 @@ export default function AffiliateDashboardClient({
         {activeTab === 'payouts' && (
           <div>
             <div style={{ marginBottom: 24 }}>
-              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Payouts &amp; Bank Account</h2>
-              <p style={{ margin: '4px 0 0', fontSize: '0.875rem', color: '#6b7280' }}>
-                Connect your bank account via Stripe Connect for automatic monthly direct deposits.
-              </p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Payouts &amp; Bank Account</h2>
+                  <p style={{ margin: '4px 0 0', fontSize: '0.875rem', color: '#6b7280' }}>
+                    Manage your direct deposit bank account and view payout readiness.
+                  </p>
+                </div>
+                <button
+                  onClick={syncPayoutStatus}
+                  disabled={syncingPayoutStatus}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '6px 12px',
+                    borderRadius: 8,
+                    background: '#f3f4f6',
+                    border: '1px solid #e5e7eb',
+                    fontSize: '0.8125rem',
+                    fontWeight: 600,
+                    color: '#374151',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <RefreshCw size={13} className={syncingPayoutStatus ? 'animate-spin' : ''} />
+                  {syncingPayoutStatus ? 'Syncing...' : 'Sync Status'}
+                </button>
+              </div>
             </div>
 
-            {/* Stripe Connect Card */}
+            {/* Stripe Global Payouts Card */}
             <div style={{ ...s.card, marginBottom: 28 }}>
               <div style={{ padding: '24px 28px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 20 }}>
-                <div style={{ maxWidth: 520 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                    <span style={{ fontWeight: 800, fontSize: '1.125rem' }}>Stripe Connect Direct Deposit</span>
+                <div style={{ maxWidth: 540 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: 800, fontSize: '1.125rem' }}>Global Payouts Direct Deposit</span>
                     <span style={{
-                      padding: '2px 10px',
+                      padding: '3px 12px',
                       borderRadius: 999,
                       fontSize: '0.75rem',
                       fontWeight: 700,
-                      background: affiliate.stripe_payouts_enabled ? '#dcfce7' : '#fef9c3',
-                      color: affiliate.stripe_payouts_enabled ? '#15803d' : '#854d0e',
+                      background:
+                        payoutStatus === 'ready_for_payouts' ? '#dcfce7' :
+                        payoutStatus === 'verification_pending' ? '#dbeafe' :
+                        payoutStatus === 'additional_information_required' ? '#ffedd5' :
+                        payoutStatus === 'payouts_restricted' ? '#fee2e2' : '#fef9c3',
+                      color:
+                        payoutStatus === 'ready_for_payouts' ? '#15803d' :
+                        payoutStatus === 'verification_pending' ? '#1e40af' :
+                        payoutStatus === 'additional_information_required' ? '#9a3412' :
+                        payoutStatus === 'payouts_restricted' ? '#991b1b' : '#854d0e',
+                      border: `1px solid ${
+                        payoutStatus === 'ready_for_payouts' ? '#86efac' :
+                        payoutStatus === 'verification_pending' ? '#93c5fd' :
+                        payoutStatus === 'additional_information_required' ? '#fdba74' :
+                        payoutStatus === 'payouts_restricted' ? '#fca5a5' : '#fde047'
+                      }`,
                     }}>
-                      {affiliate.stripe_payouts_enabled ? '● Connected & Active' : '● Setup Required'}
+                      {
+                        payoutStatus === 'ready_for_payouts' ? 'Ready for payouts' :
+                        payoutStatus === 'verification_pending' ? 'Verification pending' :
+                        payoutStatus === 'additional_information_required' ? 'Additional information required' :
+                        payoutStatus === 'payouts_restricted' ? 'Payouts restricted' :
+                        'Setup required'
+                      }
                     </span>
                   </div>
-                  <p style={{ margin: 0, fontSize: '0.875rem', color: '#555', lineHeight: 1.6 }}>
-                    {affiliate.stripe_payouts_enabled
-                      ? 'Your bank account is securely linked via Stripe. Monthly commission earnings are automatically deposited directly to your bank.'
-                      : 'Link your checking or savings account. Stripe securely verifies your identity and handles automatic monthly commission deposits.'}
+
+                  <p style={{ margin: '0 0 16px', fontSize: '0.875rem', color: '#4b5563', lineHeight: 1.65 }}>
+                    Set up your bank account through Stripe to receive automatic PurePulse affiliate commission payments. Stripe securely collects and verifies your payout information. You don’t need an existing Stripe account.
                   </p>
 
-                  <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+                  {/* Recipient Country & Entity Type Selection */}
+                  {payoutStatus !== 'ready_for_payouts' && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16, maxWidth: 440 }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#374151', marginBottom: 4 }}>
+                          Payout Country
+                        </label>
+                        <select
+                          value={payoutCountry}
+                          onChange={e => setPayoutCountry(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            borderRadius: 8,
+                            border: '1px solid #d1d5db',
+                            background: '#fff',
+                            fontSize: '0.875rem',
+                          }}
+                        >
+                          <option value="US">United States (USD)</option>
+                          <option value="CA">Canada (CAD)</option>
+                          <option value="GB">United Kingdom (GBP)</option>
+                          <option value="AU">Australia (AUD)</option>
+                          <option value="DE">Germany (EUR)</option>
+                          <option value="FR">France (EUR)</option>
+                          <option value="ES">Spain (EUR)</option>
+                          <option value="IT">Italy (EUR)</option>
+                          <option value="NL">Netherlands (EUR)</option>
+                          <option value="IE">Ireland (EUR)</option>
+                          <option value="MX">Mexico (MXN)</option>
+                          <option value="NZ">New Zealand (NZD)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#374151', marginBottom: 4 }}>
+                          Entity Type
+                        </label>
+                        <select
+                          value={payoutEntityType}
+                          onChange={e => setPayoutEntityType(e.target.value as 'individual' | 'company')}
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            borderRadius: 8,
+                            border: '1px solid #d1d5db',
+                            background: '#fff',
+                            fontSize: '0.875rem',
+                          }}
+                        >
+                          <option value="individual">Individual / Freelancer</option>
+                          <option value="company">Business / Company</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {requirementsDue.length > 0 && (
+                    <div style={{
+                      padding: '10px 14px',
+                      borderRadius: 8,
+                      background: '#fffbeb',
+                      border: '1px solid #fef3c7',
+                      marginBottom: 16,
+                      fontSize: '0.8125rem',
+                      color: '#92400e',
+                    }}>
+                      <strong>Pending requirements from Stripe:</strong> {requirementsDue.join(', ')}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
                     <button
-                      onClick={() => connectStripe(affiliate.stripe_payouts_enabled ? 'reauth' : undefined)}
-                      disabled={connectingStripe}
-                      style={s.primaryBtn}
+                      onClick={startGlobalPayoutsOnboarding}
+                      disabled={connectingGlobalPayouts}
+                      style={{
+                        ...s.primaryBtn,
+                        padding: '10px 22px',
+                        background: '#7B2FFF',
+                        color: '#fff',
+                        fontWeight: 700,
+                        fontSize: '0.875rem',
+                        borderRadius: 10,
+                        boxShadow: '0 4px 14px rgba(123,47,255,0.3)',
+                      }}
                     >
-                      {connectingStripe ? <RefreshCw size={14} className="animate-spin" /> : <Landmark size={14} />}
-                      {affiliate.stripe_payouts_enabled ? 'Open Stripe Express Dashboard →' : 'Link Bank Account via Stripe →'}
+                      {connectingGlobalPayouts ? (
+                        <RefreshCw size={14} className="animate-spin" />
+                      ) : (
+                        <Landmark size={14} />
+                      )}
+                      {payoutStatus === 'ready_for_payouts' || payoutsEnabled
+                        ? 'Manage Payout Information'
+                        : 'Set Up Payouts with Stripe'}
                     </button>
                   </div>
-                  {stripeError && <p style={{ color: '#dc2626', fontSize: '0.8125rem', marginTop: 10 }}>{stripeError}</p>}
+                  {globalPayoutsError && <p style={{ color: '#dc2626', fontSize: '0.8125rem', marginTop: 10 }}>{globalPayoutsError}</p>}
                 </div>
 
-                <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 10, padding: '16px 20px', minWidth: 220 }}>
+                <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 12, padding: '18px 22px', minWidth: 240 }}>
                   <p style={{ margin: '0 0 6px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: '#9ca3af' }}>Payout Schedule</p>
-                  <p style={{ margin: '0 0 4px', fontWeight: 800, fontSize: '1rem' }}>Monthly (1st-5th)</p>
-                  <p style={{ margin: '0 0 10px', fontSize: '0.75rem', color: '#6b7280' }}>Min. threshold: $20.00</p>
-                  <p style={{ margin: '0 0 4px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: '#9ca3af' }}>Security</p>
-                  <p style={{ margin: 0, fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>🔒 256-Bit Encrypted via Stripe</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Backup / Alternative Payout Preferences */}
-            <div style={s.card}>
-              <div style={{ padding: '18px 24px', borderBottom: '1px solid #f3f4f6' }}>
-                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Backup Payout Information (Optional)</h3>
-                <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: '#6b7280' }}>
-                  If you prefer direct ACH transfer, PayPal, or Venmo as a fallback.
-                </p>
-              </div>
-
-              <form onSubmit={saveBackupPayouts} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 640 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                  <div>
-                    <label style={s.fieldLabel}>Bank Name</label>
-                    <input
-                      style={s.input}
-                      value={backupForm.bank_name}
-                      onChange={e => setBackupForm({ ...backupForm, bank_name: e.target.value })}
-                      placeholder="Chase, Wells Fargo, etc."
-                    />
-                  </div>
-                  <div>
-                    <label style={s.fieldLabel}>Account Holder Name</label>
-                    <input
-                      style={s.input}
-                      value={backupForm.account_holder_name}
-                      onChange={e => setBackupForm({ ...backupForm, account_holder_name: e.target.value })}
-                      placeholder="Full Name on Account"
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                  <div>
-                    <label style={s.fieldLabel}>Routing Number (9 digits)</label>
-                    <input
-                      style={s.input}
-                      value={backupForm.routing_number}
-                      onChange={e => setBackupForm({ ...backupForm, routing_number: e.target.value })}
-                      placeholder="XXXXXXXXX"
-                    />
-                  </div>
-                  <div>
-                    <label style={s.fieldLabel}>Account Number (Last 4 digits)</label>
-                    <input
-                      style={s.input}
-                      value={backupForm.account_number_last4}
-                      onChange={e => setBackupForm({ ...backupForm, account_number_last4: e.target.value })}
-                      placeholder="XXXX"
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                  <div>
-                    <label style={s.fieldLabel}>PayPal Email (Optional)</label>
-                    <input
-                      style={s.input}
-                      type="email"
-                      value={backupForm.paypal_email}
-                      onChange={e => setBackupForm({ ...backupForm, paypal_email: e.target.value })}
-                      placeholder="paypal@example.com"
-                    />
-                  </div>
-                  <div>
-                    <label style={s.fieldLabel}>Venmo Handle (Optional)</label>
-                    <input
-                      style={s.input}
-                      value={backupForm.venmo_handle}
-                      onChange={e => setBackupForm({ ...backupForm, venmo_handle: e.target.value })}
-                      placeholder="@your-handle"
-                    />
-                  </div>
-                </div>
-
-                {backupSuccess && (
-                  <p style={{ color: '#16a34a', fontSize: '0.875rem', fontWeight: 600, margin: 0 }}>
-                    ✓ Payout preferences saved successfully.
+                  <p style={{ margin: '0 0 4px', fontWeight: 800, fontSize: '1rem', color: '#111827' }}>Monthly (1st–5th)</p>
+                  <p style={{ margin: '0 0 12px', fontSize: '0.75rem', color: '#6b7280' }}>Min. threshold: $20.00</p>
+                  <p style={{ margin: '0 0 4px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: '#9ca3af' }}>Security &amp; Privacy</p>
+                  <p style={{ margin: 0, fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>
+                    ✓ Stripe-Hosted Secure Verification
                   </p>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={savingBackup}
-                  style={{ ...s.primaryBtn, width: 'fit-content', marginTop: 8 }}
-                >
-                  {savingBackup ? 'Saving...' : 'Save Payout Details'}
-                </button>
-              </form>
+                  <p style={{ margin: '4px 0 0', fontSize: '0.7rem', color: '#6b7280' }}>
+                    Bank credentials are submitted directly to Stripe and never stored on PurePulse servers.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         )}

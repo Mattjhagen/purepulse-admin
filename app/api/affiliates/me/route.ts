@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { createClient } from '@supabase/supabase-js'
+import { resolveAuthenticatedAffiliate } from '@/lib/affiliate-auth'
 
 function adminSupabase() {
   return createClient(
@@ -11,22 +12,19 @@ function adminSupabase() {
 
 export async function GET() {
   const supabase = await createServerSupabaseClient()
+  const { data: { user } } = await supabase.auth.getUser()
   const { data: { session } } = await supabase.auth.getSession()
+  const authUser = user || session?.user
 
-  if (!session) {
+  if (!authUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const admin = adminSupabase()
+  const { affiliate, error: affError } = await resolveAuthenticatedAffiliate(authUser, admin)
 
-  const { data: affiliate, error } = await admin
-    .from('affiliates')
-    .select('*')
-    .eq('auth_user_id', session.user.id)
-    .single()
-
-  if (error || !affiliate) {
-    return NextResponse.json({ error: 'Affiliate not found' }, { status: 404 })
+  if (affError || !affiliate) {
+    return NextResponse.json({ error: affError || 'Affiliate not found' }, { status: 404 })
   }
 
   // Fetch referrals
