@@ -72,8 +72,21 @@ function getStripeSecretKey(): string {
   key = key.replace(/[\r\n\t]/g, '').trim()
 
   if (!key) {
-    throw new Error('STRIPE_SECRET_KEY is not configured in environment variables.')
+    throw new Error('STRIPE_SECRET_KEY is not configured in Vercel environment variables.')
   }
+
+  if (key.startsWith('pk_')) {
+    throw new Error('STRIPE_SECRET_KEY in Vercel is set to a Publishable Key (starts with pk_...). Please copy the Secret Key (starts with sk_live_... or sk_test_...) from Stripe Dashboard > Developers > API Keys.')
+  }
+
+  if (key.startsWith('whsec_')) {
+    throw new Error('STRIPE_SECRET_KEY in Vercel is set to a Webhook Signing Secret (starts with whsec_...). Please copy the Secret Key (starts with sk_live_... or sk_test_...) from Stripe Dashboard > Developers > API Keys.')
+  }
+
+  if (!key.startsWith('sk_') && !key.startsWith('rk_')) {
+    throw new Error(`STRIPE_SECRET_KEY appears invalid (starts with "${key.slice(0, 7)}..."). It must start with "sk_live_" or "sk_test_". Please update it in Vercel Environment Variables.`)
+  }
+
   return key
 }
 

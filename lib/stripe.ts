@@ -12,7 +12,13 @@ export function getStripe(): Stripe {
     }
     key = key.replace(/[\r\n\t]/g, '').trim()
 
-    if (!key) throw new Error('STRIPE_SECRET_KEY is not set')
+    if (!key) throw new Error('STRIPE_SECRET_KEY is not set in environment variables')
+    if (key.startsWith('pk_')) {
+      throw new Error('STRIPE_SECRET_KEY is set to a Publishable Key (pk_...). Please provide a Secret Key (sk_live_... or sk_test_...).')
+    }
+    if (key.startsWith('whsec_')) {
+      throw new Error('STRIPE_SECRET_KEY is set to a Webhook Signing Secret (whsec_...). Please provide a Secret Key (sk_live_... or sk_test_...).')
+    }
     _stripe = new Stripe(key, { apiVersion: '2026-07-29.dahlia' })
   }
   return _stripe
