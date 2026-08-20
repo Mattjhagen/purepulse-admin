@@ -26,51 +26,92 @@ export default async function AffiliateDashboardPage() {
     const { data: affByEmail } = await admin
       .from('affiliates')
       .select('*')
-      .eq('email', cleanEmail)
+      .ilike('email', cleanEmail)
       .maybeSingle()
 
     if (affByEmail) {
       affiliate = affByEmail
-      await admin
-        .from('affiliates')
-        .update({ auth_user_id: authUser.id })
-        .eq('id', affByEmail.id)
+      try {
+        await admin
+          .from('affiliates')
+          .update({ auth_user_id: authUser.id, updated_at: new Date().toISOString() })
+          .eq('id', affByEmail.id)
+      } catch (linkErr) {
+        console.warn('[affiliates/dashboard] link auth_user_id notice:', linkErr)
+      }
     } else {
       // Check interviews for previous applicant
-      const { data: interview } = await admin
-        .from('interviews')
-        .select('*')
-        .eq('candidate_email', cleanEmail)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+      let interview: { candidate_name?: string; candidate_phone?: string; job_title?: string } | null = null
+      try {
+        const { data: iv } = await admin
+          .from('interviews')
+          .select('*')
+          .eq('candidate_email', cleanEmail)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        interview = iv
+      } catch (ivErr) {
+        console.warn('[affiliates/dashboard] interview query notice:', ivErr)
+      }
 
       const candidateName = interview?.candidate_name?.trim() ||
-        (authUser.user_metadata?.full_name || authUser.user_metadata?.name || cleanEmail.split('@')[0])
+        (authUser.user_metadata?.full_name || authUser.user_metadata?.name || cleanEmail.split('@')[0] || 'Partner')
 
       const refCode = generateReferralCode(candidateName)
-      const { data: newAff } = await admin
-        .from('affiliates')
-        .insert({
-          name: candidateName,
-          email: cleanEmail,
-          phone: interview?.candidate_phone?.trim() || null,
-          auth_user_id: authUser.id,
-          referral_code: refCode,
-          status: 'active',
-          promotion_strategy: interview ? `Previous Applicant — ${interview.job_title || 'Affiliate'}` : 'Direct Partner Signup',
-          created_at: new Date().toISOString(),
-        })
-        .select('*')
-        .single()
+      try {
+        const { data: newAff, error: insertErr } = await admin
+          .from('affiliates')
+          .insert({
+            name: candidateName,
+            email: cleanEmail,
+            phone: interview?.candidate_phone?.trim() || null,
+            auth_user_id: authUser.id,
+            referral_code: refCode,
+            status: 'active',
+            promotion_strategy: interview ? `Previous Applicant — ${interview.job_title || 'Affiliate'}` : 'Direct Partner Signup',
+            created_at: new Date().toISOString(),
+          })
+          .select('*')
+          .single()
 
-      if (newAff) {
-        affiliate = newAff
+        if (newAff && !insertErr) {
+          affiliate = newAff
+        }
+      } catch (createErr) {
+        console.warn('[affiliates/dashboard] affiliate creation notice:', createErr)
       }
     }
   }
 
-  if (!affiliate) redirect('/affiliates/apply')
+  // If still not in DB, create a graceful session-backed affiliate object so authenticated users are never kicked out
+  if (!affiliate) {
+    const cleanEmail = (authUser.email || '').toLowerCase().trim()
+    const candidateName = (authUser.user_metadata?.full_name || authUser.user_metadata?.name || cleanEmail.split('@')[0] || 'Partner') as string
+    const refCode = generateReferralCode(candidateName)
+    affiliate = {
+      id: authUser.id,
+      name: candidateName,
+      email: cleanEmail,
+      phone: null,
+      auth_user_id: authUser.id,
+      referral_code: refCode,
+      status: 'active',
+      clicks: 0,
+      notes: null,
+      stripe_global_payout_recipient_id: null,
+      stripe_payout_method_id: null,
+      payout_onboarding_status: 'setup_required',
+      payouts_enabled: false,
+      payout_country: 'US',
+      payout_entity_type: 'individual',
+      payout_requirements_due: [],
+      payout_onboarded_at: null,
+      last_payout_status_sync_at: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+  }
 
 
   // Fetch referrals
