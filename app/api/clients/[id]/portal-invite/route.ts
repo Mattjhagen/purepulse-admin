@@ -7,10 +7,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id: clientId } = await params
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://login.purepulse.one'
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_PROJECT_URL || 'https://cucksfwkdmrkeiwmdlut.supabase.co'
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-service-key'
+  const supabase = createClient(url, key)
 
   const { data: client, error: clientErr } = await supabase.from('clients').select('id, name, email').eq('id', clientId).single()
   if (clientErr || !client) {

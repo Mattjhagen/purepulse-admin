@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "providers": {
+    "cloudflare": {
+      "name": "Cloudflare"
+    },
+    "supabase": {
+      "name": "Supabase"
+    }
+  },
+  "resources": {
+    "cloudflare-kv": {
+      "name": "cloudflare-kv",
+      "providerName": "Cloudflare",
+      "serviceId": "kv"
+    },
+    "cloudflare-plan": {
+      "name": "cloudflare-plan",
+      "providerName": "Cloudflare",
+      "serviceId": "workers:free"
+    },
+    "cloudflare-workers": {
+      "name": "cloudflare-workers",
+      "providerName": "Cloudflare",
+      "serviceId": "workers"
+    },
+    "cloudflare-workers-ai": {
+      "name": "cloudflare-workers-ai",
+      "providerName": "Cloudflare",
+      "serviceId": "workers-ai"
+    },
+    "purepulse-d1": {
+      "name": "purepulse-d1",
+      "providerName": "Cloudflare",
+      "serviceId": "d1"
+    },
+    "purepulse-queue": {
+      "name": "purepulse-queue",
+      "providerName": "Cloudflare",
+      "serviceId": "queues"
+    },
+    "supabase-plan": {
+      "name": "supabase-plan",
+      "providerName": "Supabase",
+      "serviceId": "free"
+    },
+    "supabase-project": {
+      "name": "supabase-project",
+      "providerName": "Supabase",
+      "serviceId": "project"
+    }
+  },
+  "environments": {
+    "default": {
+      "output": ".env",
+      "resources": [
+        {
+          "resourceName": "cloudflare-kv"
+        },
+        {
+          "resourceName": "cloudflare-plan"
+        },
+        {
+          "resourceName": "cloudflare-workers"
+        },
+        {
+          "resourceName": "cloudflare-workers-ai"
+        },
+        {
+          "resourceName": "purepulse-d1"
+        },
+        {
+          "resourceName": "purepulse-queue"
+        },
+        {
+          "resourceName": "supabase-plan"
+        },
+        {
+          "resourceName": "supabase-project"
+        }
+      ],
+      "variables": [
+        {
+          "variableName": "resend-api-key",
+          "envKey": "RESEND_API_KEY"
+        }
+      ]
+    }
+  },
+  "variables": {
+    "resend-api-key": {
+      "name": "resend-api-key",
+      "backendId": "fprjvar_61VG0jtgghZxg9WHW16VFcTq4BSQBBGXheWzF59g85CK"
+    }
+  }
+}

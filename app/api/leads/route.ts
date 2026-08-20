@@ -29,10 +29,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Name and email are required.' }, { status: 400, headers: cors(origin) })
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_PROJECT_URL || 'https://cucksfwkdmrkeiwmdlut.supabase.co'
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-service-key'
+    const supabase = createClient(url, key)
 
     // Only attribute to a referral code that actually exists and is active —
     // a bad/stale ref param shouldn't block the lead or attribute to nothing.

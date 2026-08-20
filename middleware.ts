@@ -13,16 +13,19 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_PROJECT_URL || 'https://cucksfwkdmrkeiwmdlut.supabase.co'
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY
+
   // Env vars not configured — let the app render (it will handle auth)
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  if (!supabaseUrl || !supabaseAnonKey) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
   try {
     const res = NextResponse.next()
     const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      supabaseUrl,
+      supabaseAnonKey,
       {
         cookies: {
           getAll: () => request.cookies.getAll(),

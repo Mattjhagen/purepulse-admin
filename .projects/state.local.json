@@ -1,0 +1,136 @@
+{
+  "version": 1,
+  "project": {
+    "catalog": "prod",
+    "initializedAt": "2026-08-20T20:30:50.249Z",
+    "merchantDisplayName": "PacMac Mobile LLC",
+    "merchantId": "acct_1U6EWUBOujjG3bmv",
+    "projectId": "project_61VG0ZGS3d1rW2YXN16VFcTq4BSQBBGXheWzF59g8SKm",
+    "projectName": "purepulse-admin"
+  },
+  "providers": {
+    "cloudflare": {
+      "accountRequestId": "fprvcnn_61VG0hBaJVnAdPzBS16VFcTq4BSQBBGXheWzF59g8WAK",
+      "configuration": {},
+      "linkedAt": "2026-08-20T20:39:01.800Z",
+      "providerId": "prvdr_61UQRSWMdrciFdBNs5Ipc",
+      "providerName": "Cloudflare",
+      "redirectUrl": null,
+      "requestedAt": "2026-08-20T20:39:01.800Z",
+      "status": "complete"
+    },
+    "supabase": {
+      "accountRequestId": "facctrq_61VG0aZB4NYEHcrBP16VFcTq4BSQBBGXheWzF59g8FOi",
+      "configuration": {},
+      "linkedAt": "2026-08-20T20:32:22.570Z",
+      "providerId": "prvdr_61UIXYHdsyF69pZbG52n2",
+      "providerName": "Supabase",
+      "redirectUrl": null,
+      "requestedAt": "2026-08-20T20:32:22.570Z",
+      "status": "complete"
+    }
+  },
+  "resources": {
+    "cloudflare-kv": {
+      "configuration": {
+        "title": "purepulse-kv"
+      },
+      "createdAt": "2026-08-20T20:43:56.532Z",
+      "lastRevealedAt": "2026-08-20T20:43:57.017Z",
+      "lastStatus": "complete",
+      "name": "cloudflare-kv",
+      "providerId": "prvdr_61UQRSWMdrciFdBNs5Ipc",
+      "providerName": "Cloudflare",
+      "resourceId": "fres_61VG0lssZRFapxMcZ16VFcTq4BSQBBGXheWzF59g8O0G",
+      "serviceId": "kv"
+    },
+    "cloudflare-plan": {
+      "configuration": {},
+      "createdAt": "2026-08-20T20:40:22.205Z",
+      "lastRevealedAt": "2026-08-20T20:40:22.599Z",
+      "lastStatus": "complete",
+      "name": "cloudflare-plan",
+      "providerId": "prvdr_61UQRSWMdrciFdBNs5Ipc",
+      "providerName": "Cloudflare",
+      "resourceId": "fres_61VG0iPbGiCSDsU8H16VFcTq4BSQBBGXheWzF59g8Ddo",
+      "serviceId": "workers:free"
+    },
+    "cloudflare-workers": {
+      "configuration": {},
+      "createdAt": "2026-08-20T20:42:36.269Z",
+      "lastRevealedAt": "2026-08-20T20:42:36.641Z",
+      "lastStatus": "complete",
+      "name": "cloudflare-workers",
+      "providerId": "prvdr_61UQRSWMdrciFdBNs5Ipc",
+      "providerName": "Cloudflare",
+      "resourceId": "fres_61VG0kZ7XFfj17vKP16VFcTq4BSQBBGXheWzF59g80Hw",
+      "serviceId": "workers"
+    },
+    "cloudflare-workers-ai": {
+      "configuration": {},
+      "createdAt": "2026-08-20T21:58:04.600Z",
+      "lastRevealedAt": "2026-08-20T21:58:05.315Z",
+      "lastStatus": "complete",
+      "name": "cloudflare-workers-ai",
+      "providerId": "prvdr_61UQRSWMdrciFdBNs5Ipc",
+      "providerName": "Cloudflare",
+      "resourceId": "fres_61VG1vaq47O6JyKFF16VFcTq4BSQBBGXheWzF59g801w",
+      "serviceId": "workers-ai"
+    },
+    "purepulse-d1": {
+      "configuration": {
+        "name": "purepulse-d1"
+      },
+      "createdAt": "2026-08-20T20:44:09.996Z",
+      "lastRevealedAt": "2026-08-20T20:44:10.679Z",
+      "lastStatus": "complete",
+      "name": "purepulse-d1",
+      "providerId": "prvdr_61UQRSWMdrciFdBNs5Ipc",
+      "providerName": "Cloudflare",
+      "resourceId": "fres_61VG0m5rWDL6S0Pt116VFcTq4BSQBBGXheWzF59g8FrU",
+      "serviceId": "d1"
+    },
+    "purepulse-queue": {
+      "configuration": {
+        "queue_name": "purepulse-queue"
+      },
+      "createdAt": "2026-08-20T20:44:40.405Z",
+      "lastRevealedAt": "2026-08-20T20:44:40.925Z",
+      "lastStatus": "complete",
+      "name": "purepulse-queue",
+      "providerId": "prvdr_61UQRSWMdrciFdBNs5Ipc",
+      "providerName": "Cloudflare",
+      "resourceId": "fres_61VG0mZcbK07fwIpY16VFcTq4BSQBBGXheWzF59g82T2",
+      "serviceId": "queues"
+    },
+    "supabase-plan": {
+      "configuration": {},
+      "createdAt": "2026-08-20T20:32:44.731Z",
+      "lastRevealedAt": "2026-08-20T20:32:45.155Z",
+      "lastStatus": "complete",
+      "name": "supabase-plan",
+      "providerId": "prvdr_61UIXYHdsyF69pZbG52n2",
+      "providerName": "Supabase",
+      "resourceId": "fres_61VG0anoSTOMKnE1G16VFcTq4BSQBBGXheWzF59g8J56",
+      "serviceId": "free"
+    },
+    "supabase-project": {
+      "configuration": {
+        "name": "purepulse-admin"
+      },
+      "createdAt": "2026-08-20T20:33:30.272Z",
+      "lastRevealedAt": "2026-08-20T20:33:30.660Z",
+      "lastStatus": "complete",
+      "name": "supabase-project",
+      "providerId": "prvdr_61UIXYHdsyF69pZbG52n2",
+      "providerName": "Supabase",
+      "resourceId": "fres_61VG0bIX2GtzIoifq16VFcTq4BSQBBGXheWzF59g8Ec4",
+      "serviceId": "project"
+    }
+  },
+  "managedProjectVariableEnvKeys": {
+    ".env": [
+      "RESEND_API_KEY"
+    ]
+  }
+}
