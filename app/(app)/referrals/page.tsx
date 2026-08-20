@@ -56,7 +56,7 @@ function NewReferralModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
     })
     const json = await res.json()
     setSaving(false)
-    if (!res.ok) { setErr(json.error ?? 'Failed to create referrer'); return }
+    if (!res.ok) { setErr(json.error ?? 'Failed to create affiliate'); return }
     onSaved(json.id)
     onClose()
   }
@@ -65,7 +65,7 @@ function NewReferralModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-          <h2 className="modal-title" style={{ marginBottom: 0 }}>New Referrer</h2>
+          <h2 className="modal-title" style={{ marginBottom: 0 }}>New Affiliate</h2>
           <button className="btn btn-ghost btn-sm" onClick={onClose}><X size={14} /></button>
         </div>
 
@@ -88,7 +88,7 @@ function NewReferralModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
             <div>
-              <label className="label">Referral Code *</label>
+              <label className="label">Partner Referral Code *</label>
               <input className="input" value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') }))} placeholder="JANE123" style={{ fontFamily: 'monospace' }} />
             </div>
             <div>
@@ -105,7 +105,7 @@ function NewReferralModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
         <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" onClick={save} disabled={saving}>
-            {saving ? <span className="spinner" /> : <><Plus size={14} /> Create</>}
+            {saving ? <span className="spinner" /> : <><Plus size={14} /> Create Affiliate</>}
           </button>
         </div>
       </div>
@@ -114,7 +114,6 @@ function NewReferralModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
 }
 
 export default function ReferralsPage() {
-  const supabase = createClient()
   const router = useRouter()
   const [referrals, setReferrals] = useState<Referral[]>([])
   const [loading, setLoading] = useState(true)
@@ -123,99 +122,21 @@ export default function ReferralsPage() {
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all')
 
   const load = useCallback(async () => {
-    const [
-      { data: refData },
-      { data: affData },
-      { data: affRefs },
-      { data: affComms },
-    ] = await Promise.all([
-      supabase.from('referrals').select('*').order('created_at', { ascending: false }),
-      supabase.from('affiliates').select('*').order('created_at', { ascending: false }),
-      supabase.from('affiliate_referrals').select('id, affiliate_id, status, monthly_commission'),
-      supabase.from('affiliate_commissions').select('id, affiliate_id, amount, status'),
-    ])
-
-    const merged: Referral[] = []
-    const seenEmails = new Set<string>()
-    const seenCodes = new Set<string>()
-
-    // 1. Process all affiliates from the affiliates table
-    if (affData) {
-      for (const a of affData) {
-        const emailKey = a.email ? a.email.toLowerCase().trim() : null
-        const codeKey = a.referral_code ? a.referral_code.toUpperCase().trim() : null
-        if (emailKey) seenEmails.add(emailKey)
-        if (codeKey) seenCodes.add(codeKey)
-
-        const aRefs = (affRefs ?? []).filter(r => r.affiliate_id === a.id)
-        const aComms = (affComms ?? []).filter(c => c.affiliate_id === a.id)
-        const totalEarned = aComms.reduce((s, c) => s + Number(c.amount || 0), 0)
-        const totalPaid = aComms.filter(c => c.status === 'paid').reduce((s, c) => s + Number(c.amount || 0), 0)
-
-        merged.push({
-          id: a.id,
-          name: a.name,
-          email: a.email || null,
-          phone: a.phone || null,
-          code: a.referral_code,
-          clicks: 0,
-          conversions: aRefs.length,
-          commission_per_conversion: 50,
-          total_earned: totalEarned,
-          total_paid: totalPaid,
-          notes: a.notes || null,
-          active: a.status === 'active',
-          created_at: a.created_at,
-        })
-      }
-    }
-
-    // 2. Process any legacy referrers from referrals table
-    if (refData) {
-      for (const r of refData) {
-        const emailKey = r.email ? r.email.toLowerCase().trim() : null
-        const codeKey = r.code ? r.code.toUpperCase().trim() : null
-
-        if (emailKey && seenEmails.has(emailKey)) {
-          // If already in affiliates, update clicks/stats if legacy has more
-          const existing = merged.find(m => m.email?.toLowerCase().trim() === emailKey)
-          if (existing) {
-            existing.clicks = Math.max(existing.clicks, r.clicks || 0)
-            existing.conversions = Math.max(existing.conversions, r.conversions || 0)
-            existing.total_earned = Math.max(existing.total_earned, r.total_earned || 0)
-            existing.total_paid = Math.max(existing.total_paid, r.total_paid || 0)
-          }
-          continue
+    try {
+      const res = await fetch('/api/referrals')
+      if (res.ok) {
+        const json = await res.json()
+        if (Array.isArray(json.referrals)) {
+          setReferrals(json.referrals)
+          setLoading(false)
+          return
         }
-        if (codeKey && seenCodes.has(codeKey)) continue
-
-        if (emailKey) seenEmails.add(emailKey)
-        if (codeKey) seenCodes.add(codeKey)
-
-        merged.push({
-          id: r.id,
-          name: r.name,
-          email: r.email || null,
-          phone: r.phone || null,
-          code: r.code,
-          clicks: r.clicks || 0,
-          conversions: r.conversions || 0,
-          commission_per_conversion: r.commission_per_conversion || 50,
-          total_earned: r.total_earned || 0,
-          total_paid: r.total_paid || 0,
-          notes: r.notes || null,
-          active: r.active ?? true,
-          created_at: r.created_at,
-        })
       }
+    } catch (e) {
+      console.error('Failed to load affiliates from /api/referrals:', e)
     }
-
-    // Sort newest first
-    merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-
-    setReferrals(merged)
     setLoading(false)
-  }, [supabase])
+  }, [])
 
   useEffect(() => { load() }, [load])
 
@@ -255,11 +176,11 @@ export default function ReferralsPage() {
       <div className="page-header">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <h1>Referrals</h1>
-            <p>Track people who promote PurePulse and pay their commissions.</p>
+            <h1>Affiliates</h1>
+            <p>Track affiliate partners who promote PurePulse and manage their recurring commissions.</p>
           </div>
           <button className="btn btn-primary" onClick={() => setShowNew(true)}>
-            <Plus size={14} /> New Referrer
+            <Plus size={14} /> New Affiliate
           </button>
         </div>
       </div>
@@ -273,7 +194,7 @@ export default function ReferralsPage() {
             </div>
           </div>
           <div className="stat-value">{referrals.filter(r => r.active).length}</div>
-          <div className="stat-label">Active Referrers</div>
+          <div className="stat-label">Active Affiliates</div>
         </div>
         <div className="stat-tile">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
@@ -323,21 +244,21 @@ export default function ReferralsPage() {
       ) : filtered.length === 0 ? (
         <div className="empty-state">
           <Gift size={32} style={{ opacity: 0.3, margin: '0 auto 0.75rem' }} />
-          <p>No referrers yet. Add someone who&apos;s promoting PurePulse.</p>
+          <p>No affiliates yet. Add someone who&apos;s promoting PurePulse.</p>
         </div>
       ) : (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Referrer</th>
-                <th>Code</th>
+                <th>Affiliate Partner</th>
+                <th>Partner Code</th>
                 <th>Clicks</th>
                 <th>Signups</th>
                 <th>Earned</th>
                 <th>Paid</th>
                 <th>Owed</th>
-                <th>Since</th>
+                <th>Joined</th>
                 <th></th>
               </tr>
             </thead>
@@ -357,7 +278,7 @@ export default function ReferralsPage() {
                           className="btn btn-ghost btn-sm"
                           onClick={() => copyLink(r.code)}
                           style={{ padding: '2px 6px', fontSize: '0.75rem', color: copied === r.code ? '#22c55e' : undefined }}
-                          title="Copy referral link"
+                          title="Copy affiliate link"
                         >
                           {copied === r.code ? <CheckCircle size={12} /> : <Copy size={12} />}
                         </button>

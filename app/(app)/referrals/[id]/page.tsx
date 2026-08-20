@@ -344,7 +344,7 @@ export default function ReferralDetailPage({ params }: { params: Promise<{ id: s
       <div className="no-print">
         {/* Breadcrumb */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-          <Link href="/referrals" className="btn btn-ghost btn-sm"><ChevronLeft size={14} /> Referrals</Link>
+          <Link href="/referrals" className="btn btn-ghost btn-sm"><ChevronLeft size={14} /> Affiliates</Link>
           <span className={`badge ${referral.active ? 'badge-green' : 'badge-white'}`}>{referral.active ? 'Active' : 'Inactive'}</span>
         </div>
 

@@ -575,7 +575,7 @@ export default function DashboardPage() {
           <Link href="/invoices" className="btn btn-ghost btn-sm"><Plus size={13} /> Invoice</Link>
           <Link href="/contracts" className="btn btn-ghost btn-sm"><Plus size={13} /> Contract</Link>
           <Link href="/tickets" className="btn btn-ghost btn-sm"><Plus size={13} /> Ticket</Link>
-          <Link href="/referrals" className="btn btn-ghost btn-sm"><Gift size={13} /> Referrals</Link>
+          <Link href="/referrals" className="btn btn-ghost btn-sm"><Gift size={13} /> Affiliates</Link>
           <Link href="/clients" className="btn btn-primary btn-sm"><Plus size={13} /> Client</Link>
         </div>
       </div>

@@ -10,6 +10,159 @@ function adminSupabase() {
   )
 }
 
+export async function GET() {
+  try {
+    const supabase = adminSupabase()
+
+    const [
+      { data: affData },
+      { data: refData },
+      { data: affRefs },
+      { data: affComms },
+      { data: interviewData },
+    ] = await Promise.all([
+      supabase.from('affiliates').select('*').order('created_at', { ascending: false }),
+      supabase.from('referrals').select('*').order('created_at', { ascending: false }),
+      supabase.from('affiliate_referrals').select('id, affiliate_id, status, monthly_commission'),
+      supabase.from('affiliate_commissions').select('id, affiliate_id, amount, status'),
+      supabase.from('interviews').select('id, candidate_name, candidate_email, candidate_phone, status, created_at').order('created_at', { ascending: false }),
+    ])
+
+    const merged: Array<{
+      id: string
+      name: string
+      email: string | null
+      phone: string | null
+      code: string
+      clicks: number
+      conversions: number
+      commission_per_conversion: number
+      total_earned: number
+      total_paid: number
+      notes: string | null
+      active: boolean
+      source: string
+      created_at: string
+    }> = []
+
+    const seenEmails = new Set<string>()
+    const seenCodes = new Set<string>()
+
+    // 1. Process all affiliates from `affiliates` table
+    if (affData) {
+      for (const a of affData) {
+        const emailKey = a.email ? a.email.toLowerCase().trim() : null
+        const codeKey = a.referral_code ? a.referral_code.toUpperCase().trim() : null
+        if (emailKey) seenEmails.add(emailKey)
+        if (codeKey) seenCodes.add(codeKey)
+
+        const aRefs = (affRefs ?? []).filter(r => r.affiliate_id === a.id)
+        const aComms = (affComms ?? []).filter(c => c.affiliate_id === a.id)
+        const totalEarned = aComms.reduce((s, c) => s + Number(c.amount || 0), 0)
+        const totalPaid = aComms.filter(c => c.status === 'paid').reduce((s, c) => s + Number(c.amount || 0), 0)
+
+        merged.push({
+          id: a.id,
+          name: a.name,
+          email: a.email || null,
+          phone: a.phone || null,
+          code: a.referral_code,
+          clicks: a.clicks || 0,
+          conversions: aRefs.length,
+          commission_per_conversion: 50,
+          total_earned: totalEarned,
+          total_paid: totalPaid,
+          notes: a.notes || null,
+          active: a.status === 'active',
+          source: 'affiliate',
+          created_at: a.created_at,
+        })
+      }
+    }
+
+    // 2. Process legacy referrers from `referrals` table
+    if (refData) {
+      for (const r of refData) {
+        const emailKey = r.email ? r.email.toLowerCase().trim() : null
+        const codeKey = r.code ? r.code.toUpperCase().trim() : null
+
+        if (emailKey && seenEmails.has(emailKey)) {
+          const existing = merged.find(m => m.email?.toLowerCase().trim() === emailKey)
+          if (existing) {
+            existing.clicks = Math.max(existing.clicks, r.clicks || 0)
+            existing.conversions = Math.max(existing.conversions, r.conversions || 0)
+            existing.total_earned = Math.max(existing.total_earned, r.total_earned || 0)
+            existing.total_paid = Math.max(existing.total_paid, r.total_paid || 0)
+          }
+          continue
+        }
+        if (codeKey && seenCodes.has(codeKey)) continue
+
+        if (emailKey) seenEmails.add(emailKey)
+        if (codeKey) seenCodes.add(codeKey)
+
+        merged.push({
+          id: r.id,
+          name: r.name,
+          email: r.email || null,
+          phone: r.phone || null,
+          code: r.code,
+          clicks: r.clicks || 0,
+          conversions: r.conversions || 0,
+          commission_per_conversion: r.commission_per_conversion || 50,
+          total_earned: r.total_earned || 0,
+          total_paid: r.total_paid || 0,
+          notes: r.notes || null,
+          active: r.active ?? true,
+          source: 'referral',
+          created_at: r.created_at,
+        })
+      }
+    }
+
+    // 3. Process candidate applicants from `interviews` table
+    if (interviewData) {
+      for (const iv of interviewData) {
+        const emailKey = iv.candidate_email ? iv.candidate_email.toLowerCase().trim() : null
+        if (!emailKey || seenEmails.has(emailKey)) continue
+        seenEmails.add(emailKey)
+
+        const codeFallback = iv.candidate_name
+          ? iv.candidate_name.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 8) + '346'
+          : 'PARTNER'
+
+        merged.push({
+          id: iv.id,
+          name: iv.candidate_name || 'Applicant',
+          email: iv.candidate_email,
+          phone: iv.candidate_phone || null,
+          code: codeFallback,
+          clicks: 0,
+          conversions: 0,
+          commission_per_conversion: 50,
+          total_earned: 0,
+          total_paid: 0,
+          notes: `Applicant from Video Interview (${iv.status})`,
+          active: iv.status === 'onboarded' || iv.status === 'completed',
+          source: 'applicant',
+          created_at: iv.created_at,
+        })
+      }
+    }
+
+    merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+    return NextResponse.json({
+      referrals: merged,
+      total: merged.length,
+      activeCount: merged.filter(m => m.active).length,
+    })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to fetch affiliates'
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
 export async function POST(req: NextRequest) {
   let body: {
     name?: string
