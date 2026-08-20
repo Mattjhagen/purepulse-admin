@@ -58,8 +58,10 @@ function brandEmail(title: string, preview: string, bodyHtml: string) {
 }
 
 const TEMPLATES = [
+  // --- CLIENT & LEAD TEMPLATES ---
   {
     id: 'welcome',
+    category: 'clients',
     name: 'Welcome Email',
     subject: 'Welcome to PurePulse — let\'s get started 🚀',
     preview: 'We\'re thrilled to have you on board.',
@@ -83,6 +85,7 @@ const TEMPLATES = [
   },
   {
     id: 'newsletter',
+    category: 'clients',
     name: 'Monthly Newsletter',
     subject: '📬 PurePulse Monthly — What\'s new this month',
     preview: 'Tech tips, updates, and what we\'ve been working on.',
@@ -110,6 +113,7 @@ const TEMPLATES = [
   },
   {
     id: 'announcement',
+    category: 'clients',
     name: 'Service Announcement',
     subject: '🆕 Exciting new services from PurePulse',
     preview: 'We\'ve expanded our offerings — here\'s what\'s new.',
@@ -136,6 +140,7 @@ const TEMPLATES = [
   },
   {
     id: 'followup',
+    category: 'clients',
     name: 'Check-in / Follow-up',
     subject: 'Checking in — how\'s everything going?',
     preview: 'Just wanted to see how things are going on your end.',
@@ -157,7 +162,8 @@ const TEMPLATES = [
   },
   {
     id: 'referral',
-    name: 'Referral Program',
+    category: 'clients',
+    name: 'Client Referral Program',
     subject: '🎁 Know someone who could use PurePulse?',
     preview: 'Refer a friend and earn a reward — it\'s that simple.',
     body: `
@@ -177,9 +183,157 @@ const TEMPLATES = [
       <p style="margin:24px 0 0;font-size:14px;color:rgba(244,244,255,0.6);">Thank you for your partnership,<br><strong style="color:#FFF;">Matty Hagen</strong><br>PurePulse Technology Solutions</p>
     `,
   },
+
+  // --- AFFILIATE PARTNER TEMPLATES ---
+  {
+    id: 'affiliate-welcome',
+    category: 'affiliates',
+    name: '🚀 Affiliate Welcome & Portal Launch',
+    subject: '🚀 Welcome to PurePulse Affiliates — Your Portal & Assets Are Ready',
+    preview: 'Your custom referral link, marketing assets, and commission dashboard are live.',
+    body: `
+      <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#A066FF;">Partner Network</p>
+      <h1 style="margin:0 0 16px;font-size:22px;font-weight:800;color:#FFFFFF;">Welcome to the PurePulse Partner Program, {{name}}! 🎉</h1>
+      <p style="margin:0 0 16px;font-size:15px;color:rgba(244,244,255,0.85);line-height:1.7;">Your affiliate account is fully active. You now earn <strong>up to 50% recurring monthly commission</strong> on every business client who subscribes through your link.</p>
+
+      <div style="background:rgba(123,47,255,0.12);border:1px solid rgba(123,47,255,0.3);border-radius:12px;padding:20px;margin-bottom:24px;">
+        <p style="margin:0 0 10px;font-size:13px;font-weight:700;color:#A066FF;text-transform:uppercase;letter-spacing:1px;">Recurring Commission Breakdown</p>
+        <table cellpadding="0" cellspacing="0" style="width:100%;color:rgba(244,244,255,0.9);font-size:14px;">
+          <tr><td style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.08);">Starter Plan ($20/mo):</td><td align="right" style="padding:6px 0;font-weight:700;color:#10B981;">10% ($2.00/mo)</td></tr>
+          <tr><td style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.08);">Growth Plan ($50/mo):</td><td align="right" style="padding:6px 0;font-weight:700;color:#10B981;">40% ($20.00/mo)</td></tr>
+          <tr><td style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.08);">Premium Plan ($75/mo):</td><td align="right" style="padding:6px 0;font-weight:700;color:#10B981;">45% ($33.75/mo)</td></tr>
+          <tr><td style="padding:6px 0;">Business Plan ($100/mo):</td><td align="right" style="padding:6px 0;font-weight:700;color:#10B981;">50% ($50.00/mo)</td></tr>
+        </table>
+      </div>
+
+      <h2 style="margin:0 0 12px;font-size:16px;font-weight:700;color:#FFFFFF;">🎯 What to do next:</h2>
+      <ol style="margin:0 0 24px;padding-left:20px;color:rgba(244,244,255,0.85);line-height:1.7;">
+        <li style="margin-bottom:8px;">Sign in to your partner portal to view your unique link and QR code.</li>
+        <li style="margin-bottom:8px;">Download high-res printable flyers, tear-off tab posters, and business cards.</li>
+        <li style="margin-bottom:8px;">Connect your bank account via Stripe Connect in the Payouts tab for direct deposits.</li>
+      </ol>
+
+      <div style="margin-bottom:28px;">
+        <a href="https://login.purepulse.one/affiliates/login" style="display:inline-block;background:#7B2FFF;color:#FFFFFF;padding:12px 28px;border-radius:10px;font-weight:700;text-decoration:none;font-size:14px;box-shadow:0 4px 16px rgba(123,47,255,0.4);">Enter Partner Portal →</a>
+      </div>
+
+      <p style="margin:24px 0 0;font-size:14px;color:rgba(244,244,255,0.6);">To your earning success,<br><strong style="color:#FFF;">Matty Hagen</strong><br>PurePulse Partner Program</p>
+    `,
+  },
+  {
+    id: 'affiliate-teams',
+    category: 'affiliates',
+    name: '💬 Join Partner Teams Community',
+    subject: '💬 Join the PurePulse Partner Teams Community for Real-Time Deal Support',
+    preview: 'Connect with the founders, get live closing scripts, and collaborate on client outreach.',
+    body: `
+      <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#7B83EB;">Partner Community</p>
+      <h1 style="margin:0 0 16px;font-size:22px;font-weight:800;color:#FFFFFF;">Hi {{name}}, let's close deals together! 🤝</h1>
+      <p style="margin:0 0 16px;font-size:15px;color:rgba(244,244,255,0.85);line-height:1.7;">We've established a dedicated <strong>Microsoft Teams Partner Community</strong> for all active PurePulse affiliates. Here you get direct, 1-on-1 access to the founders and fellow top partners.</p>
+
+      <div style="background:rgba(91,95,199,0.15);border:1px solid rgba(91,95,199,0.35);border-radius:12px;padding:20px;margin-bottom:24px;">
+        <p style="margin:0 0 8px;font-size:14px;font-weight:700;color:#FFFFFF;">Inside the Community:</p>
+        <ul style="margin:0;padding-left:18px;color:rgba(244,244,255,0.85);line-height:1.6;">
+          <li style="margin-bottom:6px;"><strong>Live Deal Coaching:</strong> Bring your prospective business leads and we'll help structure the pitch.</li>
+          <li style="margin-bottom:6px;"><strong>Custom Objection Handlers:</strong> Proven scripts for small businesses, dental offices, law firms, and e-com.</li>
+          <li style="margin-bottom:6px;"><strong>Real-Time Payout Announcements:</strong> Celebrate monthly commission wins and network with top earners.</li>
+        </ul>
+      </div>
+
+      <div style="margin-bottom:28px;">
+        <a href="https://teams.live.com/l/community/FAAT7_iyVqeIobIvQ?v=g1" style="display:inline-block;background:linear-gradient(135deg, #5B5FC7, #464EB8);color:#FFFFFF;padding:12px 28px;border-radius:10px;font-weight:700;text-decoration:none;font-size:14px;box-shadow:0 4px 16px rgba(91,95,199,0.4);">Join Teams Community Channel →</a>
+      </div>
+
+      <p style="margin:24px 0 0;font-size:14px;color:rgba(244,244,255,0.6);">See you on Teams,<br><strong style="color:#FFF;">Matty Hagen</strong><br>PurePulse Partner Program</p>
+    `,
+  },
+  {
+    id: 'affiliate-bonus',
+    category: 'affiliates',
+    name: '⭐ $49/mo Free Software Perk Challenge',
+    subject: '⭐ Unlock Your Free $49/mo vibecodes.space Business Plan Perk',
+    preview: 'Refer just 1 client this month to claim your complimentary business plan.',
+    body: `
+      <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#10B981;">Monthly Partner Bonus</p>
+      <h1 style="margin:0 0 16px;font-size:22px;font-weight:800;color:#FFFFFF;">Hi {{name}}, grab your free $49/mo software plan! 🎁</h1>
+      <p style="margin:0 0 16px;font-size:15px;color:rgba(244,244,255,0.85);line-height:1.7;">Did you know you can unlock full, complimentary access to the <strong>vibecodes.space Business Plan ($49/mo value)</strong> every month you refer at least 1 client?</p>
+
+      <div style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);border-radius:12px;padding:20px;margin-bottom:24px;text-align:center;">
+        <p style="margin:0 0 4px;font-size:12px;color:#10B981;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Monthly Performance Perk</p>
+        <p style="margin:0;font-size:26px;font-weight:800;color:#FFFFFF;">1 Referral = Free Business Plan ($49/mo)</p>
+        <p style="margin:6px 0 0;font-size:13px;color:rgba(244,244,255,0.7);">Plus keep your 10%–50% recurring monthly cash commissions!</p>
+      </div>
+
+      <h2 style="margin:0 0 10px;font-size:15px;font-weight:700;color:#FFFFFF;">💡 Quick Outreach Tip:</h2>
+      <p style="margin:0 0 20px;font-size:14px;color:rgba(244,244,255,0.8);line-height:1.7;">Local business owners love our Growth &amp; Premium plans because they include zero-headache ongoing hosting, security updates, and instant text edits. Share your flyer or QR code with 3 local contacts today!</p>
+
+      <div style="margin-bottom:28px;">
+        <a href="https://login.purepulse.one/affiliates/dashboard" style="display:inline-block;background:#10B981;color:#FFFFFF;padding:12px 28px;border-radius:10px;font-weight:700;text-decoration:none;font-size:14px;box-shadow:0 4px 16px rgba(16,185,129,0.35);">View Partner Dashboard &amp; Stats →</a>
+      </div>
+
+      <p style="margin:24px 0 0;font-size:14px;color:rgba(244,244,255,0.6);">Happy earning,<br><strong style="color:#FFF;">Matty Hagen</strong><br>PurePulse Partner Program</p>
+    `,
+  },
+  {
+    id: 'affiliate-assets',
+    category: 'affiliates',
+    name: '📄 New Marketing Assets & Flyers Hub',
+    subject: '📄 New High-Converting Printable Flyers & Social Assets Ready',
+    preview: 'Download fresh promotional materials customized with your QR code and referral link.',
+    body: `
+      <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#A066FF;">Marketing Hub Update</p>
+      <h1 style="margin:0 0 16px;font-size:22px;font-weight:800;color:#FFFFFF;">Hi {{name}}, fresh marketing materials are waiting for you! 🎨</h1>
+      <p style="margin:0 0 16px;font-size:15px;color:rgba(244,244,255,0.85);line-height:1.7;">We've updated the <strong>Printable Assets Hub</strong> and <strong>Social Campaign Studio</strong> inside your affiliate portal with high-converting creative assets:</p>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px;">
+        <div style="background:rgba(244,244,255,0.04);border:1px solid rgba(123,47,255,0.2);padding:14px;border-radius:8px;">
+          <p style="margin:0 0 4px;font-size:13px;font-weight:700;color:#FFF;">📄 Printable Flyers &amp; Posters</p>
+          <p style="margin:0;font-size:12px;color:rgba(244,244,255,0.65);line-height:1.5;">Full-page 8.5x11 flyers, tear-off tab posters for bulletin boards, and business card grids with embedded QR codes.</p>
+        </div>
+        <div style="background:rgba(244,244,255,0.04);border:1px solid rgba(123,47,255,0.2);padding:14px;border-radius:8px;">
+          <p style="margin:0 0 4px;font-size:13px;font-weight:700;color:#FFF;">📱 Social Media Studio</p>
+          <p style="margin:0;font-size:12px;color:rgba(244,244,255,0.65);line-height:1.5;">Square 1:1, Story 9:16, and Banner 16:9 ready-to-post graphics with pre-written captions.</p>
+        </div>
+      </div>
+
+      <div style="margin-bottom:28px;">
+        <a href="https://login.purepulse.one/affiliates/dashboard" style="display:inline-block;background:#7B2FFF;color:#FFFFFF;padding:12px 28px;border-radius:10px;font-weight:700;text-decoration:none;font-size:14px;box-shadow:0 4px 16px rgba(123,47,255,0.4);">Download Assets in Portal →</a>
+      </div>
+
+      <p style="margin:24px 0 0;font-size:14px;color:rgba(244,244,255,0.6);">Best regards,<br><strong style="color:#FFF;">Matty Hagen</strong><br>PurePulse Partner Program</p>
+    `,
+  },
+  {
+    id: 'affiliate-payouts',
+    category: 'affiliates',
+    name: '💳 Commission Payouts & Stripe Setup',
+    subject: '💳 Connect Your Bank Account for Direct Commission Deposits',
+    preview: 'Ensure your Stripe Connect payout details are set up for monthly commission deposits.',
+    body: `
+      <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#A066FF;">Payouts &amp; Banking</p>
+      <h1 style="margin:0 0 16px;font-size:22px;font-weight:800;color:#FFFFFF;">Hi {{name}}, get set up for direct monthly deposits 💳</h1>
+      <p style="margin:0 0 16px;font-size:15px;color:rgba(244,244,255,0.85);line-height:1.7;">PurePulse distributes affiliate commissions on a monthly recurring basis directly to your bank account via Stripe Connect.</p>
+
+      <div style="background:rgba(123,47,255,0.1);border:1px solid rgba(123,47,255,0.25);border-radius:12px;padding:18px;margin-bottom:24px;">
+        <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#FFFFFF;">How to set up direct deposit:</p>
+        <ol style="margin:0;padding-left:18px;color:rgba(244,244,255,0.85);line-height:1.6;">
+          <li style="margin-bottom:4px;">Log in to your partner portal.</li>
+          <li style="margin-bottom:4px;">Click the <strong>Payouts &amp; Banking</strong> tab.</li>
+          <li style="margin-bottom:4px;">Click <strong>Connect with Stripe</strong> and enter your routing &amp; account numbers.</li>
+        </ol>
+      </div>
+
+      <div style="margin-bottom:28px;">
+        <a href="https://login.purepulse.one/affiliates/dashboard" style="display:inline-block;background:#7B2FFF;color:#FFFFFF;padding:12px 28px;border-radius:10px;font-weight:700;text-decoration:none;font-size:14px;box-shadow:0 4px 16px rgba(123,47,255,0.4);">Open Payouts Hub →</a>
+      </div>
+
+      <p style="margin:24px 0 0;font-size:14px;color:rgba(244,244,255,0.6);">Thank you for being a valued partner,<br><strong style="color:#FFF;">Matty Hagen</strong><br>PurePulse Partner Program</p>
+    `,
+  },
 ]
 
 export default function MarketingPage() {
+  const [templateFilter, setTemplateFilter] = useState<'all' | 'clients' | 'affiliates'>('all')
   const [selectedTemplate, setSelectedTemplate] = useState(TEMPLATES[0])
   const [customSubject, setCustomSubject] = useState(TEMPLATES[0].subject)
   const [customBody, setCustomBody] = useState(TEMPLATES[0].body)
@@ -189,12 +343,16 @@ export default function MarketingPage() {
   const [sendingTest, setSendingTest] = useState(false)
   const [testResult, setTestResult] = useState<string | null>(null)
   const [result, setResult] = useState<{ sent: number; failed: number; results?: { email: string; ok: boolean; error?: string }[]; error?: string } | null>(null)
-  const [counts, setCounts] = useState<{ clients: number; leads: number }>({ clients: 0, leads: 0 })
+  const [counts, setCounts] = useState<{ clients: number; leads: number; affiliates: number }>({ clients: 0, leads: 0, affiliates: 0 })
 
   useEffect(() => {
     fetch('/api/marketing/broadcast')
       .then(r => r.json())
-      .then(d => setCounts({ clients: d.clients?.length ?? 0, leads: d.leads?.length ?? 0 }))
+      .then(d => setCounts({
+        clients: d.clients?.length ?? 0,
+        leads: d.leads?.length ?? 0,
+        affiliates: d.affiliates?.length ?? 0,
+      }))
       .catch(() => {})
   }, [])
 
@@ -204,6 +362,12 @@ export default function MarketingPage() {
     setCustomBody(t.body)
     setResult(null)
     setTestResult(null)
+    // Auto-select appropriate audience when picking template
+    if (t.category === 'affiliates' && !recipientGroups.includes('affiliates')) {
+      setRecipientGroups(['affiliates'])
+    } else if (t.category === 'clients' && recipientGroups.includes('affiliates') && recipientGroups.length === 1) {
+      setRecipientGroups(['clients'])
+    }
   }
 
   function toggleGroup(g: string) {
@@ -212,12 +376,18 @@ export default function MarketingPage() {
     )
   }
 
+  const filteredTemplates = templateFilter === 'all'
+    ? TEMPLATES
+    : TEMPLATES.filter(t => t.category === templateFilter)
+
   const previewHtml = brandEmail(customSubject, selectedTemplate.preview, customBody)
 
   const totalRecipients = [
     recipientGroups.includes('clients') ? counts.clients : 0,
     recipientGroups.includes('leads') ? counts.leads : 0,
+    recipientGroups.includes('affiliates') ? counts.affiliates : 0,
   ].reduce((a, b) => a + b, 0)
+
 
   async function handleSendTest() {
     setSendingTest(true)
@@ -273,7 +443,7 @@ export default function MarketingPage() {
       <div style={{ marginBottom: '28px' }}>
         <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 800 }}>Marketing Broadcasts</h1>
         <p style={{ margin: '4px 0 0', fontSize: '14px', color: 'var(--text-muted)' }}>
-          Send email campaigns to your clients and leads via Resend Batch API
+          Send email campaigns to your clients, leads, and affiliate partners via Resend Batch API
         </p>
       </div>
 
@@ -285,26 +455,62 @@ export default function MarketingPage() {
           {/* Templates */}
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
-              <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1.5px', color: 'var(--text-muted)' }}>Templates</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1.5px', color: 'var(--text-muted)' }}>Templates</p>
+                <span style={{ fontSize: '11px', color: '#A066FF', fontWeight: 600 }}>{filteredTemplates.length} total</span>
+              </div>
+              {/* Category Filter Tabs */}
+              <div style={{ display: 'flex', gap: '4px', background: 'var(--bg)', padding: '2px', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                {(['all', 'clients', 'affiliates'] as const).map(cat => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setTemplateFilter(cat)}
+                    style={{
+                      flex: 1, padding: '4px 0', border: 'none', borderRadius: '4px',
+                      fontSize: '11px', fontWeight: 600, cursor: 'pointer',
+                      background: templateFilter === cat ? '#7B2FFF' : 'transparent',
+                      color: templateFilter === cat ? '#fff' : 'var(--text-muted)',
+                      textTransform: 'capitalize',
+                      transition: 'all 0.12s',
+                    }}
+                  >
+                    {cat === 'all' ? 'All' : cat === 'clients' ? 'Clients' : 'Affiliates'}
+                  </button>
+                ))}
+              </div>
             </div>
-            {TEMPLATES.map(t => (
-              <button
-                key={t.id}
-                onClick={() => pickTemplate(t)}
-                style={{
-                  display: 'block', width: '100%', textAlign: 'left',
-                  padding: '12px 16px', border: 'none', borderBottom: '1px solid var(--border)',
-                  background: selectedTemplate.id === t.id ? 'rgba(123,47,255,0.1)' : 'transparent',
-                  cursor: 'pointer', transition: 'background 0.12s',
-                }}
-              >
-                <p style={{
-                  margin: '0 0 2px', fontSize: '13px', fontWeight: 600,
-                  color: selectedTemplate.id === t.id ? '#A066FF' : 'var(--text)',
-                }}>{t.name}</p>
-                <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.subject}</p>
-              </button>
-            ))}
+            <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
+              {filteredTemplates.map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => pickTemplate(t)}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left',
+                    padding: '10px 14px', border: 'none', borderBottom: '1px solid var(--border)',
+                    background: selectedTemplate.id === t.id ? 'rgba(123,47,255,0.12)' : 'transparent',
+                    cursor: 'pointer', transition: 'background 0.12s',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', marginBottom: '2px' }}>
+                    <p style={{
+                      margin: 0, fontSize: '12.5px', fontWeight: 600,
+                      color: selectedTemplate.id === t.id ? '#A066FF' : 'var(--text)',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>{t.name}</p>
+                    <span style={{
+                      fontSize: '9.5px', fontWeight: 700, padding: '1px 6px', borderRadius: '4px',
+                      textTransform: 'uppercase', flexShrink: 0,
+                      background: t.category === 'affiliates' ? 'rgba(123,47,255,0.2)' : 'rgba(0,212,255,0.15)',
+                      color: t.category === 'affiliates' ? '#A066FF' : '#00D4FF',
+                    }}>
+                      {t.category === 'affiliates' ? 'Affiliate' : 'Client'}
+                    </span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '11.5px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.subject}</p>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Recipients */}
@@ -313,6 +519,7 @@ export default function MarketingPage() {
             {[
               { key: 'clients', label: 'Clients', count: counts.clients },
               { key: 'leads', label: 'Leads', count: counts.leads },
+              { key: 'affiliates', label: 'Affiliates', count: counts.affiliates },
             ].map(({ key, label, count }) => (
               <label key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '10px', cursor: 'pointer' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { requireAdmin } from '@/lib/require-admin'
 import { getResend } from '@/lib/resend'
+import { generateAffiliateAuthLink } from '@/lib/portal-auth-link'
 
 function adminSupabase() {
   return createClient(
@@ -25,14 +27,26 @@ export async function POST(
   }
 
   const { id } = await params
-  const supabase = adminSupabase()
+  const hasServiceRole = !!(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE)
+  const supabase = hasServiceRole ? adminSupabase() : await createServerSupabaseClient()
 
   // 1. Fetch interview
-  const { data: interview, error: fetchErr } = await supabase
+  let { data: interview, error: fetchErr } = await supabase
     .from('interviews')
     .select('*')
     .eq('id', id)
     .single()
+
+  if (!interview) {
+    const fb = hasServiceRole ? await createServerSupabaseClient() : adminSupabase()
+    const { data: fbInterview } = await fb
+      .from('interviews')
+      .select('*')
+      .eq('id', id)
+      .single()
+    interview = fbInterview
+  }
+
 
   if (fetchErr || !interview) {
     return NextResponse.json({ error: 'Interview not found' }, { status: 404 })
@@ -81,15 +95,20 @@ export async function POST(
   // 3. Generate Supabase Auth invite link
   let portalUrl = `${appUrl}/affiliates/dashboard`
   try {
-    const { data: inviteData, error: inviteErr } = await supabase.auth.admin.generateLink({
-      type: 'invite',
-      email,
-      options: {
-        redirectTo: `${appUrl}/auth/callback?next=/affiliates/dashboard`,
-      },
+    const authLink = await generateAffiliateAuthLink(supabase, email, {
+      affiliateId,
+      name,
+      appUrl,
+      next: '/affiliates/dashboard',
     })
-    if (!inviteErr && inviteData?.properties?.action_link) {
-      portalUrl = inviteData.properties.action_link
+    if (authLink?.url) {
+      portalUrl = authLink.url
+      if (authLink.userId && affiliateId) {
+        await supabase
+          .from('affiliates')
+          .update({ auth_user_id: authLink.userId })
+          .eq('id', affiliateId)
+      }
     }
   } catch (authErr) {
     console.warn('[interviews/onboard] generateLink warning:', authErr)
@@ -126,6 +145,17 @@ export async function POST(
               </div>
             </div>
 
+            <div style="background:#F0F2FD;border-radius:8px;padding:18px 20px;margin-bottom:24px;border:1px solid #D1D8F7;">
+              <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#3B40A8;">💬 Partner Teams Community</p>
+              <p style="margin:0 0 12px;font-size:13px;color:#3B40A8;line-height:1.5;">
+                Join our dedicated <strong>Microsoft Teams Partner Community</strong> to connect with the founders, receive sales enablement materials, and ask questions.
+              </p>
+              <a href="https://teams.live.com/l/community/FAAT7_iyVqeIobIvQ?v=g1" style="display:inline-block;background:#5B5FC7;color:#ffffff;font-size:13px;font-weight:700;padding:8px 18px;border-radius:6px;text-decoration:none;">
+                Join Teams Community Channel →
+              </a>
+            </div>
+
+
             <p style="color:#4B5563;line-height:1.6;margin:0 0 24px;font-size:14px;">
               Click the button below to access your partner portal, download high-res printable flyers/business cards, create social media campaigns, and connect your bank account for payouts:
             </p>
@@ -135,6 +165,7 @@ export async function POST(
                 Open Your Affiliate Portal →
               </a>
             </div>
+
 
             <hr style="border:none;border-top:1px solid #E5E7EB;margin:24px 0 16px;">
             <p style="color:#9CA3AF;font-size:12px;margin:0;line-height:1.5;">

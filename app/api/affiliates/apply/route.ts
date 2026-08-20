@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { adminSupabase } from '@/lib/supabase'
 import { getResend } from '@/lib/resend'
 import { generateReferralCode, calculateMonthlyCommission, AFFILIATE_COMMISSION_RATES } from '@/lib/affiliate-utils'
+import { generateAffiliateAuthLink } from '@/lib/portal-auth-link'
 import { PLAN_PRICES } from '@/lib/types'
 
 export async function POST(req: NextRequest) {
@@ -29,65 +30,92 @@ export async function POST(req: NextRequest) {
   const supabase = adminSupabase()
   const resend = getResend()
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://login.purepulse.one'
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0] ?? req.headers.get('x-real-ip') ?? 'unknown'
 
-  // Check for duplicate email
+  // Check if affiliate account already exists
+  let existingAffiliate: { id: string; name: string; email: string; referral_code: string } | null = null
   try {
     const { data: existing } = await supabase
       .from('affiliates')
-      .select('id, referral_code, status')
+      .select('id, name, email, referral_code, status')
       .eq('email', email.trim().toLowerCase())
       .single()
 
     if (existing) {
-      return NextResponse.json({ error: 'An affiliate account already exists for this email address.' }, { status: 409 })
+      existingAffiliate = existing
     }
   } catch (dupErr) {
     console.warn('[affiliates/apply] Duplicate check warning:', dupErr)
   }
 
-  // Generate unique referral code
-  let referralCode = generateReferralCode(name)
-  try {
-    for (let i = 0; i < 8; i++) {
-      const { count } = await supabase
-        .from('affiliates')
-        .select('id', { count: 'exact', head: true })
-        .eq('referral_code', referralCode)
-      if (count === 0) break
-      referralCode = generateReferralCode(name)
-    }
-  } catch {
-    // ignore
-  }
-
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0] ?? req.headers.get('x-real-ip') ?? 'unknown'
-
-  // Create affiliate record
   let affiliate: { id: string; name: string; email: string; referral_code: string } | null = null
-  try {
-    const { data, error: affiliateError } = await supabase
-      .from('affiliates')
-      .insert({
-        name: name.trim(),
-        email: email.trim().toLowerCase(),
-        phone: phone?.trim() || null,
-        referral_code: referralCode,
-        status: 'active',
-        notes: notes?.trim() || null,
-        terms_signed_at: new Date().toISOString(),
-        terms_signature_data: signature_data,
-        terms_ip: ip,
-      })
-      .select('id, name, email, referral_code')
-      .single()
+  let referralCode = existingAffiliate?.referral_code || ''
 
-    if (data) {
-      affiliate = data
-    } else if (affiliateError) {
-      console.warn('[affiliates/apply] insert warning (fallback enabled):', affiliateError.message)
+  if (existingAffiliate) {
+    referralCode = existingAffiliate.referral_code
+    try {
+      const { data: updated } = await supabase
+        .from('affiliates')
+        .update({
+          name: name.trim(),
+          phone: phone?.trim() || null,
+          status: 'active',
+          notes: notes?.trim() || null,
+          terms_signed_at: new Date().toISOString(),
+          terms_signature_data: signature_data,
+          terms_ip: ip,
+        })
+        .eq('id', existingAffiliate.id)
+        .select('id, name, email, referral_code')
+        .single()
+
+      affiliate = updated || existingAffiliate
+    } catch (updErr) {
+      console.warn('[affiliates/apply] update existing error:', updErr)
+      affiliate = existingAffiliate
     }
-  } catch (insertErr) {
-    console.warn('[affiliates/apply] insert exception (fallback enabled):', insertErr)
+  } else {
+    // Generate unique referral code
+    referralCode = generateReferralCode(name)
+    try {
+      for (let i = 0; i < 8; i++) {
+        const { count } = await supabase
+          .from('affiliates')
+          .select('id', { count: 'exact', head: true })
+          .eq('referral_code', referralCode)
+        if (count === 0) break
+        referralCode = generateReferralCode(name)
+      }
+    } catch {
+      // ignore
+    }
+
+    // Create affiliate record
+    try {
+      const { data, error: affiliateError } = await supabase
+        .from('affiliates')
+        .insert({
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          phone: phone?.trim() || null,
+          referral_code: referralCode,
+          status: 'active',
+          notes: notes?.trim() || null,
+          terms_signed_at: new Date().toISOString(),
+          terms_signature_data: signature_data,
+          terms_ip: ip,
+        })
+        .select('id, name, email, referral_code')
+        .single()
+
+      if (data) {
+        affiliate = data
+      } else if (affiliateError) {
+        console.warn('[affiliates/apply] insert warning (fallback enabled):', affiliateError.message)
+      }
+    } catch (insertErr) {
+      console.warn('[affiliates/apply] insert exception (fallback enabled):', insertErr)
+    }
   }
 
   if (!affiliate) {
@@ -99,25 +127,22 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Create Supabase auth user + magic link for instant dashboard access
-  const callbackUrl = `${appUrl}/auth/callback?next=/affiliates/dashboard`
-  let inviteLink = `${appUrl}/affiliates/login`
+  // Generate secure Supabase auth link for instant dashboard access
+  let inviteLink = `${appUrl}/affiliates/dashboard`
   try {
-    const { data: linkData } = await supabase.auth.admin.generateLink({
-      type: 'invite',
-      email: affiliate.email,
-      options: {
-        redirectTo: callbackUrl,
-        data: { full_name: affiliate.name, role: 'affiliate', affiliate_id: affiliate.id },
-      },
+    const authLink = await generateAffiliateAuthLink(supabase, affiliate.email, {
+      affiliateId: affiliate.id,
+      name: affiliate.name,
+      appUrl,
+      next: '/affiliates/dashboard',
     })
-    if (linkData?.properties?.action_link) {
-      inviteLink = linkData.properties.action_link
-      const authUserId = linkData.user?.id
-      if (authUserId) {
+
+    if (authLink?.url) {
+      inviteLink = authLink.url
+      if (authLink.userId) {
         await supabase
           .from('affiliates')
-          .update({ auth_user_id: authUserId })
+          .update({ auth_user_id: authLink.userId })
           .eq('id', affiliate.id)
       }
     }
@@ -189,6 +214,17 @@ export async function POST(req: NextRequest) {
               </p>
             </div>
 
+            <div style="background:#F0F2FD;border-radius:10px;padding:20px 24px;margin-bottom:24px;border:1px solid #D1D8F7">
+              <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#3B40A8">💬 Join the PurePulse Partner Teams Community</p>
+              <p style="margin:0 0 14px;font-size:13px;color:#3B40A8;line-height:1.6">
+                Connect directly with our team on Microsoft Teams, get instant sales deal support, request custom outreach scripts, and collaborate with top partners.
+              </p>
+              <a href="https://teams.live.com/l/community/FAAT7_iyVqeIobIvQ?v=g1" style="display:inline-block;background:#5B5FC7;color:#ffffff;font-size:13px;font-weight:700;padding:10px 22px;border-radius:6px;text-decoration:none">
+                Join Teams Community Channel →
+              </a>
+            </div>
+
+
             <h3 style="margin:0 0 14px;font-size:15px;color:#111">Your Partner Toolkit:</h3>
             <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px">
               <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px">
@@ -211,6 +247,7 @@ export async function POST(req: NextRequest) {
             <p style="margin:0 0 24px;font-size:12px;color:#999">
               Click above to access your affiliate portal, download your marketing assets, and link your payout bank account.
             </p>
+
 
             <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0">
             <p style="font-size:12px;color:#999;margin:0;line-height:1.6">

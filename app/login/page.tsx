@@ -19,12 +19,29 @@ export default function LoginPage() {
       const access_token = params.get('access_token')
       const refresh_token = params.get('refresh_token')
       if (access_token && refresh_token) {
-        supabase.auth.setSession({ access_token, refresh_token }).then(({ error }) => {
-          if (!error) window.location.href = '/portal'
+        supabase.auth.setSession({ access_token, refresh_token }).then(async ({ data, error }) => {
+          if (!error && data.session) {
+            const role = data.session.user.user_metadata?.role
+            if (role === 'affiliate') {
+              window.location.href = '/affiliates/dashboard'
+              return
+            }
+            const { data: aff } = await supabase
+              .from('affiliates')
+              .select('id')
+              .or(`auth_user_id.eq.${data.session.user.id},email.eq.${data.session.user.email?.toLowerCase().trim()}`)
+              .single()
+            if (aff) {
+              window.location.href = '/affiliates/dashboard'
+              return
+            }
+            window.location.href = '/portal'
+          }
         })
       }
     }
   }, [supabase])
+
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

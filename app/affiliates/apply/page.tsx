@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import SignaturePad, { type SignaturePadHandle } from '@/components/SignaturePad'
 import { AFFILIATE_TERMS } from '@/lib/affiliate-utils'
@@ -90,25 +91,43 @@ function getTypedSignatureDataURL(text: string, width = 480, height = 120): stri
   return canvas.toDataURL('image/png')
 }
 
-export default function ApplyPage() {
+function ApplyContent() {
+  const searchParams = useSearchParams()
   const [step, setStep] = useState<Step>(1)
 
   // Step 1: Candidate Info & Pre-screen Fields
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [phone, setPhone] = useState('')
+  const [name, setName] = useState(
+    searchParams.get('name') ||
+    searchParams.get('applicant') ||
+    searchParams.get('candidate') ||
+    ''
+  )
+  const [email, setEmail] = useState(searchParams.get('email') || '')
+  const [phone, setPhone] = useState(searchParams.get('phone') || '')
   const [notes, setNotes] = useState('')
   const [step1Error, setStep1Error] = useState('')
+
+  // Sync if search params change
+  useEffect(() => {
+    const qName = searchParams.get('name') || searchParams.get('applicant') || searchParams.get('candidate')
+    const qEmail = searchParams.get('email')
+    const qPhone = searchParams.get('phone')
+    if (qName && !name) setName(qName)
+    if (qEmail && !email) setEmail(qEmail)
+    if (qPhone && !phone) setPhone(qPhone)
+  }, [searchParams])
 
   // Video / Audio Recording State
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [hasPermissions, setHasPermissions] = useState(false)
+
   const [currentQIndex, setCurrentQIndex] = useState(0)
   const [isRecording, setIsRecording] = useState(false)
   const [countdown, setCountdown] = useState<number | null>(null)
   const [recordingSeconds, setRecordingSeconds] = useState(0)
   const [recordedBlobs, setRecordedBlobs] = useState<Record<string, Blob>>({})
   const [recordedUrls, setRecordedUrls] = useState<Record<string, string>>({})
+  const [recordedDurations, setRecordedDurations] = useState<Record<string, number>>({})
   const [textAnswers, setTextAnswers] = useState<Record<string, string>>({})
   const [showTextFallback, setShowTextFallback] = useState(false)
   const [audioLevel, setAudioLevel] = useState(0)
@@ -168,7 +187,8 @@ export default function ApplyPage() {
       }
       updateMeter()
     } catch (err) {
-      console.warn('[setupMedia] camera/mic warning:', err)
+      console.error('[setupMedia] Error accessing camera/mic:', err)
+      setStep1Error('Unable to access camera and microphone. Please allow permissions in your browser or type your responses below.')
       setHasPermissions(false)
       setShowTextFallback(true)
     }
@@ -261,6 +281,7 @@ export default function ApplyPage() {
     }
     if (timerIntervalRef.current) clearInterval(timerIntervalRef.current)
     setIsRecording(false)
+    setRecordedDurations((prev) => ({ ...prev, [currentQuestion.id]: recordingSeconds }))
   }
 
   const reRecord = () => {
@@ -277,12 +298,74 @@ export default function ApplyPage() {
       delete u[currentQuestion.id]
       return u
     })
+    setRecordedDurations((prev) => {
+      const u = { ...prev }
+      delete u[currentQuestion.id]
+      return u
+    })
+    setRecordingSeconds(0)
+  }
+
+  const isQuestionAnswered = (qId: string) => {
+    const duration = recordedDurations[qId] ?? (recordedUrls[qId] ? 30 : 0)
+    const hasValidVideo = !!(recordedUrls[qId] && duration >= 30)
+    const textLen = (textAnswers[qId] || '').trim().length
+    const hasValidText = textLen >= 300
+    return hasValidVideo || hasValidText
+  }
+
+  const currentVideoDuration = recordedDurations[currentQuestion.id] ?? (recordedUrls[currentQuestion.id] ? 30 : 0)
+  const currentHasValidVideo = !!(recordedUrls[currentQuestion.id] && currentVideoDuration >= 30)
+  const currentTextLength = (textAnswers[currentQuestion.id] || '').trim().length
+  const currentHasValidText = currentTextLength >= 300
+  const isCurrentQuestionValid = currentHasValidVideo || currentHasValidText
+
+  const answeredCount = PRESCREEN_QUESTIONS.filter((q) => isQuestionAnswered(q.id)).length
+  const allQuestionsAnswered = answeredCount === PRESCREEN_QUESTIONS.length
+
+  const handleNextQuestion = () => {
+    if (!isCurrentQuestionValid) {
+      setStep1Error(`Please record at least a 30-second video response or type at least 300 characters for Question ${currentQIndex + 1} before advancing.`)
+      return
+    }
+    setStep1Error('')
+    if (currentQIndex < PRESCREEN_QUESTIONS.length - 1) {
+      setCurrentQIndex((i) => i + 1)
+      setRecordingSeconds(0)
+    }
+  }
+
+  const handleSelectQuestion = (idx: number) => {
+    if (idx > currentQIndex && !isCurrentQuestionValid) {
+      setStep1Error(`Please complete Question ${currentQIndex + 1} (30s+ video or 300+ characters) before moving forward.`)
+      return
+    }
+    for (let i = 0; i < idx; i++) {
+      if (!isQuestionAnswered(PRESCREEN_QUESTIONS[i].id)) {
+        setCurrentQIndex(i)
+        setStep1Error(`Please complete Question ${i + 1} (${PRESCREEN_QUESTIONS[i].title}) first.`)
+        return
+      }
+    }
+    setStep1Error('')
+    setCurrentQIndex(idx)
     setRecordingSeconds(0)
   }
 
   function validateStep1() {
     if (!name.trim()) { setStep1Error('Please enter your full name.'); return false }
     if (!email.trim() || !email.includes('@')) { setStep1Error('Please enter a valid email address.'); return false }
+
+    const unanswered = PRESCREEN_QUESTIONS
+      .map((q, idx) => ({ q, idx, answered: isQuestionAnswered(q.id) }))
+      .filter((x) => !x.answered)
+
+    if (unanswered.length > 0) {
+      setCurrentQIndex(unanswered[0].idx)
+      setStep1Error(`Please complete Question ${unanswered[0].idx + 1} (${unanswered[0].q.title}) with at least a 30-second video or 300-character typed response before signing the contract (${unanswered.length} remaining).`)
+      return false
+    }
+
     setStep1Error('')
     return true
   }
@@ -503,20 +586,57 @@ export default function ApplyPage() {
 
             {/* Pre-Screen Questions Section */}
             <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '1.75rem', marginBottom: '2rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, margin: 0, color: '#111' }}>
-                  Pre-Screen Questions (Question {currentQIndex + 1} of {PRESCREEN_QUESTIONS.length})
-                </h3>
-                <span style={{ fontSize: '0.75rem', color: '#7B2FFF', fontWeight: 600 }}>
-                  {currentQuestion.title}
-                </span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <div>
+                  <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, margin: 0, color: '#111' }}>
+                    Pre-Screen Questions (Question {currentQIndex + 1} of {PRESCREEN_QUESTIONS.length})
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: '#7B2FFF', fontWeight: 600 }}>
+                    {currentQuestion.title}
+                  </span>
+                </div>
+
+                {/* Question Status Pills */}
+                <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
+                  {PRESCREEN_QUESTIONS.map((q, idx) => {
+                    const isDone = isQuestionAnswered(q.id)
+                    const isCurrent = currentQIndex === idx
+                    return (
+                      <button
+                        key={q.id}
+                        type="button"
+                        onClick={() => handleSelectQuestion(idx)}
+                        style={{
+                          padding: '0.35rem 0.65rem',
+                          borderRadius: '6px',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          border: isCurrent ? '1.5px solid #7B2FFF' : isDone ? '1px solid #10B981' : '1px solid #d1d5db',
+                          background: isCurrent ? 'rgba(123,47,255,0.12)' : isDone ? 'rgba(16,185,129,0.1)' : '#f9fafb',
+                          color: isCurrent ? '#7B2FFF' : isDone ? '#10B981' : '#6b7280',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                        }}
+                      >
+                        Q{idx + 1} {isDone ? '✓' : ''}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
 
               {/* Question Card */}
               <div style={{ background: '#f9fafb', border: '1.5px solid #e5e7eb', borderRadius: '12px', padding: '1.25rem', marginBottom: '1.25rem' }}>
-                <span style={{ fontSize: '0.7rem', color: '#7B2FFF', fontWeight: 700, textTransform: 'uppercase' }}>
-                  {currentQuestion.section}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                  <span style={{ fontSize: '0.7rem', color: '#7B2FFF', fontWeight: 700, textTransform: 'uppercase' }}>
+                    {currentQuestion.section}
+                  </span>
+                  <span style={{ fontSize: '0.75rem', color: '#6B7280', background: '#E5E7EB', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
+                    Requirement: 30s+ Video OR 300+ Typed Characters
+                  </span>
+                </div>
                 <p style={{ margin: '0.35rem 0 0.5rem', fontSize: '0.9375rem', fontWeight: 700, color: '#111', lineHeight: 1.4 }}>
                   {currentQuestion.prompt}
                 </p>
@@ -529,7 +649,7 @@ export default function ApplyPage() {
               <div style={{ background: '#0D0D14', border: '1px solid #1F1F2E', borderRadius: '12px', padding: '1.25rem', color: '#fff', marginBottom: '1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
                   <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#D1D5DB' }}>
-                    Record Video Response (or type below)
+                    Record Video Response (30s minimum)
                   </span>
                   {!hasPermissions && (
                     <button
@@ -568,13 +688,30 @@ export default function ApplyPage() {
                     )}
 
                     {isRecording && (
-                      <div style={{ position: 'absolute', top: '12px', left: '12px', display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(0,0,0,0.7)', padding: '0.35rem 0.75rem', borderRadius: '100px', border: '1px solid rgba(239,68,68,0.5)' }}>
-                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#EF4444', animation: 'pulse 1s infinite' }} />
-                        <span style={{ color: '#fff', fontWeight: 700, fontSize: '0.75rem' }}>REC {recordingSeconds}s / {currentQuestion.maxSeconds}s</span>
+                      <div style={{ position: 'absolute', top: '12px', left: '12px', display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(0,0,0,0.75)', padding: '0.35rem 0.75rem', borderRadius: '100px', border: recordingSeconds >= 30 ? '1px solid rgba(16,185,129,0.5)' : '1px solid rgba(239,68,68,0.5)' }}>
+                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: recordingSeconds >= 30 ? '#10B981' : '#EF4444', animation: 'pulse 1s infinite' }} />
+                        <span style={{ color: '#fff', fontWeight: 700, fontSize: '0.75rem' }}>
+                          REC {recordingSeconds}s / {currentQuestion.maxSeconds}s {recordingSeconds < 30 ? `(Min: 30s — ${30 - recordingSeconds}s remaining)` : '✓ Min reached'}
+                        </span>
                       </div>
                     )}
                   </div>
                 ) : null}
+
+                {/* Video Validation Status Badge */}
+                {recordedUrls[currentQuestion.id] && (
+                  <div style={{ marginBottom: '0.75rem' }}>
+                    {currentVideoDuration >= 30 ? (
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', color: '#10B981', padding: '0.3rem 0.75rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600 }}>
+                        <CheckCircle2 size={13} /> Video response meets 30s requirement ({currentVideoDuration}s recorded)
+                      </div>
+                    ) : (
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', color: '#EF4444', padding: '0.3rem 0.75rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600 }}>
+                        <AlertCircle size={13} /> Video is only {currentVideoDuration}s. Minimum 30 seconds required (or type 300+ characters below).
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Recorder Controls */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
@@ -584,7 +721,7 @@ export default function ApplyPage() {
                         onClick={startRecordingFlow}
                         style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: '#EF4444', color: '#fff', fontSize: '0.8125rem', fontWeight: 700, padding: '0.5rem 1rem', borderRadius: '100px', border: 'none', cursor: 'pointer' }}
                       >
-                        <Video size={14} /> Start Video Recording
+                        <Video size={14} /> Start Video Recording (30s+ min)
                       </button>
                     )}
 
@@ -593,7 +730,7 @@ export default function ApplyPage() {
                         onClick={stopRecording}
                         style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: '#fff', color: '#000', fontSize: '0.8125rem', fontWeight: 700, padding: '0.5rem 1rem', borderRadius: '100px', border: 'none', cursor: 'pointer' }}
                       >
-                        Stop Recording
+                        Stop Recording ({recordingSeconds}s)
                       </button>
                     )}
 
@@ -620,35 +757,93 @@ export default function ApplyPage() {
 
                     {currentQIndex < PRESCREEN_QUESTIONS.length - 1 && (
                       <button
-                        onClick={() => setCurrentQIndex(i => i + 1)}
-                        style={{ background: '#7B2FFF', color: '#fff', padding: '0.4rem 0.875rem', borderRadius: '6px', border: 'none', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                        onClick={handleNextQuestion}
+                        disabled={!isCurrentQuestionValid || isRecording}
+                        style={{
+                          background: isCurrentQuestionValid ? '#7B2FFF' : '#2D2D42',
+                          color: isCurrentQuestionValid ? '#fff' : '#6B7280',
+                          padding: '0.4rem 0.875rem', borderRadius: '6px', border: 'none',
+                          fontSize: '0.75rem', fontWeight: 700,
+                          cursor: isCurrentQuestionValid ? 'pointer' : 'not-allowed',
+                          transition: 'all 0.15s ease',
+                        }}
                       >
-                        Next Question →
+                        {isCurrentQuestionValid ? 'Next Question →' : 'Complete 30s Video or 300 Chars to Advance →'}
                       </button>
                     )}
                   </div>
                 </div>
 
                 {/* Text Fallback */}
-                <div style={{ marginTop: '0.75rem', borderTop: '1px solid #1F1F2E', paddingTop: '0.75rem' }}>
-                  <label style={{ display: 'block', fontSize: '0.75rem', color: '#9CA3AF', marginBottom: '0.25rem' }}>
-                    Or type your answer for {currentQuestion.title}:
-                  </label>
+                <div style={{ marginTop: '0.875rem', borderTop: '1px solid #1F1F2E', paddingTop: '0.875rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                    <label style={{ fontSize: '0.75rem', color: '#D1D5DB', fontWeight: 600 }}>
+                      Or type your answer for {currentQuestion.title} (300 characters min):
+                    </label>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: currentTextLength >= 300 ? '#10B981' : '#F59E0B' }}>
+                      {currentTextLength >= 300 ? (
+                        `✓ ${currentTextLength} / 300 chars (Complete)`
+                      ) : (
+                        `${currentTextLength} / 300 chars (${300 - currentTextLength} more needed)`
+                      )}
+                    </span>
+                  </div>
                   <textarea
-                    rows={2}
+                    rows={3}
                     value={textAnswers[currentQuestion.id] || ''}
                     onChange={(e) => setTextAnswers({ ...textAnswers, [currentQuestion.id]: e.target.value })}
-                    placeholder="Type your response here..."
-                    style={{ width: '100%', background: '#14141F', border: '1px solid #2D2D42', borderRadius: '6px', padding: '0.5rem 0.75rem', color: '#fff', fontSize: '0.8125rem', outline: 'none' }}
+                    placeholder="Type your in-depth response here (minimum 300 characters)..."
+                    style={{ width: '100%', background: '#14141F', border: currentTextLength >= 300 ? '1px solid #10B981' : '1px solid #2D2D42', borderRadius: '6px', padding: '0.625rem 0.75rem', color: '#fff', fontSize: '0.8125rem', outline: 'none' }}
                   />
                 </div>
               </div>
+
             </div>
+
+            {/* Status & Completion Callout */}
+            {!allQuestionsAnswered ? (
+              <div style={{ background: 'rgba(123,47,255,0.05)', border: '1px solid rgba(123,47,255,0.2)', borderRadius: '8px', padding: '0.75rem 1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', color: '#374151' }}>
+                  <AlertCircle size={16} color="#7B2FFF" />
+                  <span>Answer all 4 questions (video or typed) to unlock the partner contract.</span>
+                </div>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#7B2FFF', background: 'rgba(123,47,255,0.12)', padding: '0.2rem 0.6rem', borderRadius: '100px' }}>
+                  {answeredCount} / {PRESCREEN_QUESTIONS.length} Completed
+                </span>
+              </div>
+            ) : (
+              <div style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: '8px', padding: '0.75rem 1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', color: '#065F46', fontWeight: 600 }}>
+                  <CheckCircle2 size={16} color="#10B981" />
+                  <span>All 4 pre-screen questions completed! Contract signing is now unlocked.</span>
+                </div>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#10B981', background: 'rgba(16,185,129,0.15)', padding: '0.2rem 0.6rem', borderRadius: '100px' }}>
+                  ✓ 4 / 4 Complete
+                </span>
+              </div>
+            )}
 
             {step1Error && <p style={s.errorMsg}>{step1Error}</p>}
 
-            <button onClick={goToStep2} style={s.btn}>
-              Continue to Partner Agreement &amp; Contract →
+            <button
+              type="button"
+              onClick={goToStep2}
+              disabled={!allQuestionsAnswered}
+              style={{
+                ...s.btn,
+                background: allQuestionsAnswered ? '#7B2FFF' : '#E5E7EB',
+                color: allQuestionsAnswered ? '#ffffff' : '#9CA3AF',
+                cursor: allQuestionsAnswered ? 'pointer' : 'not-allowed',
+                boxShadow: allQuestionsAnswered ? '0 4px 14px rgba(123,47,255,0.35)' : 'none',
+                border: allQuestionsAnswered ? 'none' : '1.5px solid #D1D5DB',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              {allQuestionsAnswered ? (
+                'Continue to Partner Agreement & Contract →'
+              ) : (
+                `🔒 Complete All 4 Pre-Screen Questions to Unlock Contract (${answeredCount}/4 Done)`
+              )}
             </button>
 
             <p style={s.fine}>
@@ -656,6 +851,7 @@ export default function ApplyPage() {
             </p>
           </div>
         )}
+
 
         {/* ── STEP 2: Terms & Digital Signature ── */}
         {step === 2 && (
@@ -830,8 +1026,43 @@ export default function ApplyPage() {
               </a>
             </div>
 
+            {/* Microsoft Teams Partner Community Invite */}
+            <div style={{ background: '#111118', border: '1.5px solid #2D2D42', borderRadius: 12, padding: '20px 22px', marginBottom: 24, textAlign: 'center', color: '#fff' }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(91,95,199,0.15)', border: '1px solid rgba(91,95,199,0.3)', padding: '0.25rem 0.75rem', borderRadius: '100px', fontSize: '0.75rem', fontWeight: 700, color: '#7B83EB', marginBottom: '0.625rem' }}>
+                💬 Partner Community
+              </div>
+              <h3 style={{ margin: '0 0 6px', fontSize: '1.0625rem', fontWeight: 800, color: '#F4F4FF' }}>
+                Join the PurePulse Affiliate Teams Community
+              </h3>
+              <p style={{ margin: '0 0 16px', fontSize: '0.8125rem', color: '#9CA3AF', lineHeight: 1.5, maxWidth: 460, marginLeft: 'auto', marginRight: 'auto' }}>
+                Connect directly with our team on Microsoft Teams, get instant sales enablement materials, ask outreach questions, and get notified on new deal closures.
+              </p>
+              <a
+                href="https://teams.live.com/l/community/FAAT7_iyVqeIobIvQ?v=g1"
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  background: 'linear-gradient(135deg, #5B5FC7, #464EB8)',
+                  color: '#fff',
+                  padding: '10px 24px',
+                  borderRadius: 8,
+                  fontWeight: 700,
+                  fontSize: '0.875rem',
+                  textDecoration: 'none',
+                  boxShadow: '0 4px 12px rgba(91,95,199,0.4)',
+                }}
+              >
+                Join Teams Community Channel →
+              </a>
+            </div>
+
+
             {/* QR code */}
             <div style={s.qrWrap}>
+
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={`/api/qr?data=${encodeURIComponent(referralUrl)}&size=360`}
@@ -866,11 +1097,25 @@ export default function ApplyPage() {
       </main>
 
       <footer style={s.footer}>
-        © {new Date().getFullYear()} PurePulse · <Link href="/affiliates" style={{ color: '#9ca3af' }}>Affiliate Program</Link> · <a href="https://purepulse.one" style={{ color: '#9ca3af' }}>purepulse.one</a>
+        © {new Date().getFullYear()} PurePulse · <Link href="/affiliates" style={{ color: '#9ca3af' }}>Affiliate Program</Link> · <Link href="/affiliates/login" style={{ color: '#9ca3af' }}>Partner Sign In</Link> · <a href="https://purepulse.one" style={{ color: '#9ca3af' }}>purepulse.one</a>
       </footer>
     </div>
   )
 }
+
+
+export default function ApplyPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb', color: '#6b7280' }}>
+        Loading partner application...
+      </div>
+    }>
+      <ApplyContent />
+    </Suspense>
+  )
+}
+
 
 function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false)

@@ -151,7 +151,19 @@ export default function CustomerPortalPage() {
     setLoading(true)
 
     const { data: pu } = await supabase.from('portal_users').select('client_id').eq('auth_user_id', session.user.id).single()
-    if (!pu?.client_id) { setLoading(false); return }
+    if (!pu?.client_id) {
+      const { data: aff } = await supabase
+        .from('affiliates')
+        .select('id')
+        .or(`auth_user_id.eq.${session.user.id},email.eq.${session.user.email?.toLowerCase().trim()}`)
+        .single()
+      if (aff) {
+        window.location.href = '/affiliates/dashboard'
+        return
+      }
+      setLoading(false)
+      return
+    }
     setClientId(pu.client_id)
 
     const { data: client } = await supabase.from('clients').select('name').eq('id', pu.client_id).single()
@@ -315,7 +327,18 @@ export default function CustomerPortalPage() {
       if (authMode === 'login') {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
-        setSession({ user: { email: data.user?.email, id: data.user?.id ?? '' } })
+        if (data.user) {
+          const { data: aff } = await supabase
+            .from('affiliates')
+            .select('id')
+            .or(`auth_user_id.eq.${data.user.id},email.eq.${email.toLowerCase().trim()}`)
+            .single()
+          if (aff) {
+            window.location.href = '/affiliates/dashboard'
+            return
+          }
+          setSession({ user: { email: data.user.email, id: data.user.id } })
+        }
       } else {
         const { data, error } = await supabase.auth.signUp({ email, password })
         if (error) throw error
@@ -327,6 +350,7 @@ export default function CustomerPortalPage() {
     } catch (err) { setAuthError(err instanceof Error ? err.message : 'Auth failed') }
     setAuthLoading(false)
   }
+
 
   async function approveDeliverable(deliverable: Deliverable) {
     setSubmittingApproval(deliverable.id)
@@ -647,11 +671,14 @@ export default function CustomerPortalPage() {
           </div>
           <p style={{ textAlign: 'center', marginTop: '1.5rem', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
             Admin? <a href="/login" style={{ color: 'var(--text)', textDecoration: 'underline' }}>Admin portal</a>
+            {' · '}
+            Affiliate? <a href="/affiliates/login" style={{ color: 'var(--text)', textDecoration: 'underline' }}>Affiliate portal</a>
           </p>
         </div>
       </div>
     )
   }
+
 
   const unreadMessages = messages.filter(m => m.sender === 'admin' && !m.read_at).length
 

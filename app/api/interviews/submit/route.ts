@@ -25,32 +25,39 @@ export async function POST(req: NextRequest) {
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0] ?? req.headers.get('x-real-ip') ?? null
     const userAgent = req.headers.get('user-agent') ?? null
 
-    let interviewId = `int_${Date.now()}`
+    const interviewId = crypto.randomUUID()
+
+    const insertPayload = {
+      id: interviewId,
+      candidate_name: candidate_name.trim(),
+      candidate_email: candidate_email.trim().toLowerCase(),
+      candidate_phone: candidate_phone?.trim() || null,
+      job_title,
+      status: 'submitted',
+      video_urls,
+      text_answers,
+      roleplay_video_url: roleplay_video_url || video_urls.roleplay || null,
+      ip,
+      user_agent: userAgent,
+      created_at: new Date().toISOString(),
+    }
 
     // Attempt insert into 'interviews' table
     try {
       const { data: interview, error } = await supabase
         .from('interviews')
-        .insert({
-          candidate_name: candidate_name.trim(),
-          candidate_email: candidate_email.trim().toLowerCase(),
-          candidate_phone: candidate_phone?.trim() || null,
-          job_title,
-          status: 'submitted',
-          video_urls,
-          text_answers,
-          roleplay_video_url: roleplay_video_url || video_urls.roleplay || null,
-          ip,
-          user_agent: userAgent,
-          created_at: new Date().toISOString(),
-        })
+        .insert(insertPayload)
         .select()
-        .single()
+        .maybeSingle()
 
-      if (interview?.id) {
-        interviewId = interview.id
-      } else if (error) {
-        console.warn('[interviews/submit] Supabase insert warning (falling back):', error.message)
+      if (error) {
+        console.warn('[interviews/submit] Supabase insert with select error, retrying without select:', error.message)
+        const { error: retryError } = await supabase
+          .from('interviews')
+          .insert(insertPayload)
+        if (retryError) {
+          console.error('[interviews/submit] Supabase retry error:', retryError.message)
+        }
       }
     } catch (dbErr) {
       console.warn('[interviews/submit] DB insert exception handled:', dbErr)
@@ -58,6 +65,7 @@ export async function POST(req: NextRequest) {
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://login.purepulse.one'
     const reviewUrl = `${appUrl}/interviews/${interviewId}`
+
     const questionCount = Object.keys(video_urls).length
 
     // Send admin alert email (non-blocking)
@@ -132,8 +140,21 @@ export async function POST(req: NextRequest) {
                 <li>If selected, you'll receive an official invitation with your partner onboarding link and portal access.</li>
               </ul>
             </div>
+
+            <div style="background:#F0F2FD;border-radius:8px;padding:16px;margin-bottom:20px;border:1px solid #D1D8F7;">
+              <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#3B40A8;">💬 Join our Affiliate Teams Community</p>
+              <p style="margin:0 0 10px;font-size:13px;color:#3B40A8;line-height:1.5;">
+                Get in touch with our team and join the affiliate discussion on Microsoft Teams:
+              </p>
+              <a href="https://teams.live.com/l/community/FAAT7_iyVqeIobIvQ?v=g1" style="display:inline-block;background:#5B5FC7;color:#ffffff;font-size:12px;font-weight:700;padding:8px 16px;border-radius:6px;text-decoration:none;">
+                Join Teams Community Channel →
+              </a>
+            </div>
+
+
             <p style="color:#888;font-size:13px;">If you have any questions, feel free to reply directly to this email.</p>
           </div>
+
         `,
       })
     } catch (candEmailErr) {

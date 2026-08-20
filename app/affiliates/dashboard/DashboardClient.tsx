@@ -380,7 +380,29 @@ export default function AffiliateDashboardClient({
           </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <a
+            href="https://teams.live.com/l/community/FAAT7_iyVqeIobIvQ?v=g1"
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              background: '#5B5FC7',
+              border: '1px solid rgba(91, 95, 199, 0.35)',
+              color: '#fff',
+              fontSize: '0.8125rem',
+              fontWeight: 700,
+              padding: '6px 14px',
+              borderRadius: 6,
+              textDecoration: 'none',
+              boxShadow: '0 2px 8px rgba(91, 95, 199, 0.25)',
+            }}
+          >
+            💬 Join Teams Community
+          </a>
+
           <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#111' }}>{affiliate.name}</span>
             <span style={{ fontSize: '0.75rem', color: affiliate.status === 'active' ? '#16a34a' : '#dc2626', fontWeight: 600 }}>
@@ -429,6 +451,74 @@ export default function AffiliateDashboardClient({
 
       {/* DASHBOARD CONTENT */}
       <main style={s.main} className="affiliate-dash-content">
+        {/* PROMINENT MICROSOFT TEAMS COMMUNITY BANNER */}
+        <div style={{
+          background: 'linear-gradient(135deg, #131526 0%, #0D0D14 100%)',
+          border: '1.5px solid #2B2F5C',
+          borderRadius: 14,
+          padding: '18px 22px',
+          marginBottom: 16,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 16,
+          boxShadow: '0 6px 20px rgba(91, 95, 199, 0.15)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: '1 1 340px' }}>
+            <div style={{
+              width: 44,
+              height: 44,
+              borderRadius: 10,
+              background: '#5B5FC7',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              boxShadow: '0 4px 12px rgba(91, 95, 199, 0.5)',
+            }}>
+              <span style={{ fontSize: 20, fontWeight: 900, color: '#fff' }}>T</span>
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.9375rem', fontWeight: 800, color: '#F4F4FF' }}>
+                  PurePulse Partner Teams Community
+                </span>
+                <span style={{ background: 'rgba(91, 95, 199, 0.2)', border: '1px solid rgba(91, 95, 199, 0.4)', color: '#7B83EB', fontSize: '0.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: 100 }}>
+                  Microsoft Teams
+                </span>
+              </div>
+              <p style={{ margin: '3px 0 0', fontSize: '0.8125rem', color: '#9CA3AF', lineHeight: 1.4 }}>
+                Get 1-on-1 sales deal support, custom outreach scripts, high-converting objection handlers, and direct founder access.
+              </p>
+            </div>
+          </div>
+
+          <a
+            href="https://teams.live.com/l/community/FAAT7_iyVqeIobIvQ?v=g1"
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              background: '#5B5FC7',
+              color: '#fff',
+              padding: '9px 20px',
+              borderRadius: 8,
+              fontSize: '0.8125rem',
+              fontWeight: 700,
+              textDecoration: 'none',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              boxShadow: '0 4px 14px rgba(91, 95, 199, 0.4)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Join Teams Community Channel <ArrowUpRight size={14} />
+          </a>
+        </div>
+
+
         {/* QUICK LINK BAR */}
         <div style={s.linkBarCard}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
@@ -470,6 +560,7 @@ export default function AffiliateDashboardClient({
             </div>
           </div>
         </div>
+
 
         {/* ── TAB 1: OVERVIEW ── */}
         {activeTab === 'overview' && (

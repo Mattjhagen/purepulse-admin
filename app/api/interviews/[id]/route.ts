@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { requireAdmin } from '@/lib/require-admin'
 
 function adminSupabase() {
@@ -18,7 +19,8 @@ export async function GET(
   }
 
   const { id } = await params
-  const supabase = adminSupabase()
+  const hasServiceRole = !!(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE)
+  const supabase = hasServiceRole ? adminSupabase() : await createServerSupabaseClient()
 
   const { data, error } = await supabase
     .from('interviews')
@@ -51,7 +53,9 @@ export async function PATCH(
     status,
   } = body
 
-  const supabase = adminSupabase()
+  const hasServiceRole = !!(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE)
+  const supabase = hasServiceRole ? adminSupabase() : await createServerSupabaseClient()
+
 
   // Calculate overall score from scores object if present
   let overallScore = 0

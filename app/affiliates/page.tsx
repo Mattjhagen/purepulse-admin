@@ -125,10 +125,13 @@ export default function AffiliatesPage() {
 
       <footer style={s.footer}>
         © {new Date().getFullYear()} PurePulse · Web Design &amp; Maintenance ·{' '}
+        <Link href="/affiliates/login" style={{ color: '#9ca3af', textDecoration: 'underline' }}>Partner Sign In</Link>
+        {' · '}
         <a href="https://purepulse.one" style={{ color: '#9ca3af', textDecoration: 'underline' }}>purepulse.one</a>
         {' · '}
         <Link href="/pricing" style={{ color: '#9ca3af', textDecoration: 'underline' }}>Pricing</Link>
       </footer>
+
     </div>
   )
 }

@@ -140,11 +140,13 @@ export default function InterviewClient({ token }: { token?: string }) {
   const [recordingSeconds, setRecordingSeconds] = useState(0)
   const [recordedBlobs, setRecordedBlobs] = useState<Record<string, Blob>>({})
   const [recordedUrls, setRecordedUrls] = useState<Record<string, string>>({})
+  const [recordedDurations, setRecordedDurations] = useState<Record<string, number>>({})
   const [textFallbackAnswers, setTextFallbackAnswers] = useState<Record<string, string>>({})
   const [showTextFallback, setShowTextFallback] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [submissionSuccess, setSubmissionSuccess] = useState(false)
+  const [validationError, setValidationError] = useState('')
 
   // Refs
   const liveVideoRef = useRef<HTMLVideoElement>(null)
@@ -298,6 +300,7 @@ export default function InterviewClient({ token }: { token?: string }) {
       clearInterval(timerIntervalRef.current)
     }
     setIsRecording(false)
+    setRecordedDurations((prev) => ({ ...prev, [currentQuestion.id]: recordingSeconds }))
   }
 
   const reRecord = () => {
@@ -314,10 +317,34 @@ export default function InterviewClient({ token }: { token?: string }) {
       delete updated[currentQuestion.id]
       return updated
     })
+    setRecordedDurations((prev) => {
+      const updated = { ...prev }
+      delete updated[currentQuestion.id]
+      return updated
+    })
     setRecordingSeconds(0)
   }
 
+  const isQuestionValid = (qId: string) => {
+    const duration = recordedDurations[qId] ?? (recordedUrls[qId] ? 30 : 0)
+    const hasValidVideo = !!(recordedUrls[qId] && duration >= 30)
+    const textLen = (textFallbackAnswers[qId] || '').trim().length
+    const hasValidText = textLen >= 300
+    return hasValidVideo || hasValidText
+  }
+
+  const currentVideoDuration = recordedDurations[currentQuestion.id] ?? (recordedUrls[currentQuestion.id] ? 30 : 0)
+  const currentHasValidVideo = !!(recordedUrls[currentQuestion.id] && currentVideoDuration >= 30)
+  const currentTextLength = (textFallbackAnswers[currentQuestion.id] || '').trim().length
+  const currentHasValidText = currentTextLength >= 300
+  const isCurrentQuestionValid = currentHasValidVideo || currentHasValidText
+
   const nextQuestion = () => {
+    if (!isCurrentQuestionValid) {
+      setValidationError(`Please record at least a 30-second video or type at least 300 characters for Question ${currentQIndex + 1} before advancing.`)
+      return
+    }
+    setValidationError('')
     if (currentQIndex < QUESTIONS.length - 1) {
       setCurrentQIndex((i) => i + 1)
       setRecordingSeconds(0)
@@ -327,11 +354,13 @@ export default function InterviewClient({ token }: { token?: string }) {
   }
 
   const prevQuestion = () => {
+    setValidationError('')
     if (currentQIndex > 0) {
       setCurrentQIndex((i) => i - 1)
       setRecordingSeconds(0)
     }
   }
+
 
   // Handle Complete Submission
   const submitInterview = async () => {
@@ -660,13 +689,18 @@ export default function InterviewClient({ token }: { token?: string }) {
 
         {/* Question Header Card */}
         <div style={{ background: '#0D0D14', border: '1px solid #1F1F2E', borderRadius: '16px', padding: '1.5rem 1.75rem', marginBottom: '1.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
             <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#A066FF', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
               {currentQuestion.section}
             </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', color: '#9CA3AF', background: '#14141F', padding: '0.25rem 0.6rem', borderRadius: '100px' }}>
-              <Clock size={12} /> Max: {currentQuestion.maxSeconds}s
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ fontSize: '0.75rem', color: '#6B7280', background: '#1F1F2E', padding: '0.25rem 0.6rem', borderRadius: '100px' }}>
+                Requirement: 30s+ Video OR 300+ Typed Chars
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', color: '#9CA3AF', background: '#14141F', padding: '0.25rem 0.6rem', borderRadius: '100px' }}>
+                <Clock size={12} /> Max: {currentQuestion.maxSeconds}s
+              </span>
+            </div>
           </div>
 
           <h2 style={{ fontSize: '1.35rem', fontWeight: 700, lineHeight: 1.4, margin: '0 0 0.75rem', color: '#F4F4FF' }}>
@@ -711,10 +745,10 @@ export default function InterviewClient({ token }: { token?: string }) {
 
             {/* Live Recording Badge & Timer */}
             {isRecording && (
-              <div style={{ position: 'absolute', top: '16px', left: '16px', display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'rgba(0,0,0,0.7)', padding: '0.5rem 1rem', borderRadius: '100px', border: '1px solid rgba(239,68,68,0.4)' }}>
-                <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#EF4444', animation: 'pulse 1s infinite' }} />
+              <div style={{ position: 'absolute', top: '16px', left: '16px', display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'rgba(0,0,0,0.75)', padding: '0.5rem 1rem', borderRadius: '100px', border: recordingSeconds >= 30 ? '1px solid rgba(16,185,129,0.5)' : '1px solid rgba(239,68,68,0.5)' }}>
+                <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: recordingSeconds >= 30 ? '#10B981' : '#EF4444', animation: 'pulse 1s infinite' }} />
                 <span style={{ color: '#fff', fontWeight: 700, fontSize: '0.875rem' }}>
-                  REC {recordingSeconds}s / {currentQuestion.maxSeconds}s
+                  REC {recordingSeconds}s / {currentQuestion.maxSeconds}s {recordingSeconds < 30 ? `(Min: 30s — ${30 - recordingSeconds}s remaining)` : '✓ Min reached'}
                 </span>
               </div>
             )}
@@ -726,13 +760,28 @@ export default function InterviewClient({ token }: { token?: string }) {
                   style={{
                     height: '100%',
                     width: `${(recordingSeconds / currentQuestion.maxSeconds) * 100}%`,
-                    background: '#EF4444',
+                    background: recordingSeconds >= 30 ? '#10B981' : '#EF4444',
                     transition: 'width 1s linear',
                   }}
                 />
               </div>
             )}
           </div>
+
+          {/* Video Status Badge */}
+          {hasRecordedCurrent && (
+            <div style={{ marginBottom: '1rem' }}>
+              {currentVideoDuration >= 30 ? (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', color: '#10B981', padding: '0.35rem 0.85rem', borderRadius: '6px', fontSize: '0.8125rem', fontWeight: 600 }}>
+                  <CheckCircle2 size={15} /> Video response meets 30s requirement ({currentVideoDuration}s recorded)
+                </div>
+              ) : (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', color: '#EF4444', padding: '0.35rem 0.85rem', borderRadius: '6px', fontSize: '0.8125rem', fontWeight: 600 }}>
+                  <AlertCircle size={15} /> Video is only {currentVideoDuration}s. Minimum 30 seconds required (or type 300+ characters below).
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Controls Bar */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
@@ -748,7 +797,7 @@ export default function InterviewClient({ token }: { token?: string }) {
                     boxShadow: '0 4px 14px rgba(239,68,68,0.4)',
                   }}
                 >
-                  <Video size={18} /> Start Recording
+                  <Video size={18} /> Start Video Recording (30s+ min)
                 </button>
               )}
 
@@ -762,7 +811,7 @@ export default function InterviewClient({ token }: { token?: string }) {
                     border: 'none', cursor: 'pointer', fontSize: '0.9375rem',
                   }}
                 >
-                  <div style={{ width: '12px', height: '12px', background: '#EF4444', borderRadius: '2px' }} /> Stop Recording
+                  <div style={{ width: '12px', height: '12px', background: '#EF4444', borderRadius: '2px' }} /> Stop Recording ({recordingSeconds}s)
                 </button>
               )}
 
@@ -799,37 +848,62 @@ export default function InterviewClient({ token }: { token?: string }) {
 
               <button
                 onClick={nextQuestion}
-                disabled={isRecording || (!hasRecordedCurrent && !textFallbackAnswers[currentQuestion.id])}
+                disabled={isRecording || !isCurrentQuestionValid}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-                  background: (hasRecordedCurrent || textFallbackAnswers[currentQuestion.id]) ? 'linear-gradient(135deg, #7B2FFF, #9747FF)' : '#1F1F2E',
-                  color: (hasRecordedCurrent || textFallbackAnswers[currentQuestion.id]) ? '#fff' : '#6B7280',
+                  background: isCurrentQuestionValid ? 'linear-gradient(135deg, #7B2FFF, #9747FF)' : '#1F1F2E',
+                  color: isCurrentQuestionValid ? '#fff' : '#6B7280',
                   fontWeight: 700, padding: '0.75rem 1.75rem', borderRadius: '100px',
-                  border: 'none', cursor: (hasRecordedCurrent || textFallbackAnswers[currentQuestion.id]) ? 'pointer' : 'not-allowed', fontSize: '0.9375rem',
+                  border: 'none', cursor: isCurrentQuestionValid ? 'pointer' : 'not-allowed', fontSize: '0.9375rem',
+                  boxShadow: isCurrentQuestionValid ? '0 4px 14px rgba(123,47,255,0.4)' : 'none',
+                  transition: 'all 0.15s ease',
                 }}
               >
-                {currentQIndex === QUESTIONS.length - 1 ? 'Review & Submit' : 'Confirm & Next'} <ArrowRight size={16} />
+                {isCurrentQuestionValid ? (currentQIndex === QUESTIONS.length - 1 ? 'Review & Submit' : 'Confirm & Next') : 'Answer (30s Video or 300 Chars) to Advance'} <ArrowRight size={16} />
               </button>
             </div>
           </div>
 
+          {/* Validation Alert */}
+          {validationError && (
+            <div style={{ marginTop: '1rem', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', color: '#EF4444', padding: '0.6rem 1rem', borderRadius: '8px', fontSize: '0.8125rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <AlertCircle size={15} />
+              <span>{validationError}</span>
+            </div>
+          )}
+
           {/* Text Fallback Option */}
           <div style={{ marginTop: '1.25rem', borderTop: '1px solid #1F1F2E', paddingTop: '1rem' }}>
-            <button
-              onClick={() => setShowTextFallback(!showTextFallback)}
-              style={{ background: 'transparent', border: 'none', color: '#6B7280', fontSize: '0.75rem', cursor: 'pointer', textDecoration: 'underline' }}
-            >
-              {showTextFallback ? 'Hide text fallback option' : 'Camera having issues? Type your answer instead'}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <button
+                onClick={() => setShowTextFallback(!showTextFallback)}
+                style={{ background: 'transparent', border: 'none', color: '#9CA3AF', fontSize: '0.8125rem', cursor: 'pointer', textDecoration: 'underline' }}
+              >
+                {showTextFallback ? 'Hide text response option' : 'Camera having issues? Type your answer instead (300 chars min)'}
+              </button>
+
+              {showTextFallback && (
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: currentTextLength >= 300 ? '#10B981' : '#F59E0B' }}>
+                  {currentTextLength >= 300 ? (
+                    `✓ ${currentTextLength} / 300 chars (Complete)`
+                  ) : (
+                    `${currentTextLength} / 300 chars (${300 - currentTextLength} more needed)`
+                  )}
+                </span>
+              )}
+            </div>
 
             {showTextFallback && (
-              <div style={{ marginTop: '0.75rem' }}>
+              <div style={{ marginTop: '0.5rem' }}>
                 <textarea
-                  rows={3}
+                  rows={4}
                   value={textFallbackAnswers[currentQuestion.id] || ''}
-                  onChange={(e) => setTextFallbackAnswers({ ...textFallbackAnswers, [currentQuestion.id]: e.target.value })}
-                  placeholder="Type your response to this interview question here..."
-                  style={{ width: '100%', background: '#14141F', border: '1px solid #2D2D42', borderRadius: '8px', padding: '0.75rem', color: '#fff', fontSize: '0.875rem', outline: 'none' }}
+                  onChange={(e) => {
+                    setValidationError('')
+                    setTextFallbackAnswers({ ...textFallbackAnswers, [currentQuestion.id]: e.target.value })
+                  }}
+                  placeholder="Type your in-depth response to this interview question here (minimum 300 characters)..."
+                  style={{ width: '100%', background: '#14141F', border: currentTextLength >= 300 ? '1px solid #10B981' : '1px solid #2D2D42', borderRadius: '8px', padding: '0.75rem', color: '#fff', fontSize: '0.875rem', outline: 'none' }}
                 />
               </div>
             )}
@@ -843,19 +917,19 @@ export default function InterviewClient({ token }: { token?: string }) {
   // RENDER: STEP 3 — REVIEW & SUBMIT
   // -------------------------------------------------------------
   if (step === 'review') {
-    const recordedCount = Object.keys(recordedBlobs).length + Object.keys(textFallbackAnswers).length
+    const allValid = QUESTIONS.every((q) => isQuestionValid(q.id))
 
     return (
       <div style={{ maxWidth: '780px', margin: '0 auto', padding: '3rem 1.5rem 4rem' }}>
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', padding: '0.35rem 1rem', borderRadius: '100px', fontSize: '0.8125rem', fontWeight: 600, color: '#10B981', marginBottom: '1rem' }}>
-            <CheckCircle2 size={14} /> All Questions Completed
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: allValid ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', border: allValid ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(239,68,68,0.3)', padding: '0.35rem 1rem', borderRadius: '100px', fontSize: '0.8125rem', fontWeight: 600, color: allValid ? '#10B981' : '#EF4444', marginBottom: '1rem' }}>
+            {allValid ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />} {allValid ? 'All Questions Completed' : 'Incomplete Responses'}
           </div>
           <h1 style={{ fontSize: '2rem', fontWeight: 800, margin: '0 0 0.5rem' }}>
             Ready to Submit Your Interview
           </h1>
           <p style={{ color: '#9CA3AF', fontSize: '0.9375rem', margin: 0 }}>
-            You have recorded responses for all {QUESTIONS.length} questions. Click submit to send your interview to the PurePulse hiring team.
+            You have answered responses for all {QUESTIONS.length} questions. Click submit to send your interview to the PurePulse hiring team.
           </p>
         </div>
 
@@ -880,19 +954,22 @@ export default function InterviewClient({ token }: { token?: string }) {
           <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 0.75rem', color: '#F4F4FF' }}>Recorded Question Answers</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
             {QUESTIONS.map((q, idx) => {
-              const hasVideo = !!recordedUrls[q.id]
-              const hasText = !!textFallbackAnswers[q.id]
+              const duration = recordedDurations[q.id] || (recordedUrls[q.id] ? 30 : 0)
+              const hasValidVideo = !!(recordedUrls[q.id] && duration >= 30)
+              const textLen = (textFallbackAnswers[q.id] || '').trim().length
+              const hasValidText = textLen >= 300
+              const isValid = hasValidVideo || hasValidText
 
               return (
-                <div key={q.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#14141F', padding: '0.75rem 1rem', borderRadius: '8px' }}>
+                <div key={q.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#14141F', padding: '0.75rem 1rem', borderRadius: '8px', border: isValid ? '1px solid transparent' : '1px solid rgba(239,68,68,0.4)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <CheckCircle2 size={16} color="#10B981" />
+                    {isValid ? <CheckCircle2 size={16} color="#10B981" /> : <AlertCircle size={16} color="#EF4444" />}
                     <div>
                       <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#F4F4FF' }}>
                         Q{idx + 1}. {q.title}
                       </span>
-                      <span style={{ fontSize: '0.75rem', color: '#9CA3AF', display: 'block' }}>
-                        {hasVideo ? '🎥 Video Response' : hasText ? '📝 Text Response' : 'Pending'}
+                      <span style={{ fontSize: '0.75rem', color: isValid ? '#9CA3AF' : '#EF4444', display: 'block' }}>
+                        {hasValidVideo ? `🎥 Video Response (${duration}s)` : hasValidText ? `📝 Text Response (${textLen} chars)` : '⚠️ Incomplete — Needs 30s video or 300 chars'}
                       </span>
                     </div>
                   </div>
@@ -916,7 +993,7 @@ export default function InterviewClient({ token }: { token?: string }) {
             <div style={{ marginBottom: '1.5rem', background: '#14141F', padding: '1rem', borderRadius: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem', marginBottom: '0.5rem' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#F4F4FF' }}>
-                  <Loader2 size={14} className="animate-spin" /> Uploading video recordings...
+                  <Loader2 size={14} className="animate-spin" /> Uploading recordings...
                 </span>
                 <span style={{ color: '#A066FF', fontWeight: 700 }}>{uploadProgress}%</span>
               </div>
@@ -937,14 +1014,14 @@ export default function InterviewClient({ token }: { token?: string }) {
 
             <button
               onClick={submitInterview}
-              disabled={isUploading}
+              disabled={isUploading || !allValid}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-                background: 'linear-gradient(135deg, #10B981, #059669)',
-                color: '#fff', fontWeight: 700, fontSize: '1rem',
+                background: allValid ? 'linear-gradient(135deg, #10B981, #059669)' : '#2D2D42',
+                color: allValid ? '#fff' : '#6B7280', fontWeight: 700, fontSize: '1rem',
                 padding: '0.875rem 2.25rem', borderRadius: '100px',
-                border: 'none', cursor: isUploading ? 'not-allowed' : 'pointer',
-                boxShadow: '0 4px 16px rgba(16,185,129,0.35)',
+                border: 'none', cursor: (isUploading || !allValid) ? 'not-allowed' : 'pointer',
+                boxShadow: allValid ? '0 4px 16px rgba(16,185,129,0.35)' : 'none',
               }}
             >
               {isUploading ? <><Loader2 size={18} className="animate-spin" /> Submitting...</> : <><Send size={18} /> Submit Interview Now</>}
@@ -954,6 +1031,7 @@ export default function InterviewClient({ token }: { token?: string }) {
       </div>
     )
   }
+
 
   // -------------------------------------------------------------
   // RENDER: STEP 4 — SUBMISSION CONFIRMATION
@@ -972,7 +1050,7 @@ export default function InterviewClient({ token }: { token?: string }) {
         Thank you for submitting your virtual interview, <strong style={{ color: '#fff' }}>{name}</strong>. Our hiring team is reviewing your video responses and roleplay pitch.
       </p>
 
-      <div style={{ background: '#0D0D14', border: '1px solid #1F1F2E', borderRadius: '16px', padding: '1.75rem', textAlign: 'left', marginBottom: '2rem' }}>
+      <div style={{ background: '#0D0D14', border: '1px solid #1F1F2E', borderRadius: '16px', padding: '1.75rem', textAlign: 'left', marginBottom: '1.5rem' }}>
         <h3 style={{ fontSize: '0.9375rem', fontWeight: 700, margin: '0 0 0.75rem', color: '#F4F4FF', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <ShieldCheck size={18} color="#A066FF" /> What Happens Next
         </h3>
@@ -982,6 +1060,33 @@ export default function InterviewClient({ token }: { token?: string }) {
           <li>Selected candidates receive an official partner invite with their referral code, marketing materials, and portal access.</li>
         </ul>
       </div>
+
+      {/* Microsoft Teams Partner Community Card */}
+      <div style={{ background: '#14141F', border: '1.5px solid #2D2D42', borderRadius: '16px', padding: '1.5rem 1.75rem', textAlign: 'center', marginBottom: '2rem' }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(91,95,199,0.15)', border: '1px solid rgba(91,95,199,0.3)', padding: '0.25rem 0.75rem', borderRadius: '100px', fontSize: '0.75rem', fontWeight: 700, color: '#7B83EB', marginBottom: '0.625rem' }}>
+          💬 Partner Community
+        </div>
+        <h3 style={{ fontSize: '1.0625rem', fontWeight: 800, margin: '0 0 0.35rem', color: '#F4F4FF' }}>
+          Join our Affiliate Teams Community
+        </h3>
+        <p style={{ color: '#9CA3AF', fontSize: '0.8125rem', lineHeight: 1.5, maxWidth: '440px', margin: '0 auto 1.25rem' }}>
+          Connect with the founders on Microsoft Teams, ask questions about our commission structure, and get real-time outreach tactics.
+        </p>
+        <a
+          href="https://teams.live.com/l/community/FAAT7_iyVqeIobIvQ?v=g1"
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+            background: 'linear-gradient(135deg, #5B5FC7, #464EB8)', color: '#fff', fontSize: '0.875rem', fontWeight: 700,
+            padding: '0.7rem 1.5rem', borderRadius: '8px', textDecoration: 'none',
+            boxShadow: '0 4px 14px rgba(91,95,199,0.4)',
+          }}
+        >
+          Join Teams Community Channel →
+        </a>
+      </div>
+
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
         <a
@@ -1012,3 +1117,4 @@ export default function InterviewClient({ token }: { token?: string }) {
     </div>
   )
 }
+

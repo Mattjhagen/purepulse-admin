@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
@@ -17,33 +17,61 @@ export default function AffiliateLoginPage() {
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://login.purepulse.one'
 
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        router.push('/affiliates/dashboard')
+      }
+    })
+
+    const hash = window.location.hash
+    if (hash.includes('access_token')) {
+      const params = new URLSearchParams(hash.substring(1))
+      const access_token = params.get('access_token')
+      const refresh_token = params.get('refresh_token')
+      if (access_token && refresh_token) {
+        supabase.auth.setSession({ access_token, refresh_token }).then(({ error }) => {
+          if (!error) window.location.href = '/affiliates/dashboard'
+        })
+      }
+    }
+  }, [supabase, router])
+
   async function handleMagicLink(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
-    const { error: otpError } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: {
-        shouldCreateUser: false,
-        emailRedirectTo: `${appUrl}/auth/callback?next=/affiliates/dashboard`,
-      },
-    })
-    setLoading(false)
-    if (otpError) {
-      setError('No affiliate account found for that email. Please check the address or apply below.')
-      return
+    try {
+      const res = await fetch('/api/affiliates/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        setError(data.error || 'No affiliate account found for that email. Please check the address or apply below.')
+        setLoading(false)
+        return
+      }
+      setSent(true)
+    } catch {
+      setError('An error occurred while sending your sign-in link. Please try again.')
+    } finally {
+      setLoading(false)
     }
-    setSent(true)
   }
 
   async function handlePassword(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    })
     setLoading(false)
     if (signInError) {
-      setError('Invalid email or password.')
+      setError('Invalid email or password. If you have not set a password yet, please use the sign-in link option.')
       return
     }
     router.push('/affiliates/dashboard')

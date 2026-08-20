@@ -30,5 +30,10 @@ export async function GET(request: NextRequest) {
     if (!error) return NextResponse.redirect(`${origin}${next}`)
   }
 
+  if (next.startsWith('/affiliates')) {
+    return NextResponse.redirect(`${origin}/affiliates/login`)
+  }
+
   return NextResponse.redirect(`${origin}/portal`)
 }
+

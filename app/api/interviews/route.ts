@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { requireAdmin } from '@/lib/require-admin'
 
 function adminSupabase() {
@@ -18,7 +19,9 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get('status')
   const search = searchParams.get('search')
 
-  const supabase = adminSupabase()
+  const hasServiceRole = !!(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE)
+  const supabase = hasServiceRole ? adminSupabase() : await createServerSupabaseClient()
+
   let query = supabase
     .from('interviews')
     .select('*')

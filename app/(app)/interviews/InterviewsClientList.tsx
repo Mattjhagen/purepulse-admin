@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase'
 import {
   Search,
   Video,
@@ -9,6 +10,7 @@ import {
   AlertCircle,
   Clock,
   ArrowRight,
+  ArrowUpRight,
   Copy,
   Sparkles,
   UserCheck,
@@ -17,6 +19,7 @@ import {
   Link2,
   ExternalLink,
   ShieldCheck,
+  RotateCw,
 } from 'lucide-react'
 
 interface InterviewItem {
@@ -41,7 +44,9 @@ export default function InterviewsClientList({
   initialInterviews: InterviewItem[]
   publicInterviewUrl: string
 }) {
-  const [interviews] = useState<InterviewItem[]>(initialInterviews)
+  const supabase = createClient()
+  const [interviews, setInterviews] = useState<InterviewItem[]>(initialInterviews)
+  const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState<'all' | 'submitted' | 'strong_hire' | 'hire_with_training' | 'keep_on_file' | 'rejected'>('all')
   const [showIndeedModal, setShowIndeedModal] = useState(false)
@@ -53,6 +58,75 @@ export default function InterviewsClientList({
   const [customCandidateEmail, setCustomCandidateEmail] = useState('')
   const [generatedUniqueUrl, setGeneratedUniqueUrl] = useState('')
   const [copiedCustomLink, setCopiedCustomLink] = useState(false)
+
+  const loadInterviews = useCallback(async () => {
+    setLoading(true)
+    try {
+      // 1. Try direct supabase browser client
+      const { data, error } = await supabase
+        .from('interviews')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (!error && data && data.length > 0) {
+        setInterviews(data)
+        setLoading(false)
+        return
+      }
+
+      // 2. Fallback to API route
+      const res = await fetch('/api/interviews')
+      if (res.ok) {
+        const list = await res.json()
+        if (Array.isArray(list)) {
+          setInterviews(list)
+          setLoading(false)
+          return
+        }
+      }
+
+      if (data) {
+        setInterviews(data)
+      }
+    } catch (err) {
+      console.warn('[InterviewsClientList] fetch error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [supabase])
+
+  // Sync when initialInterviews changes
+  useEffect(() => {
+    if (initialInterviews && initialInterviews.length > 0) {
+      setInterviews(initialInterviews)
+    }
+  }, [initialInterviews])
+
+  // Initial client fetch and realtime subscription
+  useEffect(() => {
+    loadInterviews()
+
+    const channel = supabase
+      .channel('interviews-realtime-channel')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'interviews' },
+        () => {
+          loadInterviews()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [loadInterviews, supabase])
+
+  // Dynamic Metrics
+  const total = interviews.length
+  const pending = interviews.filter((i) => i.status === 'submitted' || i.status === 'under_review').length
+  const strongHires = interviews.filter((i) => i.status === 'strong_hire' || i.recommendation === 'strong_hire').length
+  const trainingHires = interviews.filter((i) => i.status === 'hire_with_training' || i.recommendation === 'hire_with_training').length
 
   const baseUrl = publicInterviewUrl.replace(/\/interview$/, '')
 
@@ -108,7 +182,64 @@ hiring@purepulse.one`
   })
 
   return (
-    <div>
+    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem' }}>
+      {/* Top Header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1.25rem', marginBottom: '2rem' }}>
+        <div>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(123,47,255,0.12)', border: '1px solid rgba(123,47,255,0.25)', padding: '0.25rem 0.75rem', borderRadius: '100px', fontSize: '0.75rem', fontWeight: 600, color: '#A066FF', marginBottom: '0.5rem' }}>
+            <Video size={13} /> Indeed Hiring &amp; Candidate Evaluation
+          </div>
+          <h1 style={{ fontSize: '1.875rem', fontWeight: 800, margin: '0 0 0.35rem', letterSpacing: '-0.02em' }}>
+            Candidate Video Interviews
+          </h1>
+          <p style={{ color: 'var(--text-muted, #9CA3AF)', fontSize: '0.875rem', margin: 0 }}>
+            Review asynchronous candidate recordings, score responses against the scorecard, and 1-click onboard affiliates.
+          </p>
+        </div>
+
+        {/* Quick Link Card */}
+        <div style={{ background: '#14141F', border: '1px solid #2D2D42', borderRadius: '10px', padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+          <div>
+            <span style={{ fontSize: '0.7rem', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' }}>Candidate Interview Link</span>
+            <span style={{ fontSize: '0.8125rem', color: '#A066FF', fontFamily: 'monospace', fontWeight: 600 }}>{publicInterviewUrl}</span>
+          </div>
+          <Link
+            href="/interview"
+            target="_blank"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+              background: '#7B2FFF', color: '#fff', fontSize: '0.75rem', fontWeight: 700,
+              padding: '0.4rem 0.75rem', borderRadius: '6px', textDecoration: 'none',
+            }}
+          >
+            Preview <ArrowUpRight size={13} />
+          </Link>
+        </div>
+      </div>
+
+      {/* Metric Counters */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+        <div style={{ background: '#0D0D14', border: '1px solid #1F1F2E', borderRadius: '12px', padding: '1.25rem' }}>
+          <span style={{ fontSize: '0.75rem', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Submissions</span>
+          <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#F4F4FF', marginTop: '0.25rem' }}>{total}</div>
+        </div>
+
+        <div style={{ background: '#0D0D14', border: '1px solid #1F1F2E', borderRadius: '12px', padding: '1.25rem' }}>
+          <span style={{ fontSize: '0.75rem', color: '#F59E0B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Needs Review</span>
+          <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#F59E0B', marginTop: '0.25rem' }}>{pending}</div>
+        </div>
+
+        <div style={{ background: '#0D0D14', border: '1px solid #1F1F2E', borderRadius: '12px', padding: '1.25rem' }}>
+          <span style={{ fontSize: '0.75rem', color: '#10B981', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Strong Hires / Onboarded</span>
+          <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#10B981', marginTop: '0.25rem' }}>{strongHires}</div>
+        </div>
+
+        <div style={{ background: '#0D0D14', border: '1px solid #1F1F2E', borderRadius: '12px', padding: '1.25rem' }}>
+          <span style={{ fontSize: '0.75rem', color: '#3B82F6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Hire with Training</span>
+          <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#3B82F6', marginTop: '0.25rem' }}>{trainingHires}</div>
+        </div>
+      </div>
+
       {/* Search & Actions Bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' }}>
         <div style={{ position: 'relative', minWidth: '280px', flex: '1 1 300px' }}>
@@ -123,6 +254,20 @@ hiring@purepulse.one`
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <button
+            onClick={() => loadInterviews()}
+            disabled={loading}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.375rem',
+              background: '#14141F', border: '1px solid #2D2D42',
+              color: '#D1D5DB', fontSize: '0.8125rem', fontWeight: 600,
+              padding: '0.625rem 1rem', borderRadius: '8px', cursor: 'pointer',
+            }}
+          >
+            <RotateCw size={14} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </button>
+
           <button
             onClick={() => {
               navigator.clipboard.writeText(`https://login.purepulse.one/interview/prescreen?src=indeed`)
@@ -155,6 +300,7 @@ hiring@purepulse.one`
           </button>
         </div>
       </div>
+
 
       {/* Unique Link Generator Banner */}
       <div style={{ background: '#0D0D14', border: '1px solid #1F1F2E', borderRadius: '12px', padding: '1.25rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>

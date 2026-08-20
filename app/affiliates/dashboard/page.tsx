@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { createClient } from '@supabase/supabase-js'
+import { generateReferralCode } from '@/lib/affiliate-utils'
 import AffiliateDashboardClient from './DashboardClient'
 
 function adminSupabase() {
@@ -12,19 +13,72 @@ function adminSupabase() {
 
 export default async function AffiliateDashboardPage() {
   const supabase = await createServerSupabaseClient()
+  const { data: { user } } = await supabase.auth.getUser()
   const { data: { session } } = await supabase.auth.getSession()
+  const authUser = user || session?.user
 
-  if (!session) redirect('/affiliates/login')
+  if (!authUser) redirect('/affiliates/login')
 
   const admin = adminSupabase()
 
-  const { data: affiliate } = await admin
+  let { data: affiliate } = await admin
     .from('affiliates')
     .select('*')
-    .eq('auth_user_id', session.user.id)
-    .single()
+    .eq('auth_user_id', authUser.id)
+    .maybeSingle()
 
-  if (!affiliate) redirect('/affiliates/login')
+  if (!affiliate && authUser.email) {
+    const cleanEmail = authUser.email.toLowerCase().trim()
+
+    const { data: affByEmail } = await admin
+      .from('affiliates')
+      .select('*')
+      .eq('email', cleanEmail)
+      .maybeSingle()
+
+    if (affByEmail) {
+      affiliate = affByEmail
+      await admin
+        .from('affiliates')
+        .update({ auth_user_id: authUser.id })
+        .eq('id', affByEmail.id)
+    } else {
+      // Check interviews for previous applicant
+      const { data: interview } = await admin
+        .from('interviews')
+        .select('*')
+        .eq('candidate_email', cleanEmail)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      const candidateName = interview?.candidate_name?.trim() ||
+        (authUser.user_metadata?.full_name || authUser.user_metadata?.name || cleanEmail.split('@')[0])
+
+      const refCode = generateReferralCode(candidateName)
+      const { data: newAff } = await admin
+        .from('affiliates')
+        .insert({
+          name: candidateName,
+          email: cleanEmail,
+          phone: interview?.candidate_phone?.trim() || null,
+          auth_user_id: authUser.id,
+          referral_code: refCode,
+          status: 'active',
+          promotion_strategy: interview ? `Previous Applicant — ${interview.job_title || 'Affiliate'}` : 'Direct Partner Signup',
+          created_at: new Date().toISOString(),
+        })
+        .select('*')
+        .single()
+
+      if (newAff) {
+        affiliate = newAff
+      }
+    }
+  }
+
+  if (!affiliate) redirect('/affiliates/apply')
+
 
   // Fetch referrals
   const { data: referrals } = await admin

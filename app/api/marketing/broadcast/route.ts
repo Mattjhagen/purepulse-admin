@@ -75,6 +75,11 @@ export async function POST(req: NextRequest) {
     if (data) emails.push(...data.map((r: { name: string; email: string }) => ({ name: r.name, email: r.email })))
   }
 
+  if (recipients.includes('affiliates')) {
+    const { data } = await supabase.from('affiliates').select('name, email').not('email', 'is', null)
+    if (data) emails.push(...data.map((r: { name: string; email: string }) => ({ name: r.name, email: r.email })))
+  }
+
   // Deduplicate by email address
   const seen = new Set<string>()
   emails = emails.filter(e => {
@@ -154,13 +159,15 @@ export async function POST(req: NextRequest) {
 export async function GET() {
   const supabase = adminSupabase()
 
-  const [clientsRes, leadsRes] = await Promise.all([
+  const [clientsRes, leadsRes, affiliatesRes] = await Promise.all([
     supabase.from('clients').select('id, name, email').not('email', 'is', null),
     supabase.from('leads').select('id, name, email').not('email', 'is', null),
+    supabase.from('affiliates').select('id, name, email').not('email', 'is', null),
   ])
 
   return NextResponse.json({
     clients: clientsRes.data ?? [],
     leads: leadsRes.data ?? [],
+    affiliates: affiliatesRes.data ?? [],
   })
 }
