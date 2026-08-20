@@ -103,13 +103,16 @@ export async function POST(req: NextRequest) {
     }
 
     // -------------------------------------------------------------
-    // Outbound Payment Events (Money Movement / Global Payouts)
+    // Outbound Payment Events (Money Movement / Global Payouts & Standard Payouts)
     // -------------------------------------------------------------
     if (
       eventType === 'v2.money_management.outbound_payment.posted' ||
       eventType === 'v2.money_management.outbound_payment.failed' ||
       eventType === 'v2.money_management.outbound_payment.canceled' ||
-      eventType.includes('outbound_payment')
+      eventType.includes('outbound_payment') ||
+      eventType === 'payout.paid' ||
+      eventType === 'payout.failed' ||
+      eventType === 'payout.canceled'
     ) {
       const paymentObj = (event.data?.object || {}) as {
         id?: string
@@ -129,7 +132,7 @@ export async function POST(req: NextRequest) {
         if (payout) {
           const now = new Date().toISOString()
 
-          if (event.type.includes('posted')) {
+          if (eventType.includes('posted') || eventType === 'payout.paid') {
             await supabase
               .from('affiliate_payouts')
               .update({
@@ -149,11 +152,11 @@ export async function POST(req: NextRequest) {
                 })
                 .in('id', payout.commission_ids)
             }
-          } else if (event.type.includes('failed') || event.type.includes('canceled')) {
+          } else if (eventType.includes('failed') || eventType.includes('canceled') || eventType === 'payout.failed' || eventType === 'payout.canceled') {
             await supabase
               .from('affiliate_payouts')
               .update({
-                status: event.type.includes('failed') ? 'failed' : 'canceled',
+                status: (eventType.includes('failed') || eventType === 'payout.failed') ? 'failed' : 'canceled',
                 failure_code: paymentObj.failure_code || null,
                 failure_message: paymentObj.failure_message || 'Payment was not completed by Stripe network',
                 updated_at: now,
