@@ -5,8 +5,15 @@ let _stripe: Stripe | null = null
 
 export function getStripe(): Stripe {
   if (!_stripe) {
-    if (!process.env.STRIPE_SECRET_KEY) throw new Error('STRIPE_SECRET_KEY is not set')
-    _stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-07-29.dahlia' })
+    let key = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_KEY || ''
+    key = key.trim().replace(/^["'`]|["'`]$/g, '').trim()
+    while (key.toLowerCase().startsWith('bearer ')) {
+      key = key.slice(7).trim()
+    }
+    key = key.replace(/[\r\n\t]/g, '').trim()
+
+    if (!key) throw new Error('STRIPE_SECRET_KEY is not set')
+    _stripe = new Stripe(key, { apiVersion: '2026-07-29.dahlia' })
   }
   return _stripe
 }

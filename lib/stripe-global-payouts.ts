@@ -61,9 +61,18 @@ export interface RecipientStatusResult {
 }
 
 function getStripeSecretKey(): string {
-  const key = process.env.STRIPE_SECRET_KEY
+  let key = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_KEY || ''
+  // Remove wrapping single/double quotes, backticks, and whitespace
+  key = key.trim().replace(/^["'`]|["'`]$/g, '').trim()
+  // Remove duplicate Bearer prefix if present in env var
+  while (key.toLowerCase().startsWith('bearer ')) {
+    key = key.slice(7).trim()
+  }
+  // Strip non-printable or newline characters
+  key = key.replace(/[\r\n\t]/g, '').trim()
+
   if (!key) {
-    throw new Error('STRIPE_SECRET_KEY is not configured.')
+    throw new Error('STRIPE_SECRET_KEY is not configured in environment variables.')
   }
   return key
 }
