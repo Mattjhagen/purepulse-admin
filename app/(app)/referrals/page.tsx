@@ -123,8 +123,97 @@ export default function ReferralsPage() {
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all')
 
   const load = useCallback(async () => {
-    const { data } = await supabase.from('referrals').select('*').order('created_at', { ascending: false })
-    setReferrals((data ?? []) as Referral[])
+    const [
+      { data: refData },
+      { data: affData },
+      { data: affRefs },
+      { data: affComms },
+    ] = await Promise.all([
+      supabase.from('referrals').select('*').order('created_at', { ascending: false }),
+      supabase.from('affiliates').select('*').order('created_at', { ascending: false }),
+      supabase.from('affiliate_referrals').select('id, affiliate_id, status, monthly_commission'),
+      supabase.from('affiliate_commissions').select('id, affiliate_id, amount, status'),
+    ])
+
+    const merged: Referral[] = []
+    const seenEmails = new Set<string>()
+    const seenCodes = new Set<string>()
+
+    // 1. Process all affiliates from the affiliates table
+    if (affData) {
+      for (const a of affData) {
+        const emailKey = a.email ? a.email.toLowerCase().trim() : null
+        const codeKey = a.referral_code ? a.referral_code.toUpperCase().trim() : null
+        if (emailKey) seenEmails.add(emailKey)
+        if (codeKey) seenCodes.add(codeKey)
+
+        const aRefs = (affRefs ?? []).filter(r => r.affiliate_id === a.id)
+        const aComms = (affComms ?? []).filter(c => c.affiliate_id === a.id)
+        const totalEarned = aComms.reduce((s, c) => s + Number(c.amount || 0), 0)
+        const totalPaid = aComms.filter(c => c.status === 'paid').reduce((s, c) => s + Number(c.amount || 0), 0)
+
+        merged.push({
+          id: a.id,
+          name: a.name,
+          email: a.email || null,
+          phone: a.phone || null,
+          code: a.referral_code,
+          clicks: 0,
+          conversions: aRefs.length,
+          commission_per_conversion: 50,
+          total_earned: totalEarned,
+          total_paid: totalPaid,
+          notes: a.notes || null,
+          active: a.status === 'active',
+          created_at: a.created_at,
+        })
+      }
+    }
+
+    // 2. Process any legacy referrers from referrals table
+    if (refData) {
+      for (const r of refData) {
+        const emailKey = r.email ? r.email.toLowerCase().trim() : null
+        const codeKey = r.code ? r.code.toUpperCase().trim() : null
+
+        if (emailKey && seenEmails.has(emailKey)) {
+          // If already in affiliates, update clicks/stats if legacy has more
+          const existing = merged.find(m => m.email?.toLowerCase().trim() === emailKey)
+          if (existing) {
+            existing.clicks = Math.max(existing.clicks, r.clicks || 0)
+            existing.conversions = Math.max(existing.conversions, r.conversions || 0)
+            existing.total_earned = Math.max(existing.total_earned, r.total_earned || 0)
+            existing.total_paid = Math.max(existing.total_paid, r.total_paid || 0)
+          }
+          continue
+        }
+        if (codeKey && seenCodes.has(codeKey)) continue
+
+        if (emailKey) seenEmails.add(emailKey)
+        if (codeKey) seenCodes.add(codeKey)
+
+        merged.push({
+          id: r.id,
+          name: r.name,
+          email: r.email || null,
+          phone: r.phone || null,
+          code: r.code,
+          clicks: r.clicks || 0,
+          conversions: r.conversions || 0,
+          commission_per_conversion: r.commission_per_conversion || 50,
+          total_earned: r.total_earned || 0,
+          total_paid: r.total_paid || 0,
+          notes: r.notes || null,
+          active: r.active ?? true,
+          created_at: r.created_at,
+        })
+      }
+    }
+
+    // Sort newest first
+    merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+    setReferrals(merged)
     setLoading(false)
   }, [supabase])
 

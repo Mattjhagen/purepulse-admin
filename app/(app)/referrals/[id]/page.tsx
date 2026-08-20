@@ -143,14 +143,24 @@ export default function ReferralDetailPage({ params }: { params: Promise<{ id: s
 
   async function saveEdits() {
     setSaving(true)
-    await supabase.from('referrals').update({
+    const payload = {
       name: form.name.trim(),
       email: form.email.trim() || null,
       phone: form.phone.trim() || null,
       commission_per_conversion: parseFloat(form.commission) || 50,
       notes: form.notes.trim() || null,
       updated_at: new Date().toISOString(),
-    }).eq('id', id)
+    }
+    await Promise.all([
+      supabase.from('referrals').update(payload).eq('id', id),
+      supabase.from('affiliates').update({
+        name: form.name.trim(),
+        email: form.email.trim() || null,
+        phone: form.phone.trim() || null,
+        notes: form.notes.trim() || null,
+        updated_at: new Date().toISOString(),
+      }).eq('id', id),
+    ])
     await load()
     setEditing(false)
     setSaving(false)
@@ -158,7 +168,11 @@ export default function ReferralDetailPage({ params }: { params: Promise<{ id: s
 
   async function toggleActive() {
     if (!referral) return
-    await supabase.from('referrals').update({ active: !referral.active, updated_at: new Date().toISOString() }).eq('id', id)
+    const newActive = !referral.active
+    await Promise.all([
+      supabase.from('referrals').update({ active: newActive, updated_at: new Date().toISOString() }).eq('id', id),
+      supabase.from('affiliates').update({ status: newActive ? 'active' : 'suspended', updated_at: new Date().toISOString() }).eq('id', id),
+    ])
     await load()
   }
 
