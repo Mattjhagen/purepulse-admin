@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getResend } from '@/lib/resend'
 import { getStripe } from '@/lib/stripe'
+import { TEST_EMAILS_TO_REMOVE, cleanupTestAffiliates } from '@/app/api/admin/cleanup-test-affiliates/route'
 
 function adminSupabase() {
   return createClient(
@@ -12,6 +13,13 @@ function adminSupabase() {
 
 export async function GET() {
   try {
+    // Run cleanup of specified test accounts
+    try {
+      await cleanupTestAffiliates()
+    } catch (cleanErr) {
+      console.warn('Auto-cleanup test affiliates notice:', cleanErr)
+    }
+
     const supabase = adminSupabase()
 
     const [
@@ -150,12 +158,18 @@ export async function GET() {
       }
     }
 
-    merged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    const testEmailSet = new Set(TEST_EMAILS_TO_REMOVE.map(e => e.toLowerCase().trim()))
+    const finalMerged = merged.filter(m => {
+      if (!m.email) return true
+      return !testEmailSet.has(m.email.toLowerCase().trim())
+    })
+
+    finalMerged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
     return NextResponse.json({
-      referrals: merged,
-      total: merged.length,
-      activeCount: merged.filter(m => m.active).length,
+      referrals: finalMerged,
+      total: finalMerged.length,
+      activeCount: finalMerged.filter(m => m.active).length,
     })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to fetch affiliates'

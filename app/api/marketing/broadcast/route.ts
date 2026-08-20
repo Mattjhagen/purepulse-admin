@@ -77,7 +77,16 @@ export async function POST(req: NextRequest) {
 
   if (recipients.includes('affiliates')) {
     const { data } = await supabase.from('affiliates').select('name, email').not('email', 'is', null)
-    if (data) emails.push(...data.map((r: { name: string; email: string }) => ({ name: r.name, email: r.email })))
+    if (data) {
+      const testSet = new Set([
+        'admin@p3lending.space', 'purepulseone@gmail.com', 'pounce-woolens63@icloud.com',
+        'pacmacmobile@gmail.com', 'testing@purepulse.one', 'demo@purepulse.one',
+        'test@purepulse.one', 'mattjhagen@ymail.com', 'matty@purepulse.one',
+        'referrals@purepulse.one', 'matty@purpulse.one'
+      ])
+      const valid = data.filter((r: { email: string }) => !testSet.has(r.email.toLowerCase().trim()))
+      emails.push(...valid.map((r: { name: string; email: string }) => ({ name: r.name, email: r.email })))
+    }
   }
 
   // Deduplicate by email address
@@ -165,9 +174,20 @@ export async function GET() {
     supabase.from('affiliates').select('id, name, email').not('email', 'is', null),
   ])
 
+  const testSet = new Set([
+    'admin@p3lending.space', 'purepulseone@gmail.com', 'pounce-woolens63@icloud.com',
+    'pacmacmobile@gmail.com', 'testing@purepulse.one', 'demo@purepulse.one',
+    'test@purepulse.one', 'mattjhagen@ymail.com', 'matty@purepulse.one',
+    'referrals@purepulse.one', 'matty@purpulse.one'
+  ])
+
+  const validAffiliates = (affiliatesRes.data ?? []).filter(
+    (a: { email?: string }) => !a.email || !testSet.has(a.email.toLowerCase().trim())
+  )
+
   return NextResponse.json({
     clients: clientsRes.data ?? [],
     leads: leadsRes.data ?? [],
-    affiliates: affiliatesRes.data ?? [],
+    affiliates: validAffiliates,
   })
 }
