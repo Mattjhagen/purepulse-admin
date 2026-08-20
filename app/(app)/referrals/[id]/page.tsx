@@ -107,14 +107,13 @@ export default function ReferralDetailPage({ params }: { params: Promise<{ id: s
   const { id } = use(params)
   const searchParams = useSearchParams()
   const printMode = searchParams.get('print') === '1'
-  const supabase = createClient()
-
   const [referral, setReferral] = useState<Referral | null>(null)
   const [clicks, setClicks] = useState<Click[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', phone: '', commission: '', notes: '' })
   const [saving, setSaving] = useState(false)
+  const [togglingActive, setTogglingActive] = useState(false)
   const [showConversion, setShowConversion] = useState(false)
   const [showPay, setShowPay] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -126,13 +125,18 @@ export default function ReferralDetailPage({ params }: { params: Promise<{ id: s
   const [showPreview, setShowPreview] = useState(false)
 
   const load = useCallback(async () => {
-    const res = await fetch(`/api/referrals/${id}`)
-    if (!res.ok) { setLoading(false); return }
-    const { referral: r, clicks: c } = await res.json()
-    setReferral(r as Referral)
-    setClicks((c ?? []) as Click[])
-    if (r) setForm({ name: r.name, email: r.email ?? '', phone: r.phone ?? '', commission: r.commission_per_conversion.toString(), notes: r.notes ?? '' })
-    setLoading(false)
+    try {
+      const res = await fetch(`/api/referrals/${id}`)
+      if (!res.ok) { setLoading(false); return }
+      const { referral: r, clicks: c } = await res.json()
+      setReferral(r as Referral)
+      setClicks((c ?? []) as Click[])
+      if (r) setForm({ name: r.name, email: r.email ?? '', phone: r.phone ?? '', commission: r.commission_per_conversion.toString(), notes: r.notes ?? '' })
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
   }, [id])
 
   useEffect(() => { load() }, [load])
@@ -143,57 +147,67 @@ export default function ReferralDetailPage({ params }: { params: Promise<{ id: s
 
   async function saveEdits() {
     setSaving(true)
-    const payload = {
-      name: form.name.trim(),
-      email: form.email.trim() || null,
-      phone: form.phone.trim() || null,
-      commission_per_conversion: parseFloat(form.commission) || 50,
-      notes: form.notes.trim() || null,
-      updated_at: new Date().toISOString(),
+    try {
+      const res = await fetch(`/api/referrals/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          email: form.email.trim() || null,
+          phone: form.phone.trim() || null,
+          commission_per_conversion: parseFloat(form.commission) || 50,
+          notes: form.notes.trim() || null,
+        }),
+      })
+      if (res.ok) {
+        await load()
+        setEditing(false)
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setSaving(false)
     }
-    await Promise.all([
-      supabase.from('referrals').update(payload).eq('id', id),
-      supabase.from('affiliates').update({
-        name: form.name.trim(),
-        email: form.email.trim() || null,
-        phone: form.phone.trim() || null,
-        notes: form.notes.trim() || null,
-        updated_at: new Date().toISOString(),
-      }).eq('id', id),
-    ])
-    await load()
-    setEditing(false)
-    setSaving(false)
   }
 
   async function toggleActive() {
-    if (!referral) return
+    if (!referral || togglingActive) return
     const newActive = !referral.active
-    await Promise.all([
-      supabase.from('referrals').update({ active: newActive, updated_at: new Date().toISOString() }).eq('id', id),
-      supabase.from('affiliates').update({ status: newActive ? 'active' : 'suspended', updated_at: new Date().toISOString() }).eq('id', id),
-    ])
-    await load()
+    setTogglingActive(true)
+    setReferral(r => r ? { ...r, active: newActive } : null)
+    try {
+      const res = await fetch(`/api/referrals/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: newActive }),
+      })
+      if (!res.ok) {
+        throw new Error('Failed to update status')
+      }
+      await load()
+    } catch (e) {
+      console.error(e)
+      setReferral(r => r ? { ...r, active: !newActive } : null)
+    } finally {
+      setTogglingActive(false)
+    }
   }
 
   async function recordConversion(clientName: string, plan: string) {
     if (!referral) return
-    const newConversions = referral.conversions + 1
-    const newEarned = referral.total_earned + referral.commission_per_conversion
-    await supabase.from('referrals').update({
-      conversions: newConversions,
-      total_earned: newEarned,
-      updated_at: new Date().toISOString(),
-    }).eq('id', id)
-    await supabase.from('referral_clicks').insert({
-      referral_id: id,
-      converted: true,
-      converted_at: new Date().toISOString(),
-      client_name: clientName,
-      plan,
-    })
-    await load()
-    setShowConversion(false)
+    try {
+      const res = await fetch(`/api/referrals/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientName, plan }),
+      })
+      if (res.ok) {
+        await load()
+        setShowConversion(false)
+      }
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   async function sendConnectLink() {
@@ -239,12 +253,21 @@ export default function ReferralDetailPage({ params }: { params: Promise<{ id: s
 
   async function markPaid(amount: number) {
     if (!referral) return
-    await supabase.from('referrals').update({
-      total_paid: referral.total_paid + amount,
-      updated_at: new Date().toISOString(),
-    }).eq('id', id)
-    await load()
-    setShowPay(false)
+    try {
+      const res = await fetch(`/api/referrals/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          total_paid: (referral.total_paid || 0) + amount,
+        }),
+      })
+      if (res.ok) {
+        await load()
+        setShowPay(false)
+      }
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   function copyLink() {
@@ -345,7 +368,15 @@ export default function ReferralDetailPage({ params }: { params: Promise<{ id: s
         {/* Breadcrumb */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
           <Link href="/referrals" className="btn btn-ghost btn-sm"><ChevronLeft size={14} /> Affiliates</Link>
-          <span className={`badge ${referral.active ? 'badge-green' : 'badge-white'}`}>{referral.active ? 'Active' : 'Inactive'}</span>
+          <button
+            onClick={toggleActive}
+            disabled={togglingActive}
+            className={`badge ${referral.active ? 'badge-green' : 'badge-white'}`}
+            style={{ cursor: 'pointer', border: 'none', background: referral.active ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.08)' }}
+            title="Click to toggle active/inactive status"
+          >
+            {togglingActive ? 'UPDATING...' : referral.active ? 'ACTIVE' : 'INACTIVE'}
+          </button>
         </div>
 
         {/* Actions */}
@@ -395,8 +426,20 @@ export default function ReferralDetailPage({ params }: { params: Promise<{ id: s
             </button>
           )}
 
-          <button className="btn btn-ghost" onClick={toggleActive} style={{ marginLeft: 'auto' }}>
-            {referral.active ? <><ToggleRight size={14} color="#22c55e" /> Active</> : <><ToggleLeft size={14} /> Inactive</>}
+          <button
+            className="btn btn-ghost"
+            onClick={toggleActive}
+            disabled={togglingActive}
+            style={{ marginLeft: 'auto' }}
+            title="Toggle affiliate active / inactive"
+          >
+            {togglingActive ? (
+              <span className="spinner" />
+            ) : referral.active ? (
+              <><ToggleRight size={16} color="#22c55e" /> <span style={{ color: '#22c55e', fontWeight: 600 }}>Active</span></>
+            ) : (
+              <><ToggleLeft size={16} color="var(--text-muted)" /> <span style={{ color: 'var(--text-muted)' }}>Inactive</span></>
+            )}
           </button>
         </div>
 
