@@ -214,6 +214,16 @@ export async function POST(req: NextRequest) {
               </p>
             </div>
 
+            <div style="background:#FFF7ED;border-radius:10px;padding:20px 24px;margin-bottom:24px;border:1.5px solid #FDBA74">
+              <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#C2410C">🎥 Final Step: Complete Your Candidate Video Interview</p>
+              <p style="margin:0 0 14px;font-size:13px;color:#9A3412;line-height:1.6">
+                To complete your onboarding evaluation and unlock priority deal coaching, please complete our brief 9-question asynchronous video interview (takes ~5 minutes).
+              </p>
+              <a href="https://login.purepulse.one/interview" style="display:inline-block;background:#EA580C;color:#ffffff;font-size:13px;font-weight:700;padding:10px 22px;border-radius:6px;text-decoration:none;box-shadow:0 2px 8px rgba(234,88,12,0.3)">
+                Complete Video Interview &amp; Onboarding →
+              </a>
+            </div>
+
             <div style="background:#F0F2FD;border-radius:10px;padding:20px 24px;margin-bottom:24px;border:1px solid #D1D8F7">
               <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#3B40A8">💬 Join the PurePulse Partner Teams Community</p>
               <p style="margin:0 0 14px;font-size:13px;color:#3B40A8;line-height:1.6">
@@ -236,8 +246,8 @@ export async function POST(req: NextRequest) {
                 <p style="margin:0;font-size:12px;color:#666;line-height:1.5">Generate ready-to-post graphics (1:1, 9:16, 16:9), copy pre-written captions, and share in 1 click.</p>
               </div>
               <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px">
-                <p style="margin:0 0 3px;font-weight:700;font-size:13px;color:#111">💳 3. Bank Account &amp; Payout Setup</p>
-                <p style="margin:0;font-size:12px;color:#666;line-height:1.5">Connect your bank account via Stripe Connect for direct monthly commission deposits.</p>
+                <p style="margin:0 0 3px;font-weight:700;font-size:13px;color:#111">💳 3. Bank Account &amp; Direct Deposit Setup</p>
+                <p style="margin:0;font-size:12px;color:#666;line-height:1.5">Connect your bank account via Stripe for direct monthly commission deposits.</p>
               </div>
             </div>
 

@@ -136,7 +136,10 @@ Download your high-resolution QR code flyers, tear-off posters, and business car
 3. Set Up Direct Deposit via Stripe:
 In the "Payouts & Banking" tab, securely connect your bank account to receive automatic monthly commission payments.
 
-4. Join the Partner Teams Community:
+4. Complete Your Candidate Video Interview & Onboarding:
+Visit https://login.purepulse.one/interview to complete your brief 9-question asynchronous video interview to finalize your partner certification.
+
+5. Join the Partner Teams Community:
 Connect directly with the founders and fellow top partners for deal coaching and pitch scripts.
 
 If you have any questions, feel free to reply directly to this email!

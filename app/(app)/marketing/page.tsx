@@ -188,13 +188,13 @@ const TEMPLATES = [
   {
     id: 'affiliate-portal-setup',
     category: 'affiliates',
-    name: '🔑 Partner Portal Setup & Payouts',
-    subject: '🔑 Complete Your PurePulse Partner Portal & Payout Setup',
-    preview: 'Finish your portal setup to get your unique referral link, printable marketing flyers, and direct deposit payouts.',
+    name: '🔑 Partner Portal Setup & Interview',
+    subject: '🔑 Action Required: Complete Your PurePulse Partner Portal & Interview',
+    preview: 'Finish your portal setup, complete your brief video interview, and connect direct deposit payouts.',
     body: `
       <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#A066FF;">Action Required</p>
       <h1 style="margin:0 0 16px;font-size:22px;font-weight:800;color:#FFFFFF;">Hi {{name}}, let's get your partner portal ready! 🚀</h1>
-      <p style="margin:0 0 16px;font-size:15px;color:rgba(244,244,255,0.85);line-height:1.7;">Thank you for signing up to become a PurePulse Affiliate Partner. To start referring businesses and earning <strong>10%–50% recurring monthly commissions</strong>, finish your quick portal setup:</p>
+      <p style="margin:0 0 16px;font-size:15px;color:rgba(244,244,255,0.85);line-height:1.7;">Thank you for signing up to become a PurePulse Affiliate Partner. To start referring businesses and earning <strong>10%–50% recurring monthly commissions</strong>, finish your partner onboarding steps:</p>
 
       <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px;">
         <div style="background:rgba(244,244,255,0.04);border:1px solid rgba(123,47,255,0.25);border-radius:10px;padding:16px;">
@@ -208,6 +208,11 @@ const TEMPLATES = [
         <div style="background:rgba(244,244,255,0.04);border:1px solid rgba(123,47,255,0.25);border-radius:10px;padding:16px;">
           <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#FFFFFF;">3️⃣ Set Up Direct Deposit via Stripe</p>
           <p style="margin:0;font-size:13px;color:rgba(244,244,255,0.7);line-height:1.5;">Open the <strong>Payouts &amp; Banking</strong> tab to connect your bank account securely through Stripe Global Payouts.</p>
+        </div>
+        <div style="background:rgba(234,88,12,0.12);border:1px solid rgba(234,88,12,0.35);border-radius:10px;padding:16px;">
+          <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#FB923C;">🎥 4️⃣ One Last Step: Complete Video Interview &amp; Onboarding</p>
+          <p style="margin:0 0 10px;font-size:13px;color:rgba(244,244,255,0.8);line-height:1.5;">Complete our automated 9-question asynchronous video interview to finalize your partner file and unlock priority deal support.</p>
+          <a href="https://login.purepulse.one/interview" style="display:inline-block;background:#EA580C;color:#FFFFFF;padding:8px 18px;border-radius:6px;font-weight:700;text-decoration:none;font-size:12.5px;">Complete 5-Min Video Interview →</a>
         </div>
       </div>
 
@@ -256,6 +261,7 @@ const TEMPLATES = [
         <li style="margin-bottom:8px;">Sign in to your partner portal to view your unique link and QR code.</li>
         <li style="margin-bottom:8px;">Download high-res printable flyers, tear-off tab posters, and business cards.</li>
         <li style="margin-bottom:8px;">Connect your bank account via Stripe in the Payouts &amp; Banking tab for direct deposits.</li>
+        <li style="margin-bottom:8px;"><strong>Complete your 5-min Video Interview &amp; Onboarding:</strong> Visit <a href="https://login.purepulse.one/interview" style="color:#00D4FF;text-decoration:none;">login.purepulse.one/interview</a> to finalize your partner certification.</li>
         <li style="margin-bottom:8px;">Join our Microsoft Teams community for deal coaching, custom pitch scripts, and real-time support.</li>
       </ol>
 
