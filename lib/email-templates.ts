@@ -118,4 +118,32 @@ Best regards,
 Matty Hagen
 PurePulse`,
   },
+  {
+    name: '🔑 Affiliate Portal Activation & Payout Setup',
+    subject_prefix: 'Action Required: ',
+    body: `Hi {{name}},
+
+Thank you for signing up to become a PurePulse Affiliate Partner!
+
+To start sharing your unique tracking link and earning 10%–50% recurring monthly commissions, please complete your partner portal setup:
+
+1. Sign In to Your Portal:
+Enter your email at https://login.purepulse.one/affiliates/login for instant magic link sign-in.
+
+2. Access Your Tracking Code & Printable Assets:
+Download your high-resolution QR code flyers, tear-off posters, and business cards.
+
+3. Set Up Direct Deposit via Stripe:
+In the "Payouts & Banking" tab, securely connect your bank account to receive automatic monthly commission payments.
+
+4. Join the Partner Teams Community:
+Connect directly with the founders and fellow top partners for deal coaching and pitch scripts.
+
+If you have any questions, feel free to reply directly to this email!
+
+Best regards,
+Matty Hagen
+PurePulse Partner Program
+purepulse.one`,
+  },
 ]

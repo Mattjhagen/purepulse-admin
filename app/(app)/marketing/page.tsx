@@ -186,6 +186,51 @@ const TEMPLATES = [
 
   // --- AFFILIATE PARTNER TEMPLATES ---
   {
+    id: 'affiliate-portal-setup',
+    category: 'affiliates',
+    name: '🔑 Partner Portal Setup & Payouts',
+    subject: '🔑 Complete Your PurePulse Partner Portal & Payout Setup',
+    preview: 'Finish your portal setup to get your unique referral link, printable marketing flyers, and direct deposit payouts.',
+    body: `
+      <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#A066FF;">Action Required</p>
+      <h1 style="margin:0 0 16px;font-size:22px;font-weight:800;color:#FFFFFF;">Hi {{name}}, let's get your partner portal ready! 🚀</h1>
+      <p style="margin:0 0 16px;font-size:15px;color:rgba(244,244,255,0.85);line-height:1.7;">Thank you for signing up to become a PurePulse Affiliate Partner. To start referring businesses and earning <strong>10%–50% recurring monthly commissions</strong>, finish your quick portal setup:</p>
+
+      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px;">
+        <div style="background:rgba(244,244,255,0.04);border:1px solid rgba(123,47,255,0.25);border-radius:10px;padding:16px;">
+          <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#FFFFFF;">1️⃣ Sign In to Your Partner Dashboard</p>
+          <p style="margin:0;font-size:13px;color:rgba(244,244,255,0.7);line-height:1.5;">Enter your email at <a href="https://login.purepulse.one/affiliates/login" style="color:#00D4FF;text-decoration:none;">login.purepulse.one/affiliates/login</a> for instant magic link sign-in (no password required).</p>
+        </div>
+        <div style="background:rgba(244,244,255,0.04);border:1px solid rgba(123,47,255,0.25);border-radius:10px;padding:16px;">
+          <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#FFFFFF;">2️⃣ Grab Your Unique Link &amp; QR Code</p>
+          <p style="margin:0;font-size:13px;color:rgba(244,244,255,0.7);line-height:1.5;">Copy your personal tracking link and download high-resolution flyers and business cards featuring your QR code.</p>
+        </div>
+        <div style="background:rgba(244,244,255,0.04);border:1px solid rgba(123,47,255,0.25);border-radius:10px;padding:16px;">
+          <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#FFFFFF;">3️⃣ Set Up Direct Deposit via Stripe</p>
+          <p style="margin:0;font-size:13px;color:rgba(244,244,255,0.7);line-height:1.5;">Open the <strong>Payouts &amp; Banking</strong> tab to connect your bank account securely through Stripe Global Payouts.</p>
+        </div>
+      </div>
+
+      <div style="margin-bottom:28px;">
+        <a href="https://login.purepulse.one/affiliates/login" style="display:inline-block;background:#7B2FFF;color:#FFFFFF;padding:14px 32px;border-radius:10px;font-weight:700;text-decoration:none;font-size:14px;box-shadow:0 4px 16px rgba(123,47,255,0.4);">
+          Activate Your Partner Portal →
+        </a>
+      </div>
+
+      <div style="background:rgba(123,47,255,0.1);border:1px solid rgba(123,47,255,0.3);border-radius:12px;padding:18px;margin-bottom:24px;">
+        <p style="margin:0 0 10px;font-size:12px;font-weight:700;color:#A066FF;text-transform:uppercase;letter-spacing:1px;">Recurring Commission Rates</p>
+        <table cellpadding="0" cellspacing="0" style="width:100%;color:rgba(244,244,255,0.9);font-size:13px;">
+          <tr><td style="padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.08);">Starter Plan ($20/mo):</td><td align="right" style="padding:5px 0;font-weight:700;color:#10B981;">10% ($2.00/mo)</td></tr>
+          <tr><td style="padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.08);">Growth Plan ($50/mo):</td><td align="right" style="padding:5px 0;font-weight:700;color:#10B981;">40% ($20.00/mo)</td></tr>
+          <tr><td style="padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.08);">Premium Plan ($75/mo):</td><td align="right" style="padding:5px 0;font-weight:700;color:#10B981;">45% ($33.75/mo)</td></tr>
+          <tr><td style="padding:5px 0;">Business Plan ($100/mo):</td><td align="right" style="padding:5px 0;font-weight:700;color:#10B981;">50% ($50.00/mo)</td></tr>
+        </table>
+      </div>
+
+      <p style="margin:24px 0 0;font-size:14px;color:rgba(244,244,255,0.6);">Questions? Reply directly to this email anytime.<br><br>Best regards,<br><strong style="color:#FFF;">Matty Hagen</strong><br>PurePulse Partner Program · <a href="https://purepulse.one" style="color:#00D4FF;text-decoration:none;">purepulse.one</a></p>
+    `,
+  },
+  {
     id: 'affiliate-welcome',
     category: 'affiliates',
     name: '🚀 Affiliate Welcome & Portal Launch',
@@ -210,7 +255,7 @@ const TEMPLATES = [
       <ol style="margin:0 0 24px;padding-left:20px;color:rgba(244,244,255,0.85);line-height:1.7;">
         <li style="margin-bottom:8px;">Sign in to your partner portal to view your unique link and QR code.</li>
         <li style="margin-bottom:8px;">Download high-res printable flyers, tear-off tab posters, and business cards.</li>
-        <li style="margin-bottom:8px;">Connect your bank account via Stripe Connect in the Payouts tab for direct deposits.</li>
+        <li style="margin-bottom:8px;">Connect your bank account via Stripe in the Payouts &amp; Banking tab for direct deposits.</li>
         <li style="margin-bottom:8px;">Join our Microsoft Teams community for deal coaching, custom pitch scripts, and real-time support.</li>
       </ol>
 
