@@ -1,14 +1,13 @@
 'use client'
 import { useState, useEffect, useCallback, use } from 'react'
-import { createClient } from '@/lib/supabase'
 import { formatDate, formatMoney } from '@/lib/utils'
 import {
   ChevronLeft, Gift, MousePointer, CheckCircle, DollarSign,
   Edit3, Save, X, AlertTriangle, Printer, Copy, ToggleLeft, ToggleRight,
-  TrendingUp, Landmark, Eye, EyeOff, ExternalLink
+  TrendingUp, Landmark, Eye, EyeOff, ExternalLink, Trash2
 } from 'lucide-react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 
 type Referral = {
   id: string; name: string; email: string | null; phone: string | null
@@ -31,22 +30,23 @@ function ConversionModal({
   const [saving, setSaving] = useState(false)
 
   async function go() {
+    if (!clientName.trim()) return
     setSaving(true)
-    await onConfirm(clientName, plan)
+    await onConfirm(clientName.trim(), plan)
     setSaving(false)
   }
 
   return (
     <div className="modal-backdrop" onClick={onCancel}>
-      <div className="modal" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
-        <h2 className="modal-title">Record Conversion</h2>
+      <div className="modal" style={{ maxWidth: 440 }} onClick={e => e.stopPropagation()}>
+        <h2 className="modal-title">Record Client Signup</h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.25rem' }}>
-          This will add one conversion and increment commission owed.
+          Record a new client attributed to this referrer.
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
           <div>
-            <label className="label">Client Name</label>
-            <input className="input" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="New client name" />
+            <label className="label">Client Name / Business *</label>
+            <input className="input" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Acme Inc." />
           </div>
           <div>
             <label className="label">Plan</label>
@@ -105,6 +105,7 @@ function PayCommissionModal({
 
 export default function ReferralDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const router = useRouter()
   const searchParams = useSearchParams()
   const printMode = searchParams.get('print') === '1'
   const [referral, setReferral] = useState<Referral | null>(null)
@@ -114,6 +115,7 @@ export default function ReferralDetailPage({ params }: { params: Promise<{ id: s
   const [form, setForm] = useState({ name: '', email: '', phone: '', commission: '', notes: '' })
   const [saving, setSaving] = useState(false)
   const [togglingActive, setTogglingActive] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [showConversion, setShowConversion] = useState(false)
   const [showPay, setShowPay] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -267,6 +269,26 @@ export default function ReferralDetailPage({ params }: { params: Promise<{ id: s
       }
     } catch (e) {
       console.error(e)
+    }
+  }
+
+  async function deleteAffiliate() {
+    if (!referral || deleting) return
+    if (!confirm(`Are you sure you want to delete "${referral.name}" and all associated test records? This cannot be undone.`)) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/referrals/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const json = await res.json()
+        alert(json.error || 'Failed to delete affiliate.')
+        setDeleting(false)
+      } else {
+        router.push('/referrals')
+      }
+    } catch (e) {
+      console.error(e)
+      alert('Failed to delete affiliate.')
+      setDeleting(false)
     }
   }
 
@@ -425,6 +447,16 @@ export default function ReferralDetailPage({ params }: { params: Promise<{ id: s
               <DollarSign size={14} /> Mark {formatMoney(owed)} paid manually
             </button>
           )}
+
+          <button
+            className="btn btn-ghost"
+            onClick={deleteAffiliate}
+            disabled={deleting}
+            style={{ color: '#ef4444' }}
+            title="Delete this affiliate and associated test records"
+          >
+            {deleting ? <span className="spinner" /> : <><Trash2 size={14} /> Delete</>}
+          </button>
 
           <button
             className="btn btn-ghost"

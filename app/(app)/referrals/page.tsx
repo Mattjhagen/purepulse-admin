@@ -1,8 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase'
 import { formatDate, formatMoney } from '@/lib/utils'
-import { Plus, Gift, TrendingUp, MousePointer, CheckCircle, DollarSign, Copy, Printer, X } from 'lucide-react'
+import { Plus, Gift, TrendingUp, MousePointer, CheckCircle, DollarSign, Copy, Printer, X, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -120,6 +119,7 @@ export default function ReferralsPage() {
   const [showNew, setShowNew] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -139,6 +139,25 @@ export default function ReferralsPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  async function deleteAffiliate(id: string, name: string) {
+    if (!confirm(`Are you sure you want to delete "${name}" and all associated test records? This cannot be undone.`)) return
+    setDeletingId(id)
+    try {
+      const res = await fetch(`/api/referrals/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const json = await res.json()
+        alert(json.error || 'Failed to delete affiliate.')
+      } else {
+        setReferrals(prev => prev.filter(r => r.id !== id))
+      }
+    } catch (e) {
+      console.error(e)
+      alert('Failed to delete affiliate.')
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   function handleNewReferralSaved(newId: string) {
     router.push(`/referrals/${newId}?print=1`)
@@ -291,11 +310,20 @@ export default function ReferralsPage() {
                     <td style={{ fontWeight: owed > 0 ? 700 : 400, color: owed > 0 ? '#f59e0b' : undefined }}>{owed > 0 ? formatMoney(owed) : '—'}</td>
                     <td style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>{formatDate(r.created_at)}</td>
                     <td>
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
                         <Link href={`/referrals/${r.id}`} className="btn btn-ghost btn-sm">View</Link>
                         <Link href={`/referrals/${r.id}?print=1`} className="btn btn-ghost btn-sm" title="Print flyer">
                           <Printer size={13} />
                         </Link>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => deleteAffiliate(r.id, r.name)}
+                          disabled={deletingId === r.id}
+                          title="Delete affiliate and associated records"
+                          style={{ color: '#ef4444', padding: '4px 6px' }}
+                        >
+                          {deletingId === r.id ? <span className="spinner" style={{ width: 12, height: 12 }} /> : <Trash2 size={13} />}
+                        </button>
                       </div>
                     </td>
                   </tr>

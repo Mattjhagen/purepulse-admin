@@ -208,3 +208,81 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   return NextResponse.json({ error: 'Affiliate not found' }, { status: 404 })
 }
+
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const supabase = adminSupabase()
+
+  try {
+    let emailToDelete: string | null = null
+    let authUserIdToDelete: string | null = null
+
+    // 1. Check in affiliates
+    const { data: aff } = await supabase.from('affiliates').select('*').eq('id', id).maybeSingle()
+    if (aff) {
+      emailToDelete = aff.email
+      authUserIdToDelete = aff.auth_user_id
+
+      // Delete cascade items
+      await supabase.from('affiliate_clicks').delete().eq('affiliate_id', id)
+      await supabase.from('affiliate_commissions').delete().eq('affiliate_id', id)
+      await supabase.from('affiliate_referrals').delete().eq('affiliate_id', id)
+      await supabase.from('affiliates').delete().eq('id', id)
+    }
+
+    // 2. Check in referrals
+    const { data: ref } = await supabase.from('referrals').select('*').eq('id', id).maybeSingle()
+    if (ref) {
+      if (!emailToDelete && ref.email) emailToDelete = ref.email
+      await supabase.from('referral_clicks').delete().eq('referral_id', id)
+      await supabase.from('referrals').delete().eq('id', id)
+    }
+
+    // 3. Check in interviews
+    const { data: iv } = await supabase.from('interviews').select('*').eq('id', id).maybeSingle()
+    if (iv) {
+      if (!emailToDelete && iv.candidate_email) emailToDelete = iv.candidate_email
+      await supabase.from('interviews').delete().eq('id', id)
+    }
+
+    // 4. Clean up by email across any other tables if email was found
+    if (emailToDelete) {
+      const emailLower = emailToDelete.toLowerCase().trim()
+      // Remove any matching rows in affiliates
+      const { data: moreAffs } = await supabase.from('affiliates').select('id, auth_user_id').ilike('email', emailLower)
+      if (moreAffs && moreAffs.length > 0) {
+        for (const a of moreAffs) {
+          if (!authUserIdToDelete && a.auth_user_id) authUserIdToDelete = a.auth_user_id
+          await supabase.from('affiliate_clicks').delete().eq('affiliate_id', a.id)
+          await supabase.from('affiliate_commissions').delete().eq('affiliate_id', a.id)
+          await supabase.from('affiliate_referrals').delete().eq('affiliate_id', a.id)
+          await supabase.from('affiliates').delete().eq('id', a.id)
+        }
+      }
+      // Remove any matching rows in referrals
+      const { data: moreRefs } = await supabase.from('referrals').select('id').ilike('email', emailLower)
+      if (moreRefs && moreRefs.length > 0) {
+        for (const r of moreRefs) {
+          await supabase.from('referral_clicks').delete().eq('referral_id', r.id)
+          await supabase.from('referrals').delete().eq('id', r.id)
+        }
+      }
+      // Remove matching interviews
+      await supabase.from('interviews').delete().ilike('candidate_email', emailLower)
+    }
+
+    // 5. Delete Supabase Auth User if present (so email can be tested again if needed)
+    if (authUserIdToDelete) {
+      try {
+        await supabase.auth.admin.deleteUser(authUserIdToDelete)
+      } catch (authErr) {
+        console.warn('Could not delete auth user:', authErr)
+      }
+    }
+
+    return NextResponse.json({ success: true, message: 'Account and associated test records deleted.' })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to delete affiliate'
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
