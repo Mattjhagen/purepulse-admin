@@ -26,7 +26,7 @@ import {
 
 type Step = 1 | 2 | 3
 
-const INTRO_VIDEO_URL = 'https://cucksfwkdmrkeiwmdlut.supabase.co/storage/v1/object/public/media/videoplayback.mp4'
+const INTRO_VIDEO_URL = 'https://ouwyuxqlvjvxdobjnezu.supabase.co/storage/v1/object/public/media/videoplayback.mp4'
 
 interface Question {
   id: string

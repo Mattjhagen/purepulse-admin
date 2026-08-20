@@ -185,7 +185,7 @@ export default function ReferralsPage() {
       {/* Affiliate intro video */}
       <div style={{ marginBottom: '2rem', borderRadius: 12, overflow: 'hidden', background: '#07070D', aspectRatio: '16/9', maxHeight: 480 }}>
         <video
-          src="https://cucksfwkdmrkeiwmdlut.supabase.co/storage/v1/object/public/media/videoplayback.mp4"
+          src="https://ouwyuxqlvjvxdobjnezu.supabase.co/storage/v1/object/public/media/videoplayback.mp4"
           controls
           playsInline
           style={{ width: '100%', height: '100%', display: 'block', objectFit: 'contain' }}
