@@ -100,6 +100,10 @@ export default function AffiliateDashboardClient({
   // Printable state
   const [selectedFlyerTheme, setSelectedFlyerTheme] = useState<FlyerTheme>('dark-neon')
   const [showFlyerPreview, setShowFlyerPreview] = useState(true)
+  const [cardSide, setCardSide] = useState<'front' | 'back'>('front')
+  const [cardTheme, setCardTheme] = useState<'dark' | 'light'>('dark')
+  const [downloadingCard, setDownloadingCard] = useState<string | null>(null)
+  const [printMode, setPrintMode] = useState<'flyer' | 'cards'>('flyer')
 
   // Social Studio state
   const [socialFormat, setSocialFormat] = useState<SocialFormat>('square')
@@ -458,9 +462,218 @@ export default function AffiliateDashboardClient({
     }
   }
 
+  // ── BUSINESS CARD 300 DPI CANVAS GENERATOR (Standard 3.5" x 2" / 1050x600 px) ──
+  const generateBusinessCardCanvas = useCallback((side: 'front' | 'back', theme: 'dark' | 'light'): Promise<HTMLCanvasElement> => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas')
+      const width = 1050
+      const height = 600
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return resolve(canvas)
+
+      const isDark = theme === 'dark'
+
+      if (isDark) {
+        const bgGrad = ctx.createLinearGradient(0, 0, width, height)
+        bgGrad.addColorStop(0, '#08060d')
+        bgGrad.addColorStop(0.5, '#120a22')
+        bgGrad.addColorStop(1, '#050308')
+        ctx.fillStyle = bgGrad
+        ctx.fillRect(0, 0, width, height)
+
+        const glow1 = ctx.createRadialGradient(width * 0.85, height * 0.15, 10, width * 0.85, height * 0.15, width * 0.5)
+        glow1.addColorStop(0, 'rgba(123, 47, 255, 0.45)')
+        glow1.addColorStop(1, 'transparent')
+        ctx.fillStyle = glow1
+        ctx.fillRect(0, 0, width, height)
+
+        const glow2 = ctx.createRadialGradient(width * 0.15, height * 0.85, 10, width * 0.15, height * 0.85, width * 0.45)
+        glow2.addColorStop(0, 'rgba(0, 212, 255, 0.25)')
+        glow2.addColorStop(1, 'transparent')
+        ctx.fillStyle = glow2
+        ctx.fillRect(0, 0, width, height)
+      } else {
+        ctx.fillStyle = '#ffffff'
+        ctx.fillRect(0, 0, width, height)
+        ctx.fillStyle = '#7B2FFF'
+        ctx.fillRect(0, 0, width, 8)
+      }
+
+      if (side === 'front') {
+        const padX = 65
+
+        // Top Brand Header
+        ctx.fillStyle = isDark ? '#ffffff' : '#111827'
+        ctx.font = 'bold 50px system-ui, -apple-system, sans-serif'
+        ctx.fillText('Pure', padX, 95)
+        const pureWidth = ctx.measureText('Pure').width
+        ctx.fillStyle = isDark ? '#A066FF' : '#7B2FFF'
+        ctx.fillText('Pulse', padX + pureWidth, 95)
+
+        ctx.fillStyle = isDark ? 'rgba(255,255,255,0.65)' : '#6b7280'
+        ctx.font = 'bold 15px system-ui, -apple-system, sans-serif'
+        ctx.fillText('WEB DESIGN & 24/7 MAINTENANCE', padX, 130)
+
+        // Top Right Partner Badge
+        ctx.fillStyle = isDark ? 'rgba(123,47,255,0.25)' : '#f3f0ff'
+        roundRect(ctx, width - 330, 56, 265, 42, 21, true, false)
+        ctx.strokeStyle = isDark ? 'rgba(160,102,255,0.6)' : '#d8b4fe'
+        ctx.lineWidth = 1.5
+        roundRect(ctx, width - 330, 56, 265, 42, 21, false, true)
+
+        ctx.fillStyle = isDark ? '#A066FF' : '#7B2FFF'
+        ctx.font = 'bold 14px system-ui, -apple-system, sans-serif'
+        ctx.fillText('⚡ OFFICIAL PARTNER', width - 298, 82)
+
+        // Partner Name & Role
+        ctx.fillStyle = isDark ? '#ffffff' : '#111827'
+        ctx.font = '900 44px system-ui, -apple-system, sans-serif'
+        ctx.fillText(affiliate.name, padX, 260)
+
+        ctx.fillStyle = isDark ? 'rgba(255,255,255,0.7)' : '#4b5563'
+        ctx.font = '600 20px system-ui, -apple-system, sans-serif'
+        ctx.fillText('Authorized Growth & Sales Partner', padX, 300)
+
+        // Partner Code Pill
+        ctx.fillStyle = isDark ? '#7B2FFF' : '#7B2FFF'
+        roundRect(ctx, padX, 360, 360, 68, 14, true, false)
+        ctx.fillStyle = '#ffffff'
+        ctx.font = 'bold 22px monospace'
+        ctx.fillText(`CODE: ${affiliate.referral_code}`, padX + 28, 402)
+
+        // Bottom Web Link
+        ctx.fillStyle = isDark ? '#00D4FF' : '#7B2FFF'
+        ctx.font = '900 28px system-ui, -apple-system, sans-serif'
+        ctx.fillText('purepulse.one', width - 260, 520)
+
+        ctx.fillStyle = isDark ? 'rgba(255,255,255,0.6)' : '#6b7280'
+        ctx.font = '500 16px system-ui, -apple-system, sans-serif'
+        ctx.fillText('High-Performing Business Websites', padX, 520)
+
+        resolve(canvas)
+      } else {
+        // Back Side (Value Pitch + QR Code)
+        const padX = 65
+
+        // Headline & Subhead
+        ctx.fillStyle = isDark ? '#ffffff' : '#111827'
+        ctx.font = '900 34px system-ui, -apple-system, sans-serif'
+        ctx.fillText('Websites Built to Convert.', padX, 90)
+
+        ctx.fillStyle = isDark ? '#A066FF' : '#7B2FFF'
+        ctx.font = 'bold 19px system-ui, -apple-system, sans-serif'
+        ctx.fillText('$150 Deposit to Start · Maintenance Included', padX, 130)
+
+        // Value Bullets
+        const bullets = [
+          '✓ Custom UI/UX Built for Your Business',
+          '✓ 24/7 Hosting, SSL & Unlimited Updates',
+          '✓ Sub-Second Speed & Google SEO Optimized',
+        ]
+        ctx.fillStyle = isDark ? 'rgba(255,255,255,0.85)' : '#374151'
+        ctx.font = '500 18px system-ui, -apple-system, sans-serif'
+        let bY = 195
+        for (const b of bullets) {
+          ctx.fillText(b, padX, bY)
+          bY += 42
+        }
+
+        // Code Offer Box
+        ctx.fillStyle = isDark ? 'rgba(123,47,255,0.25)' : '#f3f0ff'
+        roundRect(ctx, padX, 360, 480, 56, 12, true, false)
+        ctx.strokeStyle = isDark ? 'rgba(160,102,255,0.5)' : '#d8b4fe'
+        ctx.lineWidth = 1.5
+        roundRect(ctx, padX, 360, 480, 56, 12, false, true)
+
+        ctx.fillStyle = isDark ? '#00D4FF' : '#7B2FFF'
+        ctx.font = 'bold 18px monospace'
+        ctx.fillText(`USE PARTNER CODE: ${affiliate.referral_code}`, padX + 20, 395)
+
+        ctx.fillStyle = isDark ? 'rgba(255,255,255,0.6)' : '#6b7280'
+        ctx.font = '500 15px system-ui, -apple-system, sans-serif'
+        ctx.fillText(`purepulse.one/pricing?ref=${affiliate.referral_code}`, padX, 470)
+
+        // Right QR Container
+        const qrContainerX = 660
+        const qrContainerY = 55
+        const qrContainerW = 325
+        const qrContainerH = 490
+
+        ctx.fillStyle = isDark ? 'rgba(255,255,255,0.06)' : '#f9fafb'
+        roundRect(ctx, qrContainerX, qrContainerY, qrContainerW, qrContainerH, 20, true, false)
+        ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.15)' : '#e5e7eb'
+        ctx.lineWidth = 1.5
+        roundRect(ctx, qrContainerX, qrContainerY, qrContainerW, qrContainerH, 20, false, true)
+
+        const qrImg = new Image()
+        qrImg.crossOrigin = 'anonymous'
+        qrImg.onload = () => {
+          // White square for QR
+          ctx.fillStyle = '#ffffff'
+          roundRect(ctx, qrContainerX + 38, qrContainerY + 35, 250, 250, 16, true, false)
+          ctx.drawImage(qrImg, qrContainerX + 48, qrContainerY + 45, 230, 230)
+
+          ctx.fillStyle = isDark ? '#ffffff' : '#111827'
+          ctx.font = 'bold 17px system-ui, -apple-system, sans-serif'
+          ctx.textAlign = 'center'
+          ctx.fillText('SCAN WITH CAMERA', qrContainerX + qrContainerW / 2, qrContainerY + 328)
+
+          ctx.fillStyle = isDark ? 'rgba(255,255,255,0.7)' : '#6b7280'
+          ctx.font = '500 13px system-ui, -apple-system, sans-serif'
+          ctx.fillText('To explore work & claim offer', qrContainerX + qrContainerW / 2, qrContainerY + 355)
+
+          ctx.fillStyle = isDark ? '#A066FF' : '#7B2FFF'
+          ctx.font = 'bold 17px monospace'
+          ctx.fillText(`CODE: ${affiliate.referral_code}`, qrContainerX + qrContainerW / 2, qrContainerY + 400)
+          ctx.textAlign = 'left'
+
+          resolve(canvas)
+        }
+        qrImg.onerror = () => {
+          resolve(canvas)
+        }
+        qrImg.src = qrPngUrl
+      }
+    })
+  }, [affiliate.name, affiliate.referral_code, qrPngUrl])
+
+  async function downloadBusinessCard(side: 'front' | 'back', theme: 'dark' | 'light' = cardTheme) {
+    setDownloadingCard(side)
+    try {
+      const canvas = await generateBusinessCardCanvas(side, theme)
+      const link = document.createElement('a')
+      link.download = `purepulse-businesscard-${side}-${theme}-${affiliate.referral_code.toLowerCase()}.png`
+      link.href = canvas.toDataURL('image/png')
+      link.click()
+    } finally {
+      setDownloadingCard(null)
+    }
+  }
+
+  async function downloadBusinessCardPackage(theme: 'dark' | 'light' = cardTheme) {
+    setDownloadingCard('both')
+    try {
+      await downloadBusinessCard('front', theme)
+      await new Promise(r => setTimeout(r, 450))
+      await downloadBusinessCard('back', theme)
+    } finally {
+      setDownloadingCard(null)
+    }
+  }
+
+  function printCardsSheet() {
+    setPrintMode('cards')
+    setTimeout(() => {
+      window.print()
+      setPrintMode('flyer')
+    }, 250)
+  }
+
   return (
     <div style={s.page}>
-      {/* GLOBAL PRINT STYLES FOR FULL LETTER FLYER */}
+      {/* GLOBAL PRINT STYLES FOR FLYER & 10-CARD BUSINESS CARD SHEET */}
       <style>{`
         @media print {
           @page {
@@ -486,7 +699,7 @@ export default function AffiliateDashboardClient({
             display: none !important;
           }
           .affiliate-print-flyer {
-            display: flex !important;
+            display: ${printMode === 'flyer' ? 'flex' : 'none'} !important;
             flex-direction: column !important;
             justify-content: space-between !important;
             width: 100vw !important;
@@ -503,6 +716,23 @@ export default function AffiliateDashboardClient({
             color: ${selectedFlyerTheme === 'clean-light' ? '#111111' : '#ffffff'} !important;
             position: relative !important;
             overflow: hidden !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .business-card-sheet-print {
+            display: ${printMode === 'cards' ? 'grid' : 'none'} !important;
+            grid-template-columns: repeat(2, 3.5in);
+            grid-template-rows: repeat(5, 2in);
+            justify-content: center;
+            align-content: center;
+            width: 8.5in;
+            height: 11in;
+            margin: 0 auto !important;
+            box-sizing: border-box !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            background: ${cardTheme === 'light' ? '#ffffff' : '#08060d'} !important;
+            color: ${cardTheme === 'light' ? '#111111' : '#ffffff'} !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
@@ -904,67 +1134,323 @@ export default function AffiliateDashboardClient({
               </div>
             )}
 
-            {/* Additional Assets: Business Cards & Table Tents */}
-            <h3 style={{ fontSize: '1.125rem', fontWeight: 800, margin: '0 0 16px' }}>
-              More Formats &amp; Digital Brand Assets
-            </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
-              {/* Business Cards */}
-              <div style={s.card}>
-                <div style={{ padding: '18px 20px', borderBottom: '1px solid #f3f4f6' }}>
-                  <h4 style={{ margin: 0, fontSize: '0.9375rem', fontWeight: 700 }}>Printable Business Cards (3.5&quot; × 2&quot;)</h4>
-                  <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: '#6b7280' }}>Standard &amp; VistaPrint compatible layout</p>
+            {/* Print-Ready Business Cards (VistaPrint / Moo / Print-at-Home Compatible) */}
+            <div style={{ ...s.card, marginBottom: 28 }}>
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 800 }}>Printable Business Cards (3.5&quot; × 2&quot;)</h3>
+                    <span style={{ background: '#dcfce7', color: '#15803d', fontSize: '0.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: 999 }}>
+                      300 DPI · VistaPrint Ready
+                    </span>
+                  </div>
+                  <p style={{ margin: '4px 0 0', fontSize: '0.8125rem', color: '#6b7280' }}>
+                    Standard US 3.5&quot; × 2.0&quot; layout (1050 × 600 px at 300 DPI). Ready for direct 1-click import into VistaPrint, Moo, GotPrint, or Print-at-Home.
+                  </p>
                 </div>
-                <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {/* Card Front */}
-                  <div style={{ background: '#08060d', color: '#fff', padding: '18px 22px', borderRadius: 8, border: '1px solid #222', minHeight: 120, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 800, fontSize: '1.125rem' }}>Pure<span style={{ color: '#A066FF' }}>Pulse</span></span>
-                      <span style={{ fontSize: '0.65rem', color: '#A066FF', fontWeight: 700, letterSpacing: '0.08em' }}>OFFICIAL PARTNER</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 16 }}>
-                      <div>
-                        <p style={{ margin: 0, fontWeight: 700, fontSize: '0.875rem' }}>{affiliate.name}</p>
-                        <p style={{ margin: 0, fontSize: '0.7rem', color: '#888' }}>Partner Code: {affiliate.referral_code}</p>
-                      </div>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={qrSvgUrl} alt="QR" width={48} height={48} style={{ background: '#fff', padding: 2, borderRadius: 4 }} />
-                    </div>
+
+                {/* Theme & Side Selectors */}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'inline-flex', background: '#f3f4f6', borderRadius: 8, padding: 3 }}>
+                    <button
+                      onClick={() => setCardSide('front')}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: 6,
+                        border: 'none',
+                        background: cardSide === 'front' ? '#fff' : 'transparent',
+                        color: cardSide === 'front' ? '#7B2FFF' : '#6b7280',
+                        fontWeight: 700,
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        boxShadow: cardSide === 'front' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                      }}
+                    >
+                      Front Side
+                    </button>
+                    <button
+                      onClick={() => setCardSide('back')}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: 6,
+                        border: 'none',
+                        background: cardSide === 'back' ? '#fff' : 'transparent',
+                        color: cardSide === 'back' ? '#7B2FFF' : '#6b7280',
+                        fontWeight: 700,
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        boxShadow: cardSide === 'back' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                      }}
+                    >
+                      Back Side (QR)
+                    </button>
                   </div>
 
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <a href={qrPngUrl} download={`purepulse-card-qr-${affiliate.referral_code}.png`} style={{ ...s.secondaryBtn, flex: 1, textAlign: 'center', textDecoration: 'none', display: 'inline-block' }}>
-                      Download Card QR (PNG)
-                    </a>
+                  <div style={{ display: 'inline-flex', background: '#f3f4f6', borderRadius: 8, padding: 3 }}>
+                    <button
+                      onClick={() => setCardTheme('dark')}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: 6,
+                        border: 'none',
+                        background: cardTheme === 'dark' ? '#111' : 'transparent',
+                        color: cardTheme === 'dark' ? '#fff' : '#6b7280',
+                        fontWeight: 700,
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Dark Neon
+                    </button>
+                    <button
+                      onClick={() => setCardTheme('light')}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: 6,
+                        border: 'none',
+                        background: cardTheme === 'light' ? '#fff' : 'transparent',
+                        color: cardTheme === 'light' ? '#111' : '#6b7280',
+                        fontWeight: 700,
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        boxShadow: cardTheme === 'light' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                      }}
+                    >
+                      Clean Light
+                    </button>
                   </div>
                 </div>
               </div>
 
-              {/* Vector QR & Brand Kit */}
-              <div style={s.card}>
-                <div style={{ padding: '18px 20px', borderBottom: '1px solid #f3f4f6' }}>
-                  <h4 style={{ margin: 0, fontSize: '0.9375rem', fontWeight: 700 }}>High-Res Vector QR &amp; Brand Kit</h4>
-                  <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: '#6b7280' }}>Embed on your website, email signature, or custom prints</p>
-                </div>
-                <div style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: 20 }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={qrSvgUrl} alt="QR" width={110} height={110} style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 4 }} />
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
-                    <a
-                      href={qrPngUrl}
-                      download={`purepulse-qr-${affiliate.referral_code.toLowerCase()}.png`}
-                      style={{ ...s.secondaryBtn, textAlign: 'center', textDecoration: 'none', fontSize: '0.8125rem' }}
-                    >
-                      <Download size={13} /> Download 1024px PNG
-                    </a>
-                    <a
-                      href={qrSvgUrl}
-                      download={`purepulse-qr-${affiliate.referral_code.toLowerCase()}.svg`}
-                      style={{ ...s.secondaryBtn, textAlign: 'center', textDecoration: 'none', fontSize: '0.8125rem' }}
-                    >
-                      <Download size={13} /> Download Vector SVG
-                    </a>
+              <div style={{ padding: '24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24, alignItems: 'center' }}>
+                {/* Visual Card Preview */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <div
+                    style={{
+                      width: '100%',
+                      maxWidth: 420,
+                      aspectRatio: '3.5 / 2',
+                      borderRadius: 14,
+                      padding: '22px 26px',
+                      boxSizing: 'border-box',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      background: cardTheme === 'dark'
+                        ? 'linear-gradient(135deg, #08060d 0%, #120a22 50%, #050308 100%)'
+                        : '#ffffff',
+                      color: cardTheme === 'dark' ? '#ffffff' : '#111827',
+                      border: cardTheme === 'dark' ? '1.5px solid #28243d' : '1.5px solid #e5e7eb',
+                      boxShadow: '0 20px 40px rgba(0,0,0,0.18)',
+                      position: 'relative',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {cardTheme === 'light' && (
+                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: '#7B2FFF' }} />
+                    )}
+
+                    {cardSide === 'front' ? (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div>
+                            <div style={{ fontSize: '1.25rem', fontWeight: 800, letterSpacing: '-0.02em' }}>
+                              Pure<span style={{ color: cardTheme === 'dark' ? '#A066FF' : '#7B2FFF' }}>Pulse</span>
+                            </div>
+                            <div style={{ fontSize: '0.625rem', fontWeight: 700, color: cardTheme === 'dark' ? 'rgba(255,255,255,0.6)' : '#6b7280', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 2 }}>
+                              WEB DESIGN &amp; MAINTENANCE
+                            </div>
+                          </div>
+                          <span style={{
+                            background: cardTheme === 'dark' ? 'rgba(123,47,255,0.25)' : '#f3f0ff',
+                            border: cardTheme === 'dark' ? '1px solid rgba(160,102,255,0.6)' : '1px solid #d8b4fe',
+                            color: cardTheme === 'dark' ? '#A066FF' : '#7B2FFF',
+                            fontSize: '0.625rem',
+                            fontWeight: 800,
+                            padding: '3px 8px',
+                            borderRadius: 100,
+                          }}>
+                            ⚡ OFFICIAL PARTNER
+                          </span>
+                        </div>
+
+                        <div>
+                          <p style={{ margin: 0, fontWeight: 900, fontSize: '1.125rem', color: cardTheme === 'dark' ? '#fff' : '#111' }}>
+                            {affiliate.name}
+                          </p>
+                          <p style={{ margin: '2px 0 0', fontSize: '0.6875rem', color: cardTheme === 'dark' ? 'rgba(255,255,255,0.7)' : '#4b5563' }}>
+                            Authorized Growth &amp; Sales Partner
+                          </p>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{
+                            background: '#7B2FFF',
+                            color: '#fff',
+                            fontFamily: 'monospace',
+                            fontWeight: 800,
+                            fontSize: '0.75rem',
+                            padding: '4px 10px',
+                            borderRadius: 6,
+                          }}>
+                            CODE: {affiliate.referral_code}
+                          </span>
+                          <span style={{ fontSize: '0.8125rem', fontWeight: 800, color: cardTheme === 'dark' ? '#00D4FF' : '#7B2FFF' }}>
+                            purepulse.one
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ display: 'flex', gap: 14, height: '100%' }}>
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                            <div>
+                              <p style={{ margin: 0, fontSize: '0.9375rem', fontWeight: 900 }}>Websites Built to Convert.</p>
+                              <p style={{ margin: '2px 0 6px', fontSize: '0.6875rem', fontWeight: 700, color: cardTheme === 'dark' ? '#A066FF' : '#7B2FFF' }}>
+                                $150 Deposit · Maintenance Included
+                              </p>
+                              <div style={{ fontSize: '0.625rem', color: cardTheme === 'dark' ? 'rgba(255,255,255,0.8)' : '#374151', lineHeight: 1.4 }}>
+                                <div>✓ Custom UI/UX Built to Convert</div>
+                                <div>✓ 24/7 Hosting &amp; Unlimited Updates</div>
+                                <div>✓ Sub-Second Speed &amp; SEO</div>
+                              </div>
+                            </div>
+
+                            <div>
+                              <div style={{
+                                background: cardTheme === 'dark' ? 'rgba(123,47,255,0.2)' : '#f3f0ff',
+                                border: cardTheme === 'dark' ? '1px solid rgba(160,102,255,0.4)' : '1px solid #d8b4fe',
+                                borderRadius: 6,
+                                padding: '3px 8px',
+                                fontSize: '0.65rem',
+                                fontWeight: 800,
+                                fontFamily: 'monospace',
+                                color: cardTheme === 'dark' ? '#00D4FF' : '#7B2FFF',
+                              }}>
+                                CODE: {affiliate.referral_code}
+                              </div>
+                              <span style={{ fontSize: '0.625rem', color: cardTheme === 'dark' ? 'rgba(255,255,255,0.5)' : '#6b7280', display: 'block', marginTop: 2 }}>
+                                purepulse.one/pricing
+                              </span>
+                            </div>
+                          </div>
+
+                          <div style={{
+                            width: 100,
+                            borderRadius: 8,
+                            background: cardTheme === 'dark' ? 'rgba(255,255,255,0.06)' : '#f9fafb',
+                            border: cardTheme === 'dark' ? '1px solid rgba(255,255,255,0.1)' : '1px solid #e5e7eb',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: 6,
+                            textAlign: 'center',
+                          }}>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={qrSvgUrl} alt="QR" width={68} height={68} style={{ background: '#fff', padding: 2, borderRadius: 4 }} />
+                            <span style={{ fontSize: '0.55rem', fontWeight: 800, marginTop: 4, textTransform: 'uppercase' }}>
+                              SCAN CAMERA
+                            </span>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
+
+                  <p style={{ margin: '10px 0 0', fontSize: '0.75rem', color: '#6b7280' }}>
+                    Previewing {cardSide.toUpperCase()} ({cardTheme === 'dark' ? 'Dark Neon' : 'Clean Light'})
+                  </p>
+                </div>
+
+                {/* Actions & VistaPrint Instructions */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        onClick={() => downloadBusinessCard('front', cardTheme)}
+                        disabled={downloadingCard === 'front'}
+                        style={{ ...s.primaryBtn, flex: 1, justifyContent: 'center', fontSize: '0.8125rem' }}
+                      >
+                        {downloadingCard === 'front' ? <RefreshCw size={13} className="animate-spin" /> : <Download size={13} />}
+                        Download Front (300 DPI)
+                      </button>
+                      <button
+                        onClick={() => downloadBusinessCard('back', cardTheme)}
+                        disabled={downloadingCard === 'back'}
+                        style={{ ...s.secondaryBtn, flex: 1, justifyContent: 'center', fontSize: '0.8125rem' }}
+                      >
+                        {downloadingCard === 'back' ? <RefreshCw size={13} className="animate-spin" /> : <Download size={13} />}
+                        Download Back (300 DPI)
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={() => downloadBusinessCardPackage(cardTheme)}
+                      disabled={downloadingCard === 'both'}
+                      style={{ ...s.secondaryBtn, width: '100%', justifyContent: 'center', fontSize: '0.8125rem', fontWeight: 700 }}
+                    >
+                      {downloadingCard === 'both' ? <RefreshCw size={13} className="animate-spin" /> : <Download size={13} />}
+                      Download Both Sides (Front + Back Package)
+                    </button>
+
+                    <button
+                      onClick={printCardsSheet}
+                      style={{ ...s.secondaryBtn, width: '100%', justifyContent: 'center', fontSize: '0.8125rem' }}
+                    >
+                      <Printer size={13} /> Print 10-Card Sheet (Letter 8.5&quot; × 11&quot;)
+                    </button>
+                  </div>
+
+                  {/* VistaPrint 3-Step Guide */}
+                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '14px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        📦 How to print with VistaPrint / Moo:
+                      </span>
+                      <a
+                        href="https://www.vistaprint.com/business-cards"
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ fontSize: '0.75rem', fontWeight: 700, color: '#7B2FFF', textDecoration: 'none' }}
+                      >
+                        Open VistaPrint <ArrowUpRight size={12} style={{ display: 'inline' }} />
+                      </a>
+                    </div>
+                    <ol style={{ margin: 0, paddingLeft: 18, fontSize: '0.75rem', color: '#475569', lineHeight: 1.5 }}>
+                      <li>Click <strong>&quot;Download Both Sides&quot;</strong> above to get the 300 DPI PNG files.</li>
+                      <li>On VistaPrint, choose <strong>Standard (3.5&quot; × 2.0&quot; Horizontal)</strong> &gt; <strong>Upload Design</strong>.</li>
+                      <li>Upload <strong>Front</strong> to Side 1 and <strong>Back</strong> to Side 2. Done!</li>
+                    </ol>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Additional Brand Kit & Vector QR */}
+            <div style={s.card}>
+              <div style={{ padding: '18px 20px', borderBottom: '1px solid #f3f4f6' }}>
+                <h4 style={{ margin: 0, fontSize: '0.9375rem', fontWeight: 700 }}>High-Res Vector QR &amp; Brand Kit</h4>
+                <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: '#6b7280' }}>Embed on your website, email signature, or custom prints</p>
+              </div>
+              <div style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={qrSvgUrl} alt="QR" width={110} height={110} style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 4 }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: '1 1 240px' }}>
+                  <a
+                    href={qrPngUrl}
+                    download={`purepulse-qr-${affiliate.referral_code.toLowerCase()}.png`}
+                    style={{ ...s.secondaryBtn, textAlign: 'center', textDecoration: 'none', fontSize: '0.8125rem' }}
+                  >
+                    <Download size={13} /> Download 1024px PNG
+                  </a>
+                  <a
+                    href={qrSvgUrl}
+                    download={`purepulse-qr-${affiliate.referral_code.toLowerCase()}.svg`}
+                    style={{ ...s.secondaryBtn, textAlign: 'center', textDecoration: 'none', fontSize: '0.8125rem' }}
+                  >
+                    <Download size={13} /> Download Vector SVG
+                  </a>
                 </div>
               </div>
             </div>
@@ -1464,6 +1950,122 @@ export default function AffiliateDashboardClient({
       {/* FULL-PAGE PRINTABLE FLYER (EXACTLY 1 LETTER PAGE, ONLY VISIBLE ON PRINT) */}
       <div style={{ display: 'none' }} className="affiliate-print-flyer">
         {renderFlyerByTheme(selectedFlyerTheme, affiliate.name, affiliate.referral_code, baseReferralUrl, qrSvgUrl)}
+      </div>
+
+      {/* 10-CARD PRINT-AT-HOME SHEET (AVERY 5371 / 8871 COMPATIBLE, ONLY VISIBLE ON PRINT) */}
+      <div style={{ display: 'none' }} className="business-card-sheet-print">
+        {Array.from({ length: 10 }).map((_, i) => (
+          <div
+            key={i}
+            style={{
+              width: '3.5in',
+              height: '2in',
+              padding: '0.18in',
+              boxSizing: 'border-box',
+              border: '1px dashed #d1d5db',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              background: cardTheme === 'light' ? '#ffffff' : '#08060d',
+              color: cardTheme === 'light' ? '#111827' : '#ffffff',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            {cardSide === 'front' ? (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 800 }}>
+                      Pure<span style={{ color: cardTheme === 'light' ? '#7B2FFF' : '#A066FF' }}>Pulse</span>
+                    </div>
+                    <div style={{ fontSize: '0.45rem', fontWeight: 700, color: cardTheme === 'light' ? '#6b7280' : 'rgba(255,255,255,0.6)', letterSpacing: '0.06em' }}>
+                      WEB DESIGN &amp; MAINTENANCE
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: '0.45rem',
+                    fontWeight: 800,
+                    padding: '2px 5px',
+                    borderRadius: 999,
+                    background: cardTheme === 'light' ? '#f3f0ff' : 'rgba(123,47,255,0.25)',
+                    color: cardTheme === 'light' ? '#7B2FFF' : '#A066FF',
+                  }}>
+                    ⚡ OFFICIAL PARTNER
+                  </span>
+                </div>
+
+                <div>
+                  <div style={{ fontWeight: 900, fontSize: '0.8125rem' }}>{affiliate.name}</div>
+                  <div style={{ fontSize: '0.5rem', color: cardTheme === 'light' ? '#4b5563' : 'rgba(255,255,255,0.7)' }}>
+                    Authorized Growth &amp; Sales Partner
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{
+                    background: '#7B2FFF',
+                    color: '#fff',
+                    fontFamily: 'monospace',
+                    fontWeight: 800,
+                    fontSize: '0.55rem',
+                    padding: '2px 6px',
+                    borderRadius: 4,
+                  }}>
+                    CODE: {affiliate.referral_code}
+                  </span>
+                  <span style={{ fontSize: '0.55rem', fontWeight: 800, color: cardTheme === 'light' ? '#7B2FFF' : '#00D4FF' }}>
+                    purepulse.one
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ display: 'flex', gap: 8, height: '100%' }}>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div>
+                      <div style={{ fontSize: '0.65rem', fontWeight: 900 }}>Websites Built to Convert.</div>
+                      <div style={{ fontSize: '0.5rem', fontWeight: 700, color: cardTheme === 'light' ? '#7B2FFF' : '#A066FF' }}>
+                        $150 Deposit · Maintenance Included
+                      </div>
+                      <div style={{ fontSize: '0.45rem', color: cardTheme === 'light' ? '#374151' : 'rgba(255,255,255,0.8)', lineHeight: 1.3, marginTop: 2 }}>
+                        <div>✓ Custom UI/UX Built to Convert</div>
+                        <div>✓ 24/7 Hosting &amp; Unlimited Edits</div>
+                        <div>✓ Sub-Second Speed &amp; SEO</div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <span style={{
+                        fontSize: '0.48rem',
+                        fontWeight: 800,
+                        fontFamily: 'monospace',
+                        color: cardTheme === 'light' ? '#7B2FFF' : '#00D4FF',
+                      }}>
+                        CODE: {affiliate.referral_code}
+                      </span>
+                      <div style={{ fontSize: '0.42rem', color: cardTheme === 'light' ? '#6b7280' : 'rgba(255,255,255,0.5)' }}>
+                        purepulse.one/pricing
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{
+                    width: 54,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={qrSvgUrl} alt="QR" width={44} height={44} style={{ background: '#fff', padding: 2, borderRadius: 2 }} />
+                    <span style={{ fontSize: '0.4rem', fontWeight: 800, marginTop: 2 }}>SCAN</span>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   )
