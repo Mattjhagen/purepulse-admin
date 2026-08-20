@@ -184,72 +184,212 @@ export default function AffiliateDashboardClient({
     ctx.fillStyle = glow2
     ctx.fillRect(0, 0, width, height)
 
-    // Brand Header
-    ctx.fillStyle = '#ffffff'
-    ctx.font = 'bold 38px system-ui, -apple-system, sans-serif'
-    ctx.fillText('Pure', 60, 90)
-    const pureWidth = ctx.measureText('Pure').width
-    ctx.fillStyle = '#A066FF'
-    ctx.fillText('Pulse', 60 + pureWidth, 90)
-
-    ctx.fillStyle = 'rgba(255,255,255,0.6)'
-    ctx.font = '600 18px system-ui, -apple-system, sans-serif'
-    ctx.fillText('WEB DESIGN & MAINTENANCE', width - 360, 90)
-
-    // Top pill badge
-    const badgeText = '⚡ HIGH PERFORMANCE WEBSITES'
-    ctx.fillStyle = 'rgba(123,47,255,0.25)'
-    roundRect(ctx, 60, 150, 340, 44, 22, true, false)
-    ctx.strokeStyle = 'rgba(160,102,255,0.6)'
-    ctx.lineWidth = 1.5
-    roundRect(ctx, 60, 150, 340, 44, 22, false, true)
-
-    ctx.fillStyle = '#A066FF'
-    ctx.font = 'bold 15px system-ui, -apple-system, sans-serif'
-    ctx.fillText(badgeText, 80, 178)
-
-    // Main Headline
-    ctx.fillStyle = '#ffffff'
-    ctx.font = '900 64px system-ui, -apple-system, sans-serif'
-    wrapText(ctx, socialHeadline, 60, 280, width - 120, 78)
-
-    // Feature highlights
     const features = [
       '✓ Custom design & clean code built to convert',
       '✓ Fully responsive & ultra-fast loading',
       '✓ $150 deposit to start — all plans include maintenance',
     ]
-    ctx.fillStyle = 'rgba(255,255,255,0.85)'
-    ctx.font = '500 24px system-ui, -apple-system, sans-serif'
-    let featY = socialFormat === 'story' ? height * 0.52 : height * 0.60
-    for (const f of features) {
-      ctx.fillText(f, 60, featY)
-      featY += 46
+
+    if (socialFormat === 'banner') {
+      // ── 16:9 BANNER (1200 x 630) ──
+      const padX = 55
+
+      // Header
+      ctx.fillStyle = '#ffffff'
+      ctx.font = 'bold 32px system-ui, -apple-system, sans-serif'
+      ctx.fillText('Pure', padX, 58)
+      const pureWidth = ctx.measureText('Pure').width
+      ctx.fillStyle = '#A066FF'
+      ctx.fillText('Pulse', padX + pureWidth, 58)
+
+      ctx.fillStyle = 'rgba(255,255,255,0.6)'
+      ctx.font = '600 15px system-ui, -apple-system, sans-serif'
+      ctx.fillText('WEB DESIGN & MAINTENANCE', width - 330, 58)
+
+      // Pill badge
+      const badgeText = '⚡ HIGH PERFORMANCE WEBSITES'
+      ctx.fillStyle = 'rgba(123,47,255,0.25)'
+      roundRect(ctx, padX, 90, 280, 36, 18, true, false)
+      ctx.strokeStyle = 'rgba(160,102,255,0.6)'
+      ctx.lineWidth = 1.5
+      roundRect(ctx, padX, 90, 280, 36, 18, false, true)
+
+      ctx.fillStyle = '#A066FF'
+      ctx.font = 'bold 13px system-ui, -apple-system, sans-serif'
+      ctx.fillText(badgeText, padX + 16, 113)
+
+      // Main Headline
+      ctx.fillStyle = '#ffffff'
+      ctx.font = '900 40px system-ui, -apple-system, sans-serif'
+      const endHeadY = wrapText(ctx, socialHeadline, padX, 175, width - (padX * 2), 50)
+
+      // Feature highlights (compact)
+      ctx.fillStyle = 'rgba(255,255,255,0.85)'
+      ctx.font = '500 18px system-ui, -apple-system, sans-serif'
+      let featY = Math.max(endHeadY + 38, 290)
+      for (const f of features) {
+        if (featY <= 420) {
+          ctx.fillText(f, padX, featY)
+          featY += 34
+        }
+      }
+
+      // Bottom CTA Card
+      const ctaY = 465
+      const ctaHeight = 135
+      ctx.fillStyle = 'rgba(123,47,255,0.15)'
+      roundRect(ctx, padX, ctaY, width - (padX * 2), ctaHeight, 18, true, false)
+      ctx.strokeStyle = 'rgba(160,102,255,0.5)'
+      ctx.lineWidth = 1.5
+      roundRect(ctx, padX, ctaY, width - (padX * 2), ctaHeight, 18, false, true)
+
+      ctx.fillStyle = '#ffffff'
+      ctx.font = 'bold 24px system-ui, -apple-system, sans-serif'
+      ctx.fillText('Get Started at purepulse.one', padX + 28, ctaY + 48)
+
+      ctx.fillStyle = 'rgba(255,255,255,0.7)'
+      ctx.font = '500 17px system-ui, -apple-system, sans-serif'
+      ctx.fillText(`Partner Link: purepulse.one/pricing?ref=${affiliate.referral_code}`, padX + 28, ctaY + 86)
+
+      // Code Pill inside CTA
+      ctx.fillStyle = '#7B2FFF'
+      roundRect(ctx, width - padX - 310, ctaY + 36, 280, 58, 12, true, false)
+      ctx.fillStyle = '#ffffff'
+      ctx.font = 'bold 19px monospace'
+      ctx.fillText(`CODE: ${affiliate.referral_code}`, width - padX - 285, ctaY + 72)
+
+    } else if (socialFormat === 'story') {
+      // ── 9:16 STORY (1080 x 1920) ──
+      const padX = 70
+
+      // Brand Header
+      ctx.fillStyle = '#ffffff'
+      ctx.font = 'bold 44px system-ui, -apple-system, sans-serif'
+      ctx.fillText('Pure', padX, 140)
+      const pureWidth = ctx.measureText('Pure').width
+      ctx.fillStyle = '#A066FF'
+      ctx.fillText('Pulse', padX + pureWidth, 140)
+
+      ctx.fillStyle = 'rgba(255,255,255,0.6)'
+      ctx.font = '600 19px system-ui, -apple-system, sans-serif'
+      ctx.fillText('WEB DESIGN & MAINTENANCE', padX, 190)
+
+      // Top pill badge
+      const badgeText = '⚡ HIGH PERFORMANCE WEBSITES'
+      ctx.fillStyle = 'rgba(123,47,255,0.25)'
+      roundRect(ctx, padX, 240, 360, 48, 24, true, false)
+      ctx.strokeStyle = 'rgba(160,102,255,0.6)'
+      ctx.lineWidth = 1.5
+      roundRect(ctx, padX, 240, 360, 48, 24, false, true)
+
+      ctx.fillStyle = '#A066FF'
+      ctx.font = 'bold 16px system-ui, -apple-system, sans-serif'
+      ctx.fillText(badgeText, padX + 24, 270)
+
+      // Main Headline
+      ctx.fillStyle = '#ffffff'
+      ctx.font = '900 66px system-ui, -apple-system, sans-serif'
+      const endHeadY = wrapText(ctx, socialHeadline, padX, 390, width - (padX * 2), 80)
+
+      // Feature highlights
+      ctx.fillStyle = 'rgba(255,255,255,0.85)'
+      ctx.font = '500 27px system-ui, -apple-system, sans-serif'
+      let featY = Math.max(endHeadY + 60, 920)
+      for (const f of features) {
+        ctx.fillText(f, padX, featY)
+        featY += 60
+      }
+
+      // Bottom CTA Card
+      const ctaY = 1520
+      const ctaHeight = 270
+      ctx.fillStyle = 'rgba(123,47,255,0.15)'
+      roundRect(ctx, padX, ctaY, width - (padX * 2), ctaHeight, 24, true, false)
+      ctx.strokeStyle = 'rgba(160,102,255,0.5)'
+      ctx.lineWidth = 2
+      roundRect(ctx, padX, ctaY, width - (padX * 2), ctaHeight, 24, false, true)
+
+      ctx.fillStyle = '#ffffff'
+      ctx.font = 'bold 32px system-ui, -apple-system, sans-serif'
+      ctx.fillText('Get Started at purepulse.one', padX + 36, ctaY + 64)
+
+      ctx.fillStyle = 'rgba(255,255,255,0.7)'
+      ctx.font = '500 22px system-ui, -apple-system, sans-serif'
+      ctx.fillText(`Partner Link: purepulse.one/pricing?ref=${affiliate.referral_code}`, padX + 36, ctaY + 116)
+
+      // Code Pill inside CTA
+      ctx.fillStyle = '#7B2FFF'
+      roundRect(ctx, padX + 36, ctaY + 155, 340, 68, 14, true, false)
+      ctx.fillStyle = '#ffffff'
+      ctx.font = 'bold 23px monospace'
+      ctx.fillText(`CODE: ${affiliate.referral_code}`, padX + 64, ctaY + 198)
+
+    } else {
+      // ── 1:1 SQUARE (1080 x 1080) ──
+      const padX = 60
+
+      // Brand Header
+      ctx.fillStyle = '#ffffff'
+      ctx.font = 'bold 38px system-ui, -apple-system, sans-serif'
+      ctx.fillText('Pure', padX, 85)
+      const pureWidth = ctx.measureText('Pure').width
+      ctx.fillStyle = '#A066FF'
+      ctx.fillText('Pulse', padX + pureWidth, 85)
+
+      ctx.fillStyle = 'rgba(255,255,255,0.6)'
+      ctx.font = '600 17px system-ui, -apple-system, sans-serif'
+      ctx.fillText('WEB DESIGN & MAINTENANCE', width - 360, 85)
+
+      // Top pill badge
+      const badgeText = '⚡ HIGH PERFORMANCE WEBSITES'
+      ctx.fillStyle = 'rgba(123,47,255,0.25)'
+      roundRect(ctx, padX, 130, 330, 42, 21, true, false)
+      ctx.strokeStyle = 'rgba(160,102,255,0.6)'
+      ctx.lineWidth = 1.5
+      roundRect(ctx, padX, 130, 330, 42, 21, false, true)
+
+      ctx.fillStyle = '#A066FF'
+      ctx.font = 'bold 14px system-ui, -apple-system, sans-serif'
+      ctx.fillText(badgeText, padX + 20, 157)
+
+      // Main Headline
+      ctx.fillStyle = '#ffffff'
+      ctx.font = '900 56px system-ui, -apple-system, sans-serif'
+      const endHeadY = wrapText(ctx, socialHeadline, padX, 245, width - (padX * 2), 68)
+
+      // Feature highlights
+      ctx.fillStyle = 'rgba(255,255,255,0.85)'
+      ctx.font = '500 23px system-ui, -apple-system, sans-serif'
+      let featY = Math.max(endHeadY + 48, 520)
+      for (const f of features) {
+        ctx.fillText(f, padX, featY)
+        featY += 46
+      }
+
+      // Bottom CTA Card
+      const ctaY = 860
+      const ctaHeight = 160
+      ctx.fillStyle = 'rgba(123,47,255,0.15)'
+      roundRect(ctx, padX, ctaY, width - (padX * 2), ctaHeight, 22, true, false)
+      ctx.strokeStyle = 'rgba(160,102,255,0.5)'
+      ctx.lineWidth = 2
+      roundRect(ctx, padX, ctaY, width - (padX * 2), ctaHeight, 22, false, true)
+
+      ctx.fillStyle = '#ffffff'
+      ctx.font = 'bold 27px system-ui, -apple-system, sans-serif'
+      ctx.fillText('Get Started at purepulse.one', padX + 32, ctaY + 54)
+
+      ctx.fillStyle = 'rgba(255,255,255,0.7)'
+      ctx.font = '500 19px system-ui, -apple-system, sans-serif'
+      ctx.fillText(`Partner Link: purepulse.one/pricing?ref=${affiliate.referral_code}`, padX + 32, ctaY + 98)
+
+      // Code Pill inside CTA
+      ctx.fillStyle = '#7B2FFF'
+      roundRect(ctx, width - padX - 320, ctaY + 44, 280, 64, 12, true, false)
+      ctx.fillStyle = '#ffffff'
+      ctx.font = 'bold 20px monospace'
+      ctx.fillText(`CODE: ${affiliate.referral_code}`, width - padX - 295, ctaY + 83)
     }
-
-    // Bottom CTA Card
-    const ctaY = height - (socialFormat === 'story' ? 340 : 220)
-    const ctaHeight = socialFormat === 'story' ? 260 : 160
-    ctx.fillStyle = 'rgba(123,47,255,0.15)'
-    roundRect(ctx, 60, ctaY, width - 120, ctaHeight, 24, true, false)
-    ctx.strokeStyle = 'rgba(160,102,255,0.5)'
-    ctx.lineWidth = 2
-    roundRect(ctx, 60, ctaY, width - 120, ctaHeight, 24, false, true)
-
-    ctx.fillStyle = '#ffffff'
-    ctx.font = 'bold 28px system-ui, -apple-system, sans-serif'
-    ctx.fillText('Get Started at purepulse.one', 90, ctaY + 54)
-
-    ctx.fillStyle = 'rgba(255,255,255,0.7)'
-    ctx.font = '500 20px system-ui, -apple-system, sans-serif'
-    ctx.fillText(`Partner Link: purepulse.one/pricing?ref=${affiliate.referral_code}`, 90, ctaY + 96)
-
-    // Code Pill inside CTA
-    ctx.fillStyle = '#7B2FFF'
-    roundRect(ctx, width - 360, ctaY + 40, 260, 60, 12, true, false)
-    ctx.fillStyle = '#ffffff'
-    ctx.font = 'bold 20px monospace'
-    ctx.fillText(`CODE: ${affiliate.referral_code}`, width - 340, ctaY + 77)
 
   }, [socialFormat, socialHeadline, affiliate.referral_code])
 
@@ -1623,7 +1763,7 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   if (stroke) ctx.stroke()
 }
 
-function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number) {
+function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number): number {
   const words = text.split(' ')
   let line = ''
   let curY = y
@@ -1641,6 +1781,7 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
     }
   }
   ctx.fillText(line, x, curY)
+  return curY
 }
 
 /* ─────────────────────────────────────────────────────────────
