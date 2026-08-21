@@ -25,23 +25,31 @@ function date(value?: string | null) {
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = adminSupabase()
-  const { data: rawProject } = await supabase
+  const { data: rawProject, error: projectError } = await supabase
     .from('website_projects')
-    .select('*,clients(id,name,email,company,phone),project_briefs(*),contracts(id,title,status,payment_status,signature_token,signed_at)')
+    .select('*')
     .eq('id', id)
     .maybeSingle()
 
+  if (projectError) throw new Error(`Project lookup failed: ${projectError.message}`)
   if (!rawProject) notFound()
   const project = rawProject as any
-  const client = Array.isArray(project.clients) ? project.clients[0] : project.clients
-  const brief = Array.isArray(project.project_briefs) ? project.project_briefs[0] : project.project_briefs
-  const contract = Array.isArray(project.contracts) ? project.contracts[0] : project.contracts
 
-  const [{ data: jobs }, { data: usage }, { data: audit }] = await Promise.all([
+  const missingId = '00000000-0000-0000-0000-000000000000'
+  const [clientResult, briefResult, contractResult, jobsResult, usageResult, auditResult] = await Promise.all([
+    supabase.from('clients').select('id,name,email,company,phone').eq('id', project.client_id).maybeSingle(),
+    supabase.from('project_briefs').select('*').eq('id', project.brief_id).maybeSingle(),
+    supabase.from('contracts').select('id,title,status,payment_status,signature_token,signed_at').eq('id', project.contract_id ?? missingId).maybeSingle(),
     supabase.from('pipeline_jobs').select('*').eq('project_id', id).order('created_at', { ascending: false }),
     supabase.from('project_usage_events').select('*').eq('project_id', id).order('recorded_at', { ascending: false }),
     supabase.from('project_audit_events').select('*').eq('project_id', id).order('created_at', { ascending: false }).limit(25),
   ])
+  const client = clientResult.data
+  const brief = briefResult.data
+  const contract = contractResult.data
+  const jobs = jobsResult.data
+  const usage = usageResult.data
+  const audit = auditResult.data
 
   const costCents = Math.round(Number(project.billable_seconds) * Number(project.hourly_rate_cents) / 3600)
   const capPercent = Math.min(100, project.spending_cap_cents ? costCents / project.spending_cap_cents * 100 : 0)
