@@ -23,17 +23,54 @@ Key facts about PurePulse:
 - Onboarding & Interview: https://login.purepulse.one/interview
 - Client Portal: https://login.purepulse.one/
 
-Tone & style:
+CRITICAL INSTRUCTIONS:
+- You are in live chat mode. Respond directly to the user with your final message only.
+- NEVER output your thinking process, scratchpad, reasoning steps, analysis, or constraints check.
 - Keep responses concise (2 to 4 sentences), clear, and direct.
-- If asked about pricing or starting a project, mention the $150 deposit and invite them to reach out or apply.
 `
 
 const FREE_MODELS = [
   'google/gemma-4-31b-it:free',
-  'meta-llama/llama-3.3-70b-instruct:free',
+  'google/gemma-4-26b-a4b-it:free',
+  'openai/gpt-oss-20b:free',
+  'z-ai/glm-5.2:free',
   'nvidia/nemotron-3.5-lightning:free',
-  'deepseek/deepseek-r1:free',
 ]
+
+function cleanAiResponse(text: string, defaultFallback: string): string {
+  if (!text) return defaultFallback
+
+  // 1. Strip XML-like thinking/thought tags
+  let cleaned = text.replace(/<(?:think|thought)>[\s\S]*?<\/(?:think|thought)>/gi, '').trim()
+
+  // 2. Strip "Here's a thinking process:" or meta analysis dumps
+  if (
+    /^Here'?s a thinking process/i.test(cleaned) ||
+    /^\*\*Thinking Process/i.test(cleaned) ||
+    /^1\.\s+\*\*Analyze/i.test(cleaned) ||
+    cleaned.toLowerCase().includes('thinking process:') ||
+    cleaned.includes('Check against constraints')
+  ) {
+    // Attempt to extract the last valid quoted response
+    const parts = cleaned.split(/["“”]/)
+    const validQuotes: string[] = []
+    for (let i = 1; i < parts.length; i += 2) {
+      const q = parts[i].trim()
+      if (q.length > 25 && !q.startsWith('If asked') && !q.startsWith('Keep responses') && !q.startsWith('Analyze')) {
+        validQuotes.push(q)
+      }
+    }
+    if (validQuotes.length > 0) {
+      return validQuotes[validQuotes.length - 1]
+    }
+    return defaultFallback
+  }
+
+  // 3. Strip leading assistant label prefixes
+  cleaned = cleaned.replace(/^(?:Assistant|Response|PulseBot|Answer):\s*/i, '').trim()
+
+  return cleaned || defaultFallback
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -61,9 +98,11 @@ export async function POST(req: NextRequest) {
 
     const modelQueue = [preferredModel, ...FREE_MODELS.filter(m => m !== preferredModel)]
 
+    const defaultGreeting = "Hey! 👋 I'm PulseBot, PurePulse's design & engineering consultant. We craft modern web apps and digital experiences starting at a $150 deposit. How can I help you today?"
+
     if (!apiKey) {
       return NextResponse.json({
-        response: "Thanks for checking out PurePulse! We build high-performance web applications and sleek sites starting at a $150 deposit. Reach out to matty@purepulse.one or visit https://login.purepulse.one/ to get started!",
+        response: defaultGreeting,
         model: 'simulated-fallback',
       }, { headers: CORS_HEADERS })
     }
@@ -85,15 +124,17 @@ export async function POST(req: NextRequest) {
             messages,
             temperature: 0.7,
             max_tokens: 600,
+            include_reasoning: false,
           }),
         })
 
         if (res.ok) {
           const data = await res.json()
-          const reply = data.choices?.[0]?.message?.content?.trim()
-          if (reply) {
+          const rawReply = data.choices?.[0]?.message?.content?.trim()
+          if (rawReply) {
+            const cleanedReply = cleanAiResponse(rawReply, defaultGreeting)
             return NextResponse.json({
-              response: reply,
+              response: cleanedReply,
               model,
             }, { headers: CORS_HEADERS })
           }
@@ -109,7 +150,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
-      response: "Thanks for reaching out to PurePulse! We're ready to build your next web project starting at a $150 deposit. Drop an email to matty@purepulse.one or start your application at https://login.purepulse.one/affiliates/apply!",
+      response: defaultGreeting,
       model: 'smart-fallback',
       warning: lastError,
     }, { headers: CORS_HEADERS })
