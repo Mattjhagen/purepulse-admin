@@ -70,7 +70,7 @@ export async function POST(
       const client = Array.isArray(contract.clients) ? (contract.clients as any[])[0] : contract.clients
       if (client?.email) clientEmail = client.email
 
-      await supabase
+      const { error: contractUpdateError } = await supabase
         .from('contracts')
         .update({
           status: 'signed',
@@ -81,6 +81,27 @@ export async function POST(
           updated_at: signedAt,
         })
         .eq('id', contract.id)
+      if (contractUpdateError) throw contractUpdateError
+
+      const { data: projects, error: projectUpdateError } = await supabase
+        .from('website_projects')
+        .update({ state: 'awaiting_payment', updated_at: signedAt })
+        .eq('contract_id', contract.id)
+        .eq('state', 'awaiting_contract')
+        .select('id')
+      if (projectUpdateError) throw projectUpdateError
+
+      if (projects?.length) {
+        await supabase.from('project_audit_events').insert(
+          projects.map(project => ({
+            project_id: project.id,
+            actor_type: 'client',
+            actor_id: clientEmail,
+            action: 'contract_signed',
+            metadata: { contract_id: contract.id, signed_at: signedAt },
+          }))
+        )
+      }
     }
   } catch (err) {
     console.warn('[sign/POST] DB update warning (fallback enabled):', err)
@@ -92,8 +113,8 @@ export async function POST(
   // Send admin notification (non-fatal)
   try {
     const resend = getResend()
-    await resend.emails.send({
-      from: 'PurePulse <contracts@login.purepulse.one>',
+    const delivery = await resend.emails.send({
+      from: 'PurePulse <matty@purepulse.one>',
       to: 'matty@purepulse.one',
       subject: `✅ Contract signed by ${signed_by.trim()}`,
       html: `
@@ -108,6 +129,7 @@ export async function POST(
         </div>
       `,
     })
+    if (delivery.error) throw new Error(delivery.error.message)
   } catch (emailErr) {
     console.warn('[sign] admin email notice:', emailErr)
   }
@@ -118,8 +140,8 @@ export async function POST(
       const resend = getResend()
       const portalLink = `${appUrl}/portal`
 
-      await resend.emails.send({
-        from: 'PurePulse <contracts@login.purepulse.one>',
+      const delivery = await resend.emails.send({
+        from: 'PurePulse <matty@purepulse.one>',
         to: clientEmail,
         subject: `You're signed — set up your PurePulse client portal`,
         html: `
@@ -157,6 +179,7 @@ export async function POST(
           </div>
         `,
       })
+      if (delivery.error) throw new Error(delivery.error.message)
     } catch (emailErr) {
       console.warn('[sign] client invite email notice:', emailErr)
     }

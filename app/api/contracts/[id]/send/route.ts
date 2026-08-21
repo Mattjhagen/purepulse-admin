@@ -50,7 +50,7 @@ export async function POST(
   // Send email
   const resend = getResend()
   const { error: emailError } = await resend.emails.send({
-    from: 'PurePulse <contracts@login.purepulse.one>',
+    from: 'PurePulse <matty@purepulse.one>',
     to: client.email,
     subject: `Please sign your PurePulse Web Services Agreement`,
     html: `
@@ -79,7 +79,8 @@ export async function POST(
   })
 
   if (emailError) {
-    return NextResponse.json({ error: 'Contract updated but email failed to send.' }, { status: 500 })
+    console.error('[contracts/send] Resend rejected contract email:', emailError)
+    return NextResponse.json({ error: `Contract updated but email failed: ${emailError.message}` }, { status: 502 })
   }
 
   return NextResponse.json({ ok: true, signingUrl })

@@ -217,6 +217,36 @@ export async function POST(req: NextRequest) {
         })
         .eq('id', contractId)
 
+      const queuedAt = new Date().toISOString()
+      const { data: queuedProjects, error: projectQueueError } = await supabase
+        .from('website_projects')
+        .update({
+          state: 'queued',
+          payment_method_ready: true,
+          stripe_customer_id: customerId,
+          updated_at: queuedAt,
+        })
+        .eq('contract_id', contractId)
+        .in('state', ['awaiting_contract', 'awaiting_payment', 'payment_failed'])
+        .select('id')
+
+      if (projectQueueError) {
+        console.error('[stripe webhook] project queue transition failed:', projectQueueError)
+        throw projectQueueError
+      }
+
+      if (queuedProjects?.length) {
+        await supabase.from('project_audit_events').insert(
+          queuedProjects.map(project => ({
+            project_id: project.id,
+            actor_type: 'system',
+            actor_id: 'stripe',
+            action: 'payment_completed_project_queued',
+            metadata: { contract_id: contractId, checkout_session_id: session.id },
+          }))
+        )
+      }
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const client = Array.isArray(contract.clients) ? (contract.clients as any[])[0] : contract.clients
 
