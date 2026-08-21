@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, Suspense } from 'react'
+import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { PLAN_LABELS, PLAN_PRICES, type Plan } from '@/lib/types'
 
@@ -15,6 +15,16 @@ function StartForm() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [company, setCompany] = useState('')
+  const [websiteType, setWebsiteType] = useState('brochure')
+  const [businessSummary, setBusinessSummary] = useState('')
+  const [targetAudience, setTargetAudience] = useState('')
+  const [pages, setPages] = useState('Home, About, Services, Contact')
+  const [features, setFeatures] = useState('Contact form')
+  const [styleNotes, setStyleNotes] = useState('')
+  const [exampleSites, setExampleSites] = useState('')
+  const [contentStatus, setContentStatus] = useState('needs_help')
+  const [desiredLaunchDate, setDesiredLaunchDate] = useState('')
+  const [spendingCap, setSpendingCap] = useState('500')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -30,7 +40,23 @@ function StartForm() {
       const res = await fetch('/api/pricing/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, company, plan, ref_code: refCode || undefined }),
+        body: JSON.stringify({
+          name,
+          email,
+          company,
+          plan,
+          ref_code: refCode || undefined,
+          website_type: websiteType,
+          business_summary: businessSummary,
+          target_audience: targetAudience,
+          pages: pages.split(',').map(value => value.trim()).filter(Boolean),
+          features: features.split(',').map(value => value.trim()).filter(Boolean),
+          style_notes: styleNotes,
+          example_sites: exampleSites.split(/[,\n]/).map(value => value.trim()).filter(Boolean),
+          content_status: contentStatus,
+          desired_launch_date: desiredLaunchDate || undefined,
+          spending_cap_dollars: Number(spendingCap),
+        }),
       })
       const data = await res.json()
       if (data.error) { setError(data.error); return }
@@ -69,21 +95,29 @@ function StartForm() {
               <span>First month ({PLAN_LABELS[plan]})</span>
               <span style={s.lineAmt}>${monthlyRate}.00</span>
             </div>
+            <div style={s.lineRow}>
+              <span>Build work</span>
+              <span style={s.lineAmt}>$25/hour</span>
+            </div>
             <div style={{ ...s.lineRow, ...s.totalRow }}>
               <span>Due today</span>
               <span style={s.lineAmt}>${todayTotal}.00</span>
             </div>
             <p style={s.fine}>
-              After today, you&apos;ll be billed ${monthlyRate}/mo. Cancel anytime with 30 days&apos; notice.
+              Your deposit is credited toward build work. The pipeline pauses automatically at your approved spending cap.
             </p>
           </aside>
 
           {/* Right: form */}
           <div style={s.formCard}>
             <h1 style={s.h1}>Get started</h1>
-            <p style={s.sub}>Enter your details and we&apos;ll generate your contract — sign it and complete payment in minutes.</p>
+            <p style={s.sub}>Tell us what you need. We&apos;ll turn this brief into your contract and a capped, trackable build project.</p>
 
             <form onSubmit={handleSubmit} style={s.form}>
+              <div style={s.sectionHeading}>
+                <span style={s.step}>1</span>
+                <div><strong>Contact</strong><span style={s.sectionHint}>Who should approve the project?</span></div>
+              </div>
               <div style={s.row}>
                 <div style={s.field}>
                   <label style={s.label}>Full name *</label>
@@ -118,6 +152,78 @@ function StartForm() {
                 />
               </div>
 
+              <div style={s.sectionHeading}>
+                <span style={s.step}>2</span>
+                <div><strong>Website brief</strong><span style={s.sectionHint}>Describe the result you want.</span></div>
+              </div>
+
+              <div style={s.row}>
+                <div style={s.field}>
+                  <label style={s.label}>Website type *</label>
+                  <select style={s.input} value={websiteType} onChange={e => setWebsiteType(e.target.value)}>
+                    <option value="brochure">Business / brochure</option>
+                    <option value="booking">Booking or appointments</option>
+                    <option value="store">Online store</option>
+                    <option value="portfolio">Portfolio</option>
+                    <option value="membership">Membership</option>
+                    <option value="custom">Custom web app</option>
+                  </select>
+                </div>
+                <div style={s.field}>
+                  <label style={s.label}>Content readiness *</label>
+                  <select style={s.input} value={contentStatus} onChange={e => setContentStatus(e.target.value)}>
+                    <option value="ready">Copy and images are ready</option>
+                    <option value="partial">Some content is ready</option>
+                    <option value="needs_help">I need content help</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={s.field}>
+                <label style={s.label}>What does your business do? *</label>
+                <textarea style={s.textarea} required value={businessSummary} onChange={e => setBusinessSummary(e.target.value)} placeholder="We help local homeowners…" rows={3} />
+              </div>
+              <div style={s.field}>
+                <label style={s.label}>Who is the website for? *</label>
+                <textarea style={s.textarea} required value={targetAudience} onChange={e => setTargetAudience(e.target.value)} placeholder="Homeowners in the Chicago area who…" rows={2} />
+              </div>
+              <div style={s.row}>
+                <div style={s.field}>
+                  <label style={s.label}>Pages <span style={s.optional}>(comma separated)</span></label>
+                  <input style={s.input} value={pages} onChange={e => setPages(e.target.value)} />
+                </div>
+                <div style={s.field}>
+                  <label style={s.label}>Features <span style={s.optional}>(comma separated)</span></label>
+                  <input style={s.input} value={features} onChange={e => setFeatures(e.target.value)} placeholder="Booking, payments, gallery" />
+                </div>
+              </div>
+              <div style={s.field}>
+                <label style={s.label}>Style, colors, and personality</label>
+                <textarea style={s.textarea} value={styleNotes} onChange={e => setStyleNotes(e.target.value)} placeholder="Clean, warm, premium; avoid corporate blue…" rows={2} />
+              </div>
+              <div style={s.field}>
+                <label style={s.label}>Example websites</label>
+                <textarea style={s.textarea} value={exampleSites} onChange={e => setExampleSites(e.target.value)} placeholder="One URL per line" rows={2} />
+              </div>
+
+              <div style={s.sectionHeading}>
+                <span style={s.step}>3</span>
+                <div><strong>Budget controls</strong><span style={s.sectionHint}>Work stops before it exceeds this amount.</span></div>
+              </div>
+              <div style={s.row}>
+                <div style={s.field}>
+                  <label style={s.label}>Desired launch date</label>
+                  <input style={s.input} type="date" value={desiredLaunchDate} onChange={e => setDesiredLaunchDate(e.target.value)} />
+                </div>
+                <div style={s.field}>
+                  <label style={s.label}>Hard spending cap *</label>
+                  <div style={s.moneyInput}><span>$</span><input style={s.moneyField} required type="number" min="25" max="25000" step="25" value={spendingCap} onChange={e => setSpendingCap(e.target.value)} /></div>
+                </div>
+              </div>
+              <div style={s.capNotice}>
+                At $25/hour, a ${Number(spendingCap || 0).toLocaleString()} cap authorizes up to <strong>{(Number(spendingCap || 0) / 25).toFixed(1)} hours</strong>. You&apos;ll see the time ledger and receive alerts before the cap is reached.
+              </div>
+
               {error && <p style={s.errorMsg}>{error}</p>}
 
               <button
@@ -125,11 +231,11 @@ function StartForm() {
                 disabled={loading}
                 style={{ ...s.btn, opacity: loading ? 0.65 : 1 }}
               >
-                {loading ? 'Setting up your contract…' : 'Continue to contract →'}
+                {loading ? 'Creating your project…' : 'Review contract & start project →'}
               </button>
 
               <p style={s.legal}>
-                By continuing you&apos;ll receive a contract via email. No charge until after you sign.
+                Nothing starts until you sign the contract and authorize payment. Build time is billed in one-minute increments.
               </p>
             </form>
           </div>
@@ -177,8 +283,16 @@ const s: Record<string, React.CSSProperties> = {
   form: { display: 'flex', flexDirection: 'column' as const, gap: 18 },
   row: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 },
   field: { display: 'flex', flexDirection: 'column' as const, gap: 5 },
+  sectionHeading: { display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, paddingTop: 18, borderTop: '1px solid #f0f1f3', fontSize: '0.95rem' },
+  step: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 999, background: '#111', color: '#fff', fontSize: '0.75rem', fontWeight: 800 },
+  sectionHint: { display: 'block', color: '#9ca3af', fontSize: '0.75rem', marginTop: 2, fontWeight: 400 },
   label: { fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.08em', color: '#374151' },
+  optional: { color: '#9ca3af', fontWeight: 500, textTransform: 'none' as const, letterSpacing: 0 },
   input: { padding: '11px 13px', fontSize: '0.9375rem', border: '1.5px solid #d1d5db', borderRadius: 8, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const, width: '100%' },
+  textarea: { padding: '11px 13px', fontSize: '0.9375rem', border: '1.5px solid #d1d5db', borderRadius: 8, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const, width: '100%', resize: 'vertical' as const },
+  moneyInput: { display: 'flex', alignItems: 'center', gap: 8, border: '1.5px solid #d1d5db', borderRadius: 8, padding: '0 13px', fontWeight: 700 },
+  moneyField: { border: 0, outline: 0, padding: '11px 0', fontSize: '0.9375rem', fontFamily: 'inherit', width: '100%', background: 'transparent' },
+  capNotice: { padding: '13px 14px', borderRadius: 8, background: '#f3f4f6', color: '#4b5563', fontSize: '0.8rem', lineHeight: 1.55 },
   errorMsg: { color: '#b91c1c', fontSize: '0.875rem', margin: 0 },
   btn: { padding: '14px', background: '#111', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: '1rem', cursor: 'pointer', fontFamily: 'inherit', transition: 'opacity 0.15s' },
   legal: { fontSize: '0.75rem', color: '#9ca3af', textAlign: 'center' as const, margin: '4px 0 0', lineHeight: 1.5 },

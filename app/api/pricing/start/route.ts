@@ -7,23 +7,58 @@ import { PLAN_PRICES, PLAN_LABELS, type Plan } from '@/lib/types'
 export const dynamic = 'force-dynamic'
 
 const VALID_PLANS: Plan[] = ['starter', 'growth', 'premium', 'business']
+const WEBSITE_TYPES = ['brochure', 'booking', 'store', 'portfolio', 'membership', 'custom'] as const
+const CONTENT_STATUSES = ['ready', 'partial', 'needs_help'] as const
+const BUILD_RATE = 25
+
+type WebsiteType = (typeof WEBSITE_TYPES)[number]
+type ContentStatus = (typeof CONTENT_STATUSES)[number]
 
 export async function POST(req: NextRequest) {
-  let body: { name?: string; email?: string; company?: string; plan?: string; description?: string; ref_code?: string }
+  let body: {
+    name?: string
+    email?: string
+    company?: string
+    plan?: string
+    ref_code?: string
+    website_type?: WebsiteType
+    business_summary?: string
+    target_audience?: string
+    pages?: string[]
+    features?: string[]
+    style_notes?: string
+    example_sites?: string[]
+    content_status?: ContentStatus
+    desired_launch_date?: string
+    spending_cap_dollars?: number
+  }
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 })
   }
 
-  const { name, email, company, plan, description, ref_code } = body
+  const {
+    name, email, company, plan, ref_code, website_type, business_summary,
+    target_audience, pages, features, style_notes, example_sites,
+    content_status, desired_launch_date, spending_cap_dollars,
+  } = body
 
-  if (!name?.trim() || !email?.trim() || !plan) {
-    return NextResponse.json({ error: 'name, email, and plan are required.' }, { status: 400 })
+  if (!name?.trim() || !email?.trim() || !plan || !website_type || !business_summary?.trim() || !target_audience?.trim()) {
+    return NextResponse.json({ error: 'Contact details and the website brief are required.' }, { status: 400 })
   }
 
   if (!VALID_PLANS.includes(plan as Plan)) {
     return NextResponse.json({ error: 'Invalid plan.' }, { status: 400 })
+  }
+
+  if (!WEBSITE_TYPES.includes(website_type) || !CONTENT_STATUSES.includes(content_status ?? 'needs_help')) {
+    return NextResponse.json({ error: 'Invalid website brief.' }, { status: 400 })
+  }
+
+  const capDollars = Number(spending_cap_dollars)
+  if (!Number.isFinite(capDollars) || capDollars < BUILD_RATE || capDollars > 25000) {
+    return NextResponse.json({ error: 'Choose a spending cap between $25 and $25,000.' }, { status: 400 })
   }
 
   const validPlan = plan as Plan
@@ -37,7 +72,7 @@ export async function POST(req: NextRequest) {
     email: email.trim().toLowerCase(),
     company: company?.trim() || undefined,
     phone: undefined as string | undefined,
-    hourly_rate: 85,
+    hourly_rate: BUILD_RATE,
   }
 
   try {
@@ -77,7 +112,7 @@ export async function POST(req: NextRequest) {
           email: email.trim().toLowerCase(),
           company: company?.trim() || null,
           plan: validPlan,
-          hourly_rate: 85,
+          hourly_rate: BUILD_RATE,
           status: 'prospect',
           referral_code: validRefCode,
         })
@@ -91,6 +126,33 @@ export async function POST(req: NextRequest) {
     }
   } catch (clientErr) {
     console.warn('[pricing/start] Client DB warning (fallback enabled):', clientErr)
+  }
+
+  // Save the approved intake as version 1 of the project brief.
+  let briefId: string | null = null
+  try {
+    const { data: brief, error: briefError } = await supabase
+      .from('project_briefs')
+      .insert({
+        client_id: clientId,
+        version: 1,
+        website_type,
+        business_summary: business_summary.trim(),
+        target_audience: target_audience.trim(),
+        pages: (pages ?? []).map(value => value.trim()).filter(Boolean),
+        features: (features ?? []).map(value => value.trim()).filter(Boolean),
+        style_notes: style_notes?.trim() || null,
+        example_sites: (example_sites ?? []).map(value => value.trim()).filter(Boolean),
+        content_status: content_status ?? 'needs_help',
+        desired_launch_date: desired_launch_date || null,
+        approved_at: new Date().toISOString(),
+      })
+      .select('id')
+      .single()
+    if (briefError) throw briefError
+    briefId = brief.id
+  } catch (briefErr) {
+    console.warn('[pricing/start] Project brief DB warning:', briefErr)
   }
 
   // Generate contract content
@@ -109,14 +171,15 @@ export async function POST(req: NextRequest) {
       updated_at: new Date().toISOString(),
     },
     validPlan,
-    clientRecord.hourly_rate ?? 85,
+    BUILD_RATE,
     startDate
   )
 
   // Create contract with signing token
   const token = crypto.randomUUID()
+  let contractId: string | null = null
   try {
-    await supabase
+    const { data: contract, error: contractError } = await supabase
       .from('contracts')
       .insert({
         client_id: clientId,
@@ -124,13 +187,47 @@ export async function POST(req: NextRequest) {
         status: 'sent',
         plan: validPlan,
         monthly_rate: PLAN_PRICES[validPlan],
-        hourly_rate: clientRecord.hourly_rate ?? 85,
+        hourly_rate: BUILD_RATE,
         start_date: startDate,
         content: contractContent,
         signature_token: token,
       })
+      .select('id')
+      .single()
+    if (contractError) throw contractError
+    contractId = contract.id
   } catch (contractErr) {
     console.warn('[pricing/start] Contract DB warning (fallback enabled):', contractErr)
+  }
+
+  if (briefId) {
+    try {
+      const { data: project, error: projectError } = await supabase
+        .from('website_projects')
+        .insert({
+          client_id: clientId,
+          brief_id: briefId,
+          referral_code: ref_code?.trim().toUpperCase() || null,
+          name: `${company?.trim() || name.trim()} website`,
+          state: 'awaiting_contract',
+          hourly_rate_cents: BUILD_RATE * 100,
+          spending_cap_cents: Math.round(capDollars * 100),
+          contract_id: contractId,
+        })
+        .select('id')
+        .single()
+      if (projectError) throw projectError
+
+      await supabase.from('project_audit_events').insert({
+        project_id: project.id,
+        actor_type: 'client',
+        actor_id: email.trim().toLowerCase(),
+        action: 'project_intake_submitted',
+        metadata: { brief_id: briefId, spending_cap_dollars: capDollars, hourly_rate: BUILD_RATE },
+      })
+    } catch (projectErr) {
+      console.warn('[pricing/start] Website project DB warning:', projectErr)
+    }
   }
 
   // Send sign link email
