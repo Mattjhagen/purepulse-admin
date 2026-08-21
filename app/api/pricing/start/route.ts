@@ -235,10 +235,12 @@ export async function POST(req: NextRequest) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://login.purepulse.one'
   const signingUrl = `${appUrl}/sign/${token}`
   const firstName = name.trim().split(' ')[0]
+  let emailSent = false
+  let emailWarning: string | null = null
 
   try {
-    await resend.emails.send({
-      from: 'PurePulse <contracts@login.purepulse.one>',
+    const delivery = await resend.emails.send({
+      from: 'PurePulse <matty@purepulse.one>',
       to: email.trim(),
       subject: `Your PurePulse contract is ready to sign`,
       html: `
@@ -286,12 +288,17 @@ export async function POST(req: NextRequest) {
         </div>
       `,
     })
+    if (delivery.error) throw new Error(delivery.error.message)
+    emailSent = true
   } catch (emailErr) {
-    console.warn('[pricing/start] Email notification warning:', emailErr)
+    emailWarning = emailErr instanceof Error ? emailErr.message : 'Contract email could not be delivered.'
+    console.error('[pricing/start] Contract email failed:', emailWarning)
   }
 
   return NextResponse.json({
     token,
     sign_url: `/sign/${token}`,
+    email_sent: emailSent,
+    email_warning: emailWarning,
   })
 }
