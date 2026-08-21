@@ -1,5 +1,6 @@
 -- Migration 027: PurePulse Meet Huddles, Gamified Tiers & Community Messaging
 -- Extends existing purepulse-admin database with live Jitsi huddles, channel feeds, DMs, forums, and tier gamification.
+-- Idempotent & safe to run multiple times without policy collision errors.
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
@@ -88,7 +89,7 @@ CREATE TABLE IF NOT EXISTS public.payout_transactions (
 );
 
 --------------------------------------------------------------------------------
--- 7. ENABLE ROW LEVEL SECURITY (RLS) POLICIES
+-- 7. ENABLE ROW LEVEL SECURITY (RLS) & IDEMPOTENT POLICIES
 --------------------------------------------------------------------------------
 ALTER TABLE public.huddle_rooms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.channel_messages ENABLE ROW LEVEL SECURITY;
@@ -96,15 +97,25 @@ ALTER TABLE public.direct_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.forum_posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payout_transactions ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "huddle_rooms_read_all" ON public.huddle_rooms;
 CREATE POLICY "huddle_rooms_read_all" ON public.huddle_rooms FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "huddle_rooms_insert_authenticated" ON public.huddle_rooms;
 CREATE POLICY "huddle_rooms_insert_authenticated" ON public.huddle_rooms FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "channel_messages_read_all" ON public.channel_messages;
 CREATE POLICY "channel_messages_read_all" ON public.channel_messages FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "channel_messages_insert_authenticated" ON public.channel_messages;
 CREATE POLICY "channel_messages_insert_authenticated" ON public.channel_messages FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "forum_posts_read_all" ON public.forum_posts;
 CREATE POLICY "forum_posts_read_all" ON public.forum_posts FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "forum_posts_insert_authenticated" ON public.forum_posts;
 CREATE POLICY "forum_posts_insert_authenticated" ON public.forum_posts FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "payout_transactions_read_own" ON public.payout_transactions;
 CREATE POLICY "payout_transactions_read_own" ON public.payout_transactions FOR SELECT USING (
   affiliate_id IN (SELECT id FROM public.affiliates WHERE auth_user_id = auth.uid())
 );
