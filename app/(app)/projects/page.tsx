@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { adminSupabase } from '@/lib/supabase'
-import { AlertTriangle, CheckCircle2, Clock3, DollarSign, FolderKanban } from 'lucide-react'
+import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, DollarSign, FolderKanban } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -89,8 +89,8 @@ export default async function ProjectsPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 820 }}>
               <thead>
                 <tr>
-                  {['Project', 'Type', 'Status', 'Billable time', 'Cost / cap', 'Cap used', 'Launch'].map(label => (
-                    <th key={label} style={th}>{label}</th>
+                  {['Project', 'Type', 'Status', 'Billable time', 'Cost / cap', 'Cap used', 'Launch', ''].map((label, index) => (
+                    <th key={`${label}-${index}`} style={th}>{label}</th>
                   ))}
                 </tr>
               </thead>
@@ -102,7 +102,7 @@ export default async function ProjectsPage() {
                   return (
                     <tr key={project.id}>
                       <td style={td}>
-                        <div style={{ fontWeight: 650 }}>{project.name}</div>
+                        <Link href={`/projects/${project.id}`} style={{ fontWeight: 650, color: 'var(--text)', textDecoration: 'none' }}>{project.name}</Link>
                         <div style={muted}>{project.clients?.company || project.clients?.name} · {project.clients?.email}</div>
                       </td>
                       <td style={{ ...td, textTransform: 'capitalize' }}>{project.project_briefs?.website_type?.replace('_', ' ')}</td>
@@ -116,6 +116,11 @@ export default async function ProjectsPage() {
                         <div style={{ ...muted, marginTop: 5 }}>{percent.toFixed(0)}%</div>
                       </td>
                       <td style={td}>{project.project_briefs?.desired_launch_date || 'Not set'}</td>
+                      <td style={td}>
+                        <Link href={`/projects/${project.id}`} className="btn btn-ghost btn-sm" aria-label={`Open ${project.name}`}>
+                          Open <ArrowRight size={13} />
+                        </Link>
+                      </td>
                     </tr>
                   )
                 })}
