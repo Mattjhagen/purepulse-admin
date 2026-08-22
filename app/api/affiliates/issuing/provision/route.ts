@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type Stripe from 'stripe'
 import { z } from 'zod'
 import { adminSupabase } from '@/lib/supabase'
 import { getApiUser } from '@/lib/api-auth'
@@ -96,17 +97,25 @@ export async function POST(req: NextRequest) {
       updated_at: new Date().toISOString(),
     }).eq('id', affiliate.id)
 
-    const card = await stripe.issuing.cards.create({
+    // Stripe's 2026-07-29.dahlia sandbox requires the v2 money-management
+    // Financial Account field. stripe-node's generated types still expose the
+    // legacy `financial_account` name, so keep this narrow compatibility type
+    // until the SDK schema catches up with the API version.
+    const cardParams: Stripe.Issuing.CardCreateParams & { financial_account_v2: string } = {
       cardholder: cardholder.id,
       currency: 'usd',
-      financial_account: getIssuingFinancialAccountId(),
+      financial_account_v2: getIssuingFinancialAccountId(),
       type: 'virtual',
       status: 'inactive',
       metadata: { affiliate_id: affiliate.id, environment: 'test' },
       spending_controls: {
         spending_limits: [{ amount: DEFAULT_MONTHLY_SPEND_LIMIT_CENTS, interval: 'monthly' }],
       },
-    }, { idempotencyKey: `issuing-card-${affiliate.id}-test` })
+    }
+    const card = await stripe.issuing.cards.create(
+      cardParams,
+      { idempotencyKey: `issuing-card-${affiliate.id}-test` },
+    )
 
     await admin.from('affiliate_issuing_accounts').update({
       stripe_card_id: card.id,
