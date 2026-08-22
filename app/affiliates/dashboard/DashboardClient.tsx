@@ -5,7 +5,7 @@ import {
   TrendingUp, Gift, DollarSign, MousePointer, Copy, CheckCircle,
   Printer, Download, Share2, Landmark, Sparkles, ExternalLink,
   QrCode, FileText, Image as ImageIcon, Check, RefreshCw, Send,
-  Layers, CreditCard, ChevronRight, HelpCircle, ArrowUpRight
+  Layers, CreditCard, ChevronRight, HelpCircle, ArrowUpRight, Code2, Mail
 } from 'lucide-react'
 
 export type Affiliate = {
@@ -111,6 +111,8 @@ export default function AffiliateDashboardClient({
   const [socialHeadline, setSocialHeadline] = useState('Professional Websites Built for $150 Deposit.')
   const [customTag, setCustomTag] = useState('social')
   const [copiedCaptionId, setCopiedCaptionId] = useState<string | null>(null)
+  const [copiedEmbed, setCopiedEmbed] = useState<'html' | 'image' | null>(null)
+  const [handoffEmail, setHandoffEmail] = useState(affiliate.email || '')
   const [generatingGraphic, setGeneratingGraphic] = useState(false)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -138,6 +140,8 @@ export default function AffiliateDashboardClient({
 
   const baseReferralUrl = `${origin}/ref/${affiliate.referral_code}`
   const customCampaignUrl = `${origin}/ref/${affiliate.referral_code}?src=${encodeURIComponent(customTag || 'campaign')}`
+  const socialAssetUrl = `${origin}/api/affiliates/assets/social?format=${socialFormat}&code=${encodeURIComponent(affiliate.referral_code)}&headline=${encodeURIComponent(socialHeadline)}`
+  const socialEmbedHtml = `<a href="${customCampaignUrl}" target="_blank" rel="noopener sponsored"><img src="${socialAssetUrl}" alt="PurePulse website design offer" style="display:block;width:100%;max-width:720px;height:auto;border:0" loading="lazy" /></a>`
   const qrSvgUrl = `/api/qr?data=${encodeURIComponent(baseReferralUrl)}&format=svg`
   const qrPngUrl = `/api/qr?data=${encodeURIComponent(baseReferralUrl)}&format=png&size=1024`
 
@@ -414,6 +418,19 @@ export default function AffiliateDashboardClient({
     link.download = `purepulse-social-${socialFormat}-${affiliate.referral_code.toLowerCase()}.png`
     link.href = canvas.toDataURL('image/png')
     link.click()
+  }
+
+  function copyEmbed(value: string, type: 'html' | 'image') {
+    navigator.clipboard.writeText(value).then(() => {
+      setCopiedEmbed(type)
+      setTimeout(() => setCopiedEmbed(null), 2000)
+    })
+  }
+
+  function emailEmbedInstructions() {
+    const subject = 'PurePulse affiliate ad embed for my website'
+    const body = `Hi,\n\nPlease add this PurePulse affiliate ad to my website where appropriate. Clicking it must keep the linked referral URL so referrals are credited to me.\n\nHTML EMBED CODE\n${socialEmbedHtml}\n\nHOSTED IMAGE\n${socialAssetUrl}\n\nREFERRAL DESTINATION\n${customCampaignUrl}\n\nInstallation notes:\n1. Paste the HTML into a Custom HTML, Embed, or Code block.\n2. Do not remove the referral destination or src campaign tag.\n3. Keep the image responsive and do not stretch it beyond its natural aspect ratio.\n4. Preview the page on desktop and mobile, then click the ad once to verify the destination.\n\nThank you.`
+    window.location.href = `mailto:${encodeURIComponent(handoffEmail.trim())}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
   }
 
   const syncPayoutStatus = useCallback(async () => {
@@ -1578,9 +1595,51 @@ export default function AffiliateDashboardClient({
               </div>
             </div>
 
+            {/* Embeddable website asset */}
+            <div style={{ ...s.card, marginBottom: 32 }}>
+              <div style={{ padding: '18px 20px', borderBottom: '1px solid #f3f4f6' }}>
+                <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 800 }}>2. Embed This Ad on a Website</h3>
+                <p style={{ margin: '4px 0 0', fontSize: '0.8125rem', color: '#6b7280' }}>
+                  The hosted asset stays personalized with your partner code. The complete HTML makes the ad clickable and preserves referral tracking.
+                </p>
+              </div>
+              <div style={{ padding: 20, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
+                <div>
+                  <label style={s.fieldLabel}>Copy-and-paste HTML</label>
+                  <pre style={{ margin: '6px 0 10px', padding: 14, borderRadius: 8, background: '#111827', color: '#e5e7eb', whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontSize: '0.75rem', lineHeight: 1.5, maxHeight: 180, overflow: 'auto' }}>{socialEmbedHtml}</pre>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button type="button" onClick={() => copyEmbed(socialEmbedHtml, 'html')} style={s.primaryBtn}>
+                      {copiedEmbed === 'html' ? <Check size={14} /> : <Code2 size={14} />} {copiedEmbed === 'html' ? 'HTML Copied' : 'Copy Embed HTML'}
+                    </button>
+                    <button type="button" onClick={() => copyEmbed(socialAssetUrl, 'image')} style={s.secondaryBtn}>
+                      {copiedEmbed === 'image' ? <Check size={14} /> : <Copy size={14} />} {copiedEmbed === 'image' ? 'URL Copied' : 'Copy Image URL'}
+                    </button>
+                    <a href={socialAssetUrl} target="_blank" rel="noreferrer" style={{ ...s.secondaryBtn, textDecoration: 'none' }}>
+                      <ExternalLink size={14} /> Open Hosted Asset
+                    </a>
+                  </div>
+                </div>
+                <div style={{ borderRadius: 10, background: '#f8fafc', padding: 16 }}>
+                  <p style={{ margin: '0 0 8px', fontWeight: 800, fontSize: '0.875rem' }}>How to install it</p>
+                  <ol style={{ margin: '0 0 16px', paddingLeft: 20, color: '#475569', fontSize: '0.8125rem', lineHeight: 1.65 }}>
+                    <li>Copy the embed HTML.</li>
+                    <li>Open your website editor and add a <strong>Custom HTML</strong>, <strong>Embed</strong>, or <strong>Code</strong> block.</li>
+                    <li>Paste, publish, and preview on desktop and mobile.</li>
+                    <li>Click the ad once and confirm it opens your tagged PurePulse referral link.</li>
+                  </ol>
+                  <p style={{ margin: '0 0 8px', fontWeight: 800, fontSize: '0.875rem' }}>Email it to yourself or IT</p>
+                  <input type="email" value={handoffEmail} onChange={event => setHandoffEmail(event.target.value)} placeholder="you@company.com" aria-label="Email recipient" style={{ ...s.input, marginBottom: 8 }} />
+                  <button type="button" onClick={emailEmbedInstructions} disabled={!handoffEmail.trim()} style={{ ...s.primaryBtn, width: '100%', opacity: handoffEmail.trim() ? 1 : 0.55 }}>
+                    <Mail size={14} /> Open Prefilled Email
+                  </button>
+                  <p style={{ margin: '8px 0 0', fontSize: '0.6875rem', color: '#6b7280' }}>This opens your email app with the code and instructions filled in. PurePulse does not send the email for you.</p>
+                </div>
+              </div>
+            </div>
+
             {/* Multi-Platform Caption & Script Library */}
             <h3 style={{ fontSize: '1.125rem', fontWeight: 800, margin: '0 0 16px' }}>
-              2. Ready-to-Post Copy &amp; Scripts (1-Click Copy)
+              3. Ready-to-Post Copy &amp; Scripts (1-Click Copy)
             </h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, marginBottom: 32 }}>
               {[
@@ -1658,7 +1717,7 @@ export default function AffiliateDashboardClient({
             {/* Campaign Tag / UTM Link Builder */}
             <div style={s.card}>
               <div style={{ padding: '18px 20px', borderBottom: '1px solid #f3f4f6' }}>
-                <h3 style={{ margin: 0, fontSize: '0.9375rem', fontWeight: 700 }}>3. Custom Campaign Link Builder</h3>
+                <h3 style={{ margin: 0, fontSize: '0.9375rem', fontWeight: 700 }}>4. Custom Campaign Link Builder</h3>
                 <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: '#6b7280' }}>
                   Tag your links so you can see where your clicks and conversions are coming from.
                 </p>
