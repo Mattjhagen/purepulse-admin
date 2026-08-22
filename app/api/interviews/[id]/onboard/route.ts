@@ -149,9 +149,7 @@ export async function POST(
               <p style="margin:0 0 12px;font-size:13px;color:#3B40A8;line-height:1.5;">
                 Join our dedicated <strong>Microsoft Teams Partner Community</strong> to connect with the founders, receive sales enablement materials, and ask questions.
               </p>
-              <a href="https://teams.live.com/l/community/FAAT7_iyVqeIobIvQ?v=g1" style="display:inline-block;background:#5B5FC7;color:#ffffff;font-size:13px;font-weight:700;padding:8px 18px;border-radius:6px;text-decoration:none;">
-                Join Teams Community Channel →
-              </a>
+              <a href="https://mattjhagen.github.io/PurePulseMeet/" style="display:inline-block;background:#7B2FFF;color:#ffffff;font-size:13px;font-weight:700;padding:8px 18px;border-radius:6px;text-decoration:none;">📱 Download Mobile Partner App →</a>
             </div>
 
 

@@ -229,8 +229,8 @@ export async function POST(req: NextRequest) {
               <p style="margin:0 0 14px;font-size:13px;color:#3B40A8;line-height:1.6">
                 Connect directly with our team on Microsoft Teams, get instant sales deal support, request custom outreach scripts, and collaborate with top partners.
               </p>
-              <a href="https://teams.live.com/l/community/FAAT7_iyVqeIobIvQ?v=g1" style="display:inline-block;background:#5B5FC7;color:#ffffff;font-size:13px;font-weight:700;padding:10px 22px;border-radius:6px;text-decoration:none">
-                Join Teams Community Channel →
+              <a href="https://mattjhagen.github.io/PurePulseMeet/" style="display:inline-block;background:#7B2FFF;color:#ffffff;font-size:13px;font-weight:700;padding:10px 22px;border-radius:6px;text-decoration:none">
+                📱 Download Mobile Partner App →
               </a>
             </div>
 

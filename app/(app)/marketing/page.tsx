@@ -262,14 +262,14 @@ const TEMPLATES = [
         <li style="margin-bottom:8px;">Download high-res printable flyers, tear-off tab posters, and business cards.</li>
         <li style="margin-bottom:8px;">Connect your bank account via Stripe in the Payouts &amp; Banking tab for direct deposits.</li>
         <li style="margin-bottom:8px;"><strong>Complete your 5-min Video Interview &amp; Onboarding:</strong> Visit <a href="https://login.purepulse.one/interview" style="color:#00D4FF;text-decoration:none;">login.purepulse.one/interview</a> to finalize your partner certification.</li>
-        <li style="margin-bottom:8px;">Join our Microsoft Teams community for deal coaching, custom pitch scripts, and real-time support.</li>
+        <li style="margin-bottom:8px;">Download our Mobile Partner Hub app for live video huddles, instant payouts, and direct founder chat.</li>
       </ol>
 
       <div style="background:#111118;border:1.5px solid #2D2D42;border-radius:12px;padding:20px 22px;margin:0 0 24px;text-align:center;color:#fff;">
-        <p style="margin:0 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#7B83EB;">💬 Partner Community</p>
-        <p style="margin:0 0 6px;font-size:15px;font-weight:800;color:#F4F4FF;">Join the PurePulse Affiliate Teams Community</p>
-        <p style="margin:0 0 14px;font-size:13px;color:#9CA3AF;line-height:1.5;">Connect directly with our team, get custom outreach scripts, ask closing questions, and celebrate deal closures.</p>
-        <a href="https://teams.live.com/l/community/FAAT7_iyVqeIobIvQ?v=g1" style="display:inline-block;background:linear-gradient(135deg, #5B5FC7, #464EB8);color:#ffffff;padding:10px 24px;border-radius:8px;font-weight:700;text-decoration:none;font-size:13px;box-shadow:0 4px 12px rgba(91,95,199,0.4);">Join Teams Community Channel →</a>
+        <p style="margin:0 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#7B83EB;">📱 Partner App</p>
+        <p style="margin:0 0 6px;font-size:15px;font-weight:800;color:#F4F4FF;">Download PurePulse Partner Mobile App</p>
+        <p style="margin:0 0 14px;font-size:13px;color:#9CA3AF;line-height:1.5;">Join live coaching video huddles, access instant Stripe payouts, chat in channels, and track your MRR directly on mobile.</p>
+        <a href="https://mattjhagen.github.io/PurePulseMeet/" style="display:inline-block;background:linear-gradient(135deg, #7B2FFF, #6366F1);color:#ffffff;padding:10px 24px;border-radius:8px;font-weight:700;text-decoration:none;font-size:13px;box-shadow:0 4px 12px rgba(123,47,255,0.4);">📱 Download Partner App Website →</a>
       </div>
 
       <div style="margin-bottom:28px;">
@@ -282,25 +282,25 @@ const TEMPLATES = [
   {
     id: 'affiliate-teams',
     category: 'affiliates',
-    name: '💬 Join Partner Teams Community',
-    subject: '💬 Join the PurePulse Partner Teams Community for Real-Time Deal Support',
-    preview: 'Connect with the founders, get live closing scripts, and collaborate on client outreach.',
+    name: '📱 Download Partner Mobile App',
+    subject: '📱 Download the PurePulse Partner Mobile App & Join Live Coaching Huddles',
+    preview: 'Connect with the founders, join live coaching huddles, and access instant payouts.',
     body: `
-      <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#7B83EB;">Partner Community</p>
+      <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#7B83EB;">Partner App</p>
       <h1 style="margin:0 0 16px;font-size:22px;font-weight:800;color:#FFFFFF;">Hi {{name}}, let's close deals together! 🤝</h1>
-      <p style="margin:0 0 16px;font-size:15px;color:rgba(244,244,255,0.85);line-height:1.7;">We've established a dedicated <strong>Microsoft Teams Partner Community</strong> for all active PurePulse affiliates. Here you get direct, 1-on-1 access to the founders and fellow top partners.</p>
+      <p style="margin:0 0 16px;font-size:15px;color:rgba(244,244,255,0.85);line-height:1.7;">We've launched the official <strong>PurePulse Partner Mobile App</strong> for all active affiliates. Here you get direct, 1-on-1 access to live coaching video huddles and instant Stripe payouts.</p>
 
-      <div style="background:rgba(91,95,199,0.15);border:1px solid rgba(91,95,199,0.35);border-radius:12px;padding:20px;margin-bottom:24px;">
-        <p style="margin:0 0 8px;font-size:14px;font-weight:700;color:#FFFFFF;">Inside the Community:</p>
+      <div style="background:rgba(123,47,255,0.15);border:1px solid rgba(123,47,255,0.35);border-radius:12px;padding:20px;margin-bottom:24px;">
+        <p style="margin:0 0 8px;font-size:14px;font-weight:700;color:#FFFFFF;">Inside the Mobile App:</p>
         <ul style="margin:0;padding-left:18px;color:rgba(244,244,255,0.85);line-height:1.6;">
-          <li style="margin-bottom:6px;"><strong>Live Deal Coaching:</strong> Bring your prospective business leads and we'll help structure the pitch.</li>
-          <li style="margin-bottom:6px;"><strong>Custom Objection Handlers:</strong> Proven scripts for small businesses, dental offices, law firms, and e-com.</li>
-          <li style="margin-bottom:6px;"><strong>Real-Time Payout Announcements:</strong> Celebrate monthly commission wins and network with top earners.</li>
+          <li style="margin-bottom:6px;"><strong>Live Video Huddles:</strong> Bring your prospective business leads and we'll help structure the pitch in live voice & video rooms.</li>
+          <li style="margin-bottom:6px;"><strong>Instant Stripe Cashouts:</strong> DoorDash-style instant payouts to your debit card.</li>
+          <li style="margin-bottom:6px;"><strong>Real-Time Channels:</strong> Slack-style strategy channels and 1-click marketing studio.</li>
         </ul>
       </div>
 
       <div style="margin-bottom:28px;">
-        <a href="https://teams.live.com/l/community/FAAT7_iyVqeIobIvQ?v=g1" style="display:inline-block;background:linear-gradient(135deg, #5B5FC7, #464EB8);color:#FFFFFF;padding:12px 28px;border-radius:10px;font-weight:700;text-decoration:none;font-size:14px;box-shadow:0 4px 16px rgba(91,95,199,0.4);">Join Teams Community Channel →</a>
+        <a href="https://mattjhagen.github.io/PurePulseMeet/" style="display:inline-block;background:linear-gradient(135deg, #7B2FFF, #6366F1);color:#FFFFFF;padding:12px 28px;border-radius:10px;font-weight:700;text-decoration:none;font-size:14px;box-shadow:0 4px 16px rgba(123,47,255,0.4);">📱 Download Partner App Website →</a>
       </div>
 
       <p style="margin:24px 0 0;font-size:14px;color:rgba(244,244,255,0.6);">See you on Teams,<br><strong style="color:#FFF;">Matty Hagen</strong><br>PurePulse Partner Program</p>

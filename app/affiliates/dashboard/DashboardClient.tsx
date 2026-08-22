@@ -760,25 +760,25 @@ export default function AffiliateDashboardClient({
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <a
-            href="https://teams.live.com/l/community/FAAT7_iyVqeIobIvQ?v=g1"
+            href="https://mattjhagen.github.io/PurePulseMeet/"
             target="_blank"
             rel="noreferrer"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: 6,
-              background: '#5B5FC7',
-              border: '1px solid rgba(91, 95, 199, 0.35)',
+              background: '#7B2FFF',
+              border: '1px solid rgba(123, 47, 255, 0.35)',
               color: '#fff',
               fontSize: '0.8125rem',
               fontWeight: 700,
               padding: '6px 14px',
               borderRadius: 6,
               textDecoration: 'none',
-              boxShadow: '0 2px 8px rgba(91, 95, 199, 0.25)',
+              boxShadow: '0 2px 8px rgba(123, 47, 255, 0.25)',
             }}
           >
-            💬 Join Teams Community
+            📱 Get Mobile App
           </a>
 
           <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column' }}>
@@ -829,10 +829,10 @@ export default function AffiliateDashboardClient({
 
       {/* DASHBOARD CONTENT */}
       <main style={s.main} className="affiliate-dash-content">
-        {/* PROMINENT MICROSOFT TEAMS COMMUNITY BANNER */}
+        {/* PROMINENT PUREPULSE PARTNER MOBILE APP BANNER */}
         <div style={{
           background: 'linear-gradient(135deg, #131526 0%, #0D0D14 100%)',
-          border: '1.5px solid #2B2F5C',
+          border: '1.5px solid #3B1B7D',
           borderRadius: 14,
           padding: '18px 22px',
           marginBottom: 16,
@@ -841,46 +841,46 @@ export default function AffiliateDashboardClient({
           justifyContent: 'space-between',
           flexWrap: 'wrap',
           gap: 16,
-          boxShadow: '0 6px 20px rgba(91, 95, 199, 0.15)',
+          boxShadow: '0 6px 20px rgba(123, 47, 255, 0.15)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: '1 1 340px' }}>
             <div style={{
               width: 44,
               height: 44,
               borderRadius: 10,
-              background: '#5B5FC7',
+              background: 'linear-gradient(135deg, #7B2FFF, #5311C7)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
-              boxShadow: '0 4px 12px rgba(91, 95, 199, 0.5)',
+              boxShadow: '0 4px 12px rgba(123, 47, 255, 0.5)',
             }}>
-              <span style={{ fontSize: 20, fontWeight: 900, color: '#fff' }}>T</span>
+              <span style={{ fontSize: 20, fontWeight: 900, color: '#fff' }}>📱</span>
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '0.9375rem', fontWeight: 800, color: '#F4F4FF' }}>
-                  PurePulse Partner Teams Community
+                  PurePulse Partner Mobile App & Live Huddles
                 </span>
-                <span style={{ background: 'rgba(91, 95, 199, 0.2)', border: '1px solid rgba(91, 95, 199, 0.4)', color: '#7B83EB', fontSize: '0.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: 100 }}>
-                  Microsoft Teams
+                <span style={{ background: 'rgba(123, 47, 255, 0.2)', border: '1px solid rgba(123, 47, 255, 0.4)', color: '#A78BFA', fontSize: '0.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: 100 }}>
+                  iOS & Android
                 </span>
               </div>
               <p style={{ margin: '3px 0 0', fontSize: '0.8125rem', color: '#9CA3AF', lineHeight: 1.4 }}>
-                Get 1-on-1 sales deal support, custom outreach scripts, high-converting objection handlers, and direct founder access.
+                Join live coaching video huddles, access DoorDash-style instant Stripe payouts, chat in channels, and get founder support on mobile.
               </p>
             </div>
           </div>
 
           <a
-            href="https://teams.live.com/l/community/FAAT7_iyVqeIobIvQ?v=g1"
+            href="https://mattjhagen.github.io/PurePulseMeet/"
             target="_blank"
             rel="noreferrer"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: 6,
-              background: '#5B5FC7',
+              background: 'linear-gradient(135deg, #7B2FFF, #6366F1)',
               color: '#fff',
               padding: '9px 20px',
               borderRadius: 8,
@@ -888,11 +888,11 @@ export default function AffiliateDashboardClient({
               fontWeight: 700,
               textDecoration: 'none',
               border: '1px solid rgba(255, 255, 255, 0.15)',
-              boxShadow: '0 4px 14px rgba(91, 95, 199, 0.4)',
+              boxShadow: '0 4px 14px rgba(123, 47, 255, 0.4)',
               whiteSpace: 'nowrap',
             }}
           >
-            Join Teams Community Channel <ArrowUpRight size={14} />
+            Get Partner App Website <ArrowUpRight size={14} />
           </a>
         </div>
 
@@ -1027,17 +1027,17 @@ export default function AffiliateDashboardClient({
               </div>
 
               <a
-                href="https://teams.live.com/l/community/FAAT7_iyVqeIobIvQ?v=g1"
+                href="https://mattjhagen.github.io/PurePulseMeet/"
                 target="_blank"
                 rel="noreferrer"
                 style={{ ...s.actionTile, textDecoration: 'none', color: 'inherit' }}
               >
-                <div style={{ ...s.actionIconWrap, background: 'rgba(91,95,199,0.12)' }}>
-                  <span style={{ fontSize: 18, fontWeight: 900, color: '#5B5FC7' }}>💬</span>
+                <div style={{ ...s.actionIconWrap, background: 'rgba(123,47,255,0.12)' }}>
+                  <span style={{ fontSize: 18, fontWeight: 900, color: '#7B2FFF' }}>📱</span>
                 </div>
                 <div>
-                  <h3 style={s.actionTitle}>Partner Teams Community</h3>
-                  <p style={s.actionDesc}>Join live deal support, closing scripts &amp; partner chat.</p>
+                  <h3 style={s.actionTitle}>Partner Mobile App</h3>
+                  <p style={s.actionDesc}>Live video coaching huddles, instant payouts &amp; app chat.</p>
                 </div>
               </a>
             </div>

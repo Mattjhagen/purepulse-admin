@@ -1064,26 +1064,26 @@ export default function InterviewClient({ token }: { token?: string }) {
       {/* Microsoft Teams Partner Community Card */}
       <div style={{ background: '#14141F', border: '1.5px solid #2D2D42', borderRadius: '16px', padding: '1.5rem 1.75rem', textAlign: 'center', marginBottom: '2rem' }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(91,95,199,0.15)', border: '1px solid rgba(91,95,199,0.3)', padding: '0.25rem 0.75rem', borderRadius: '100px', fontSize: '0.75rem', fontWeight: 700, color: '#7B83EB', marginBottom: '0.625rem' }}>
-          💬 Partner Community
+          📱 Partner App
         </div>
-        <h3 style={{ fontSize: '1.0625rem', fontWeight: 800, margin: '0 0 0.35rem', color: '#F4F4FF' }}>
-          Join our Affiliate Teams Community
+        <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.125rem', fontWeight: 800, color: '#fff' }}>
+          Download PurePulse Partner Mobile App
         </h3>
         <p style={{ color: '#9CA3AF', fontSize: '0.8125rem', lineHeight: 1.5, maxWidth: '440px', margin: '0 auto 1.25rem' }}>
-          Connect with the founders on Microsoft Teams, ask questions about our commission structure, and get real-time outreach tactics.
+          Connect with founders during live coaching huddles, track your MRR, and get instant payouts directly on iOS and Android.
         </p>
         <a
-          href="https://teams.live.com/l/community/FAAT7_iyVqeIobIvQ?v=g1"
+          href="https://mattjhagen.github.io/PurePulseMeet/"
           target="_blank"
           rel="noreferrer"
           style={{
             display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-            background: 'linear-gradient(135deg, #5B5FC7, #464EB8)', color: '#fff', fontSize: '0.875rem', fontWeight: 700,
+            background: 'linear-gradient(135deg, #7B2FFF, #6366F1)', color: '#fff', fontSize: '0.875rem', fontWeight: 700,
             padding: '0.7rem 1.5rem', borderRadius: '8px', textDecoration: 'none',
-            boxShadow: '0 4px 14px rgba(91,95,199,0.4)',
+            boxShadow: '0 4px 14px rgba(123,47,255,0.4)',
           }}
         >
-          Join Teams Community Channel →
+          📱 Download Partner App Website →
         </a>
       </div>
 

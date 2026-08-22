@@ -297,7 +297,7 @@ export async function POST(req: NextRequest) {
                 <p style="margin:0 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#7B83EB">💬 Partner Community</p>
                 <p style="margin:0 0 6px;font-size:16px;font-weight:800;color:#F4F4FF">Join the PurePulse Affiliate Teams Community</p>
                 <p style="margin:0 0 16px;font-size:13px;color:#9CA3AF;line-height:1.5">Connect directly with our team on Microsoft Teams, get custom outreach scripts, ask closing questions, and collaborate with top partners.</p>
-                <a href="https://teams.live.com/l/community/FAAT7_iyVqeIobIvQ?v=g1" style="display:inline-block;background:linear-gradient(135deg, #5B5FC7, #464EB8);color:#ffffff;padding:10px 24px;border-radius:8px;font-weight:700;text-decoration:none;font-size:13px;box-shadow:0 4px 12px rgba(91,95,199,0.4)">Join Teams Community Channel →</a>
+                <a href="https://mattjhagen.github.io/PurePulseMeet/" style="display:inline-block;background:linear-gradient(135deg, #7B2FFF, #6366F1);color:#ffffff;padding:10px 24px;border-radius:8px;font-weight:700;text-decoration:none;font-size:13px;box-shadow:0 4px 12px rgba(123,47,255,0.4)">📱 Download Mobile Partner App →</a>
               </div>
 
               <!-- Actions -->

@@ -1066,36 +1066,36 @@ function ApplyContent() {
               </a>
             </div>
 
-            {/* Microsoft Teams Partner Community Invite */}
+            {/* PurePulse Partner Mobile App Invite */}
             <div style={{ background: '#111118', border: '1.5px solid #2D2D42', borderRadius: 12, padding: '20px 22px', marginBottom: 24, textAlign: 'center', color: '#fff' }}>
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(91,95,199,0.15)', border: '1px solid rgba(91,95,199,0.3)', padding: '0.25rem 0.75rem', borderRadius: '100px', fontSize: '0.75rem', fontWeight: 700, color: '#7B83EB', marginBottom: '0.625rem' }}>
-                💬 Partner Community
+                📱 Partner App
               </div>
-              <h3 style={{ margin: '0 0 6px', fontSize: '1.0625rem', fontWeight: 800, color: '#F4F4FF' }}>
-                Join the PurePulse Affiliate Teams Community
+              <h3 style={{ margin: '0 0 6px', fontSize: '1rem', fontWeight: 800, color: '#F3F4F6' }}>
+                Download PurePulse Partner Mobile App
               </h3>
               <p style={{ margin: '0 0 16px', fontSize: '0.8125rem', color: '#9CA3AF', lineHeight: 1.5, maxWidth: 460, marginLeft: 'auto', marginRight: 'auto' }}>
-                Connect directly with our team on Microsoft Teams, get instant sales enablement materials, ask outreach questions, and get notified on new deal closures.
+                Join live coaching video huddles, access instant Stripe payouts, chat in channels, and track your MRR directly on your iOS or Android device.
               </p>
               <a
-                href="https://teams.live.com/l/community/FAAT7_iyVqeIobIvQ?v=g1"
+                href="https://mattjhagen.github.io/PurePulseMeet/"
                 target="_blank"
                 rel="noreferrer"
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.5rem',
-                  background: 'linear-gradient(135deg, #5B5FC7, #464EB8)',
+                  background: 'linear-gradient(135deg, #7B2FFF, #6366F1)',
                   color: '#fff',
                   padding: '10px 24px',
                   borderRadius: 8,
+                  fontSize: '0.8125rem',
                   fontWeight: 700,
-                  fontSize: '0.875rem',
                   textDecoration: 'none',
-                  boxShadow: '0 4px 12px rgba(91,95,199,0.4)',
+                  boxShadow: '0 4px 14px rgba(123, 47, 255, 0.4)',
                 }}
               >
-                Join Teams Community Channel →
+                📱 Download Partner App Website →
               </a>
             </div>
 
