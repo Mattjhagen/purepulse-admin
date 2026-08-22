@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { formatDate, statusBadgeClass } from '@/lib/utils'
 import { Plus, X, LogOut, CheckCircle, Circle, Clock, MessageCircle, FileText, CreditCard, LifeBuoy, Sparkles, ThumbsUp, RotateCcw, ChevronDown, ChevronRight, ClipboardList, Pencil } from 'lucide-react'
+import HandoffStatusCard from './handoff-status-card'
 
 type Tab = 'home' | 'progress' | 'campaign' | 'brief' | 'messages' | 'invoices' | 'tickets' | 'posts'
 
@@ -219,7 +220,7 @@ export default function CustomerPortalPage() {
         .order('sort_order')
 
       const milestoneIds = (milestones ?? []).map(m => m.id)
-      let deliverablesByMilestone: Record<string, Deliverable[]> = {}
+      const deliverablesByMilestone: Record<string, Deliverable[]> = {}
 
       if (milestoneIds.length > 0) {
         const { data: delivs } = await supabase
@@ -276,7 +277,11 @@ export default function CustomerPortalPage() {
     setLoading(false)
   }, [session, supabase])
 
-  useEffect(() => { if (session) loadData() }, [session, loadData])
+  useEffect(() => {
+    if (!session) return
+    const t = setTimeout(loadData, 0)
+    return () => clearTimeout(t)
+  }, [session, loadData])
 
   // Real-time: append new messages instantly when they arrive
   useEffect(() => {
@@ -733,6 +738,8 @@ export default function CustomerPortalPage() {
                   Welcome back{clientName ? `, ${clientName}` : ''}
                 </h1>
                 <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>Here&apos;s what needs your attention.</p>
+
+                <HandoffStatusCard />
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
                   {pendingReviewCount > 0 && (
