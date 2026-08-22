@@ -1,8 +1,10 @@
 'use client'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Clock, Users, Ticket, FileText, FileCheck, Receipt, LayoutDashboard, Settings, LogOut, ChevronRight, Inbox, Mail, MessageCircle, Sparkles, CalendarDays, Share2, UsersRound, Gift, Megaphone, ShoppingBag, Video, Workflow } from 'lucide-react'
+import { Clock, Users, Ticket, FileText, FileCheck, Receipt, LayoutDashboard, Settings, LogOut, ChevronRight, Inbox, Mail, MessageCircle, Sparkles, CalendarDays, Share2, UsersRound, Gift, Megaphone, ShoppingBag, Video, Workflow, ServerCog } from 'lucide-react'
 import { signOut } from '@/lib/auth'
+
+const handoffDashboardUrl = process.env.NEXT_PUBLIC_HANDOFF_DASHBOARD_URL || 'https://handoff.relayapp.pro'
 
 const nav = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -12,6 +14,7 @@ const nav = [
   { label: 'Leads', href: '/leads', icon: Inbox },
   { label: 'Clients', href: '/clients', icon: Users },
   { label: 'Build Projects', href: '/projects', icon: Workflow },
+  { label: 'Server Handoff', href: handoffDashboardUrl, icon: ServerCog, external: true },
   { label: 'Team', href: '/team', icon: UsersRound },
   { label: 'Campaigns', href: '/campaigns', icon: Sparkles },
   { label: 'Marketing', href: '/marketing', icon: Megaphone },
@@ -55,12 +58,15 @@ export default function Nav({ email }: { email?: string }) {
 
         {/* Nav items */}
         <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-          {nav.map(({ label, href, icon: Icon }) => {
-            const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
+          {nav.map(({ label, href, icon: Icon, external }) => {
+            const active = !external && (pathname === href || (href !== '/dashboard' && pathname.startsWith(href)))
             return (
               <Link
                 key={href}
                 href={href}
+                target={external ? '_blank' : undefined}
+                rel={external ? 'noopener noreferrer' : undefined}
+                aria-label={external ? `${label} (opens in a new tab)` : label}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '0.625rem',
                   padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-sm)',
