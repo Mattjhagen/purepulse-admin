@@ -120,6 +120,31 @@ export default function AffiliateDashboardClient({
   const [payoutStatus, setPayoutStatus] = useState<string>(
     affiliate.payout_onboarding_status || (affiliate.payouts_enabled ? 'ready_for_payouts' : 'setup_required')
   )
+
+  // Mobile Pair Code state
+  const [mobilePairModalOpen, setMobilePairModalOpen] = useState(false)
+  const [pairCode, setPairCode] = useState<string | null>(null)
+  const [pairCodeLoading, setPairCodeLoading] = useState(false)
+
+  const generateMobilePairCode = async () => {
+    setPairCodeLoading(true)
+    try {
+      const res = await fetch('/api/affiliates/pair-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ affiliateId: affiliate.id })
+      })
+      const data = await res.json()
+      if (data.pairCode) {
+        setPairCode(data.pairCode)
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setPairCodeLoading(false)
+      setMobilePairModalOpen(true)
+    }
+  }
   const [payoutsEnabled, setPayoutsEnabled] = useState<boolean>(
     Boolean(affiliate.payouts_enabled || affiliate.stripe_payouts_enabled)
   )
@@ -776,6 +801,26 @@ export default function AffiliateDashboardClient({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button
+            onClick={generateMobilePairCode}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'linear-gradient(135deg, #10B981, #059669)',
+              border: '1px solid rgba(16, 185, 129, 0.35)',
+              color: '#fff',
+              fontSize: '0.8125rem',
+              fontWeight: 700,
+              padding: '6px 14px',
+              borderRadius: 6,
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)',
+            }}
+          >
+            📱 {pairCodeLoading ? 'Generating Code...' : 'Link Mobile App'}
+          </button>
+
           <a
             href="https://mattjhagen.github.io/PurePulseMeet/"
             target="_blank"
@@ -795,7 +840,7 @@ export default function AffiliateDashboardClient({
               boxShadow: '0 2px 8px rgba(123, 47, 255, 0.25)',
             }}
           >
-            📱 Get Mobile App
+            Get Mobile App
           </a>
 
           <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column' }}>
@@ -2051,6 +2096,60 @@ export default function AffiliateDashboardClient({
                     Bank credentials are submitted directly to Stripe and never stored on PurePulse servers.
                   </p>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MOBILE PAIR CODE MODAL */}
+        {mobilePairModalOpen && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}>
+            <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 440, padding: '28px 24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', border: '1px solid #e5e7eb', textAlign: 'center' }}>
+              <div style={{ width: 48, height: 48, borderRadius: 24, background: 'rgba(16, 185, 129, 0.1)', color: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', fontSize: 24 }}>
+                📱
+              </div>
+              <h3 style={{ margin: '0 0 6px', fontSize: '1.25rem', fontWeight: 800 }}>Link Your Mobile Partner Hub</h3>
+              <p style={{ margin: '0 0 20px', fontSize: '0.875rem', color: '#6b7280', lineHeight: 1.5 }}>
+                Open the <strong>PurePulse Partner App</strong> on iOS or Android, log in with Google or Apple, and enter this 6-digit pair code when prompted.
+              </p>
+
+              <div style={{ background: '#f3f4f6', border: '2px dashed #10B981', borderRadius: 12, padding: '16px', marginBottom: 20 }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#059669', display: 'block', marginBottom: 4 }}>
+                  ONE-TIME MOBILE PAIR CODE
+                </span>
+                <span style={{ fontSize: '2.25rem', fontWeight: 900, letterSpacing: '0.15em', color: '#111827', fontFamily: 'monospace' }}>
+                  {pairCode || 'PX-XXXX'}
+                </span>
+                <span style={{ fontSize: '0.7rem', color: '#9ca3af', display: 'block', marginTop: 4 }}>
+                  Valid for 24 hours
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <a
+                  href={`purepulse://link?code=${pairCode}`}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    background: '#7B2FFF',
+                    color: '#fff',
+                    padding: '12px 20px',
+                    borderRadius: 10,
+                    fontWeight: 700,
+                    fontSize: '0.875rem',
+                    textDecoration: 'none',
+                  }}
+                >
+                  ⚡ 1-Tap Open Mobile App &amp; Auto-Link
+                </a>
+                <button
+                  onClick={() => setMobilePairModalOpen(false)}
+                  style={{ background: 'none', border: 'none', color: '#6b7280', fontSize: '0.8125rem', cursor: 'pointer', padding: 8 }}
+                >
+                  Close Window
+                </button>
               </div>
             </div>
           </div>
