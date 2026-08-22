@@ -34,5 +34,12 @@ export function assertIssuingProvisioningEnabled(): void {
   }
 }
 
-export const DEFAULT_MONTHLY_SPEND_LIMIT_CENTS = 50_000
+export function getIssuingFinancialAccountId(): string {
+  const id = (process.env.STRIPE_ISSUING_FINANCIAL_ACCOUNT_ID || '').trim()
+  if (!id.startsWith('fa_test_')) {
+    throw new Error('STRIPE_ISSUING_FINANCIAL_ACCOUNT_ID must be a sandbox fa_test_ ID')
+  }
+  return id
+}
 
+export const DEFAULT_MONTHLY_SPEND_LIMIT_CENTS = 50_000

@@ -6,6 +6,7 @@ import { resolveAuthenticatedAffiliate } from '@/lib/affiliate-auth'
 import {
   assertIssuingProvisioningEnabled,
   DEFAULT_MONTHLY_SPEND_LIMIT_CENTS,
+  getIssuingFinancialAccountId,
   getIssuingStripe,
 } from '@/lib/stripe-issuing'
 
@@ -98,6 +99,7 @@ export async function POST(req: NextRequest) {
     const card = await stripe.issuing.cards.create({
       cardholder: cardholder.id,
       currency: 'usd',
+      financial_account: getIssuingFinancialAccountId(),
       type: 'virtual',
       status: 'inactive',
       metadata: { affiliate_id: affiliate.id, environment: 'test' },
