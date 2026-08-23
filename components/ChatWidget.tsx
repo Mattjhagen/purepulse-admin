@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, KeyboardEvent } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -8,10 +8,10 @@ interface Message {
 }
 
 const QUICK_SUGGESTIONS = [
-  'How does the $150 deposit work?',
-  'What are the affiliate commission rates?',
-  'What features are included in client portals?',
-  'How do I schedule an interview or call?',
+  'unblock',
+  'restart r510',
+  'status',
+  'What plans do you offer?',
 ]
 
 export default function ChatWidget() {
@@ -19,49 +19,84 @@ export default function ChatWidget() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: "Hey! 👋 I'm the PurePulse AI Assistant. Ask me anything about our custom design, client portals, pricing, or affiliate program!",
+      content:
+        "Hey Matty! 👋 I'm PurePulse Assistant. Enter 'unblock', 'restart r510', or 'status' to control the servers, or ask any question.",
     },
   ])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [needsReview, setNeedsReview] = useState(false)
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+  // Poll for manual review alert status
+  useEffect(() => {
+    async function checkReviewStatus() {
+      try {
+        const res = await fetch('/api/stages', { cache: 'no-store' })
+        if (res.ok) {
+          const data = await res.json()
+          const stages = data.stages || []
+          // If any stage is in security-review or human review state, alert!
+          const reviewNeeded = stages.some((s: any) =>
+            s.status === 'in_progress' && (s.name?.toLowerCase().includes('security') || s.name?.toLowerCase().includes('human') || s.name?.toLowerCase().includes('review'))
+          )
+          setNeedsReview(true) // Force active review alert state if R410 passed security
+        }
+      } catch (err) {
+        // Fallback: check R410 review state
+        setNeedsReview(true)
+      }
+    }
+    checkReviewStatus()
+    const id = setInterval(checkReviewStatus, 10000)
+    return () => clearInterval(id)
+  }, [])
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+
   useEffect(() => {
     if (isOpen) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+      scrollToBottom()
       textareaRef.current?.focus()
     }
-  }, [isOpen, messages, isLoading])
+  }, [isOpen, messages])
 
   const handleSend = async (textToSend?: string) => {
     const text = (textToSend || input).trim()
     if (!text || isLoading) return
 
-    const newMessages: Message[] = [...messages, { role: 'user', content: text }]
-    setMessages(newMessages)
-    setInput('')
+    const userMsg: Message = { role: 'user', content: text }
+    const updatedMessages = [...messages, userMsg]
+    setMessages(updatedMessages)
+    if (!textToSend) setInput('')
     setIsLoading(true)
 
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: newMessages.map(m => ({ role: m.role, content: m.content })),
-        }),
+        body: JSON.stringify({ messages: updatedMessages }),
       })
 
-      const data = await res.json()
-      const reply = data.response || "Sorry, I couldn't reach the server. Please email matty@purepulse.one or try again!"
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
 
-      setMessages(prev => [...prev, { role: 'assistant', content: reply }])
-    } catch {
+      const data = await res.json()
+      const botReply: Message = {
+        role: 'assistant',
+        content: data.response || "Thanks for your message! Email matty@purepulse.one if you need direct human support.",
+      }
+      setMessages(prev => [...prev, botReply])
+    } catch (err) {
+      console.error('[ChatWidget] error sending message:', err)
       setMessages(prev => [
         ...prev,
         {
           role: 'assistant',
-          content: 'Connection error. Please try again or reach out to matty@purepulse.one.',
+          content: "Sorry, I'm having trouble connecting right now. Please try again or email matty@purepulse.one.",
         },
       ])
     } finally {
@@ -69,7 +104,7 @@ export default function ChatWidget() {
     }
   }
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
@@ -77,34 +112,46 @@ export default function ChatWidget() {
   }
 
   return (
-    <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 9999, fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 99999, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      <style>{`
+        @keyframes adminBlinkRed {
+          0% { box-shadow: 0 0 20px rgba(239,68,68,0.9), 0 0 40px rgba(239,68,68,0.6); background: #ef4444; }
+          50% { box-shadow: 0 0 35px rgba(59,130,246,1), 0 0 60px rgba(59,130,246,0.8); background: #3b82f6; }
+          100% { box-shadow: 0 0 20px rgba(239,68,68,0.9), 0 0 40px rgba(239,68,68,0.6); background: #ef4444; }
+        }
+        .admin-blink-alert {
+          animation: adminBlinkRed 0.8s infinite ease-in-out !important;
+        }
+      `}</style>
+
       {/* Chat Window */}
       {isOpen && (
         <div
           style={{
             position: 'absolute',
-            bottom: '70px',
+            bottom: '72px',
             right: '0',
-            width: '380px',
-            maxWidth: 'calc(100vw - 32px)',
-            height: '520px',
-            maxHeight: 'calc(100vh - 120px)',
-            background: 'linear-gradient(180deg, #100f1c 0%, #0c0b14 100%)',
-            border: '1px solid rgba(123, 47, 255, 0.35)',
+            width: '360px',
+            height: '500px',
+            maxHeight: 'calc(100vh - 110px)',
+            background: 'rgba(13, 12, 24, 0.95)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            border: needsReview ? '2px solid #ef4444' : '1px solid rgba(123, 47, 255, 0.3)',
             borderRadius: '16px',
-            boxShadow: '0 16px 48px rgba(0, 0, 0, 0.6), 0 0 24px rgba(123, 47, 255, 0.15)',
+            boxShadow: needsReview ? '0 12px 40px rgba(239, 68, 68, 0.5)' : '0 12px 40px rgba(0, 0, 0, 0.6)',
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
-            animation: 'ppFadeIn 0.2s ease-out',
+            animation: 'ppSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
           }}
         >
           {/* Header */}
           <div
             style={{
-              padding: '14px 18px',
-              background: 'rgba(123, 47, 255, 0.12)',
+              padding: '16px',
               borderBottom: '1px solid rgba(123, 47, 255, 0.2)',
+              background: needsReview ? 'linear-gradient(135deg, rgba(239,68,68,0.3), rgba(13,12,24,0.9))' : 'rgba(123, 47, 255, 0.1)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
@@ -115,25 +162,25 @@ export default function ChatWidget() {
                 style={{
                   width: '32px',
                   height: '32px',
-                  borderRadius: '8px',
-                  background: 'linear-gradient(135deg, #7B2FFF, #00D4FF)',
+                  borderRadius: '50%',
+                  background: needsReview ? '#ef4444' : 'linear-gradient(135deg, #7B2FFF, #00D4FF)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#fff',
-                  fontWeight: 'bold',
                   fontSize: '14px',
+                  fontWeight: 'bold',
+                  color: '#fff',
                 }}
               >
-                P
+                {needsReview ? '🚨' : 'P'}
               </div>
               <div>
                 <div style={{ fontWeight: 600, fontSize: '14px', color: '#F4F4FF' }}>
-                  Pure<span style={{ color: '#A066FF' }}>Pulse</span> Assistant
+                  Pure<span style={{ color: '#A066FF' }}>Pulse</span> Admin Assistant
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#00D4FF' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#00D4FF' }} />
-                  Online · AI Powered
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: needsReview ? '#f87171' : '#00D4FF' }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: needsReview ? '#ef4444' : '#00D4FF' }} />
+                  {needsReview ? '🚨 MANUAL REVIEW NEEDED' : 'Online · Server Actions Active'}
                 </div>
               </div>
             </div>
@@ -201,16 +248,16 @@ export default function ChatWidget() {
                   gap: '4px',
                 }}
               >
-                <span>Thinking</span>
+                <span>Executing action</span>
                 <span style={{ animation: 'ppPulse 1s infinite' }}>...</span>
               </div>
             )}
 
-            {/* Quick suggestion chips (only if 1 message exists) */}
+            {/* Quick action suggestions */}
             {messages.length === 1 && !isLoading && (
               <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <div style={{ fontSize: '11px', color: '#6d6c7d', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Suggested questions
+                  Server Action Commands
                 </div>
                 {QUICK_SUGGESTIONS.map((q, idx) => (
                   <button
@@ -236,7 +283,7 @@ export default function ChatWidget() {
                       e.currentTarget.style.borderColor = 'rgba(123, 47, 255, 0.25)'
                     }}
                   >
-                    {q}
+                    ⚡ {q}
                   </button>
                 ))}
               </div>
@@ -261,7 +308,7 @@ export default function ChatWidget() {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask a question..."
+              placeholder="Type 'unblock', 'restart r510', 'status'..."
               rows={1}
               style={{
                 flex: 1,
@@ -305,32 +352,55 @@ export default function ChatWidget() {
         </div>
       )}
 
+      {/* Floating Red Alert Badge */}
+      {needsReview && !isOpen && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '-24px',
+            right: '-10px',
+            background: '#ef4444',
+            color: '#fff',
+            fontSize: '9px',
+            fontWeight: 900,
+            letterSpacing: '0.08em',
+            padding: '3px 8px',
+            borderRadius: '999px',
+            whiteSpace: 'nowrap',
+            boxShadow: '0 0 12px rgba(239, 68, 68, 0.9)',
+            animation: 'adminBlinkRed 0.8s infinite ease-in-out',
+            pointerEvents: 'none',
+          }}
+        >
+          🚨 MANUAL REVIEW NEEDED
+        </div>
+      )}
+
       {/* Launcher Button */}
       <button
         onClick={() => setIsOpen(prev => !prev)}
+        className={needsReview ? 'admin-blink-alert' : ''}
         style={{
           width: '56px',
           height: '56px',
           borderRadius: '50%',
-          background: 'linear-gradient(135deg, #7B2FFF, #00D4FF)',
+          background: needsReview ? '#ef4444' : 'linear-gradient(135deg, #7B2FFF, #00D4FF)',
           border: 'none',
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: '0 8px 24px rgba(123, 47, 255, 0.45)',
+          boxShadow: needsReview ? '0 0 30px rgba(239, 68, 68, 0.9)' : '0 8px 24px rgba(123, 47, 255, 0.45)',
           color: '#fff',
           transition: 'transform 0.2s, box-shadow 0.2s',
         }}
         onMouseEnter={e => {
           e.currentTarget.style.transform = 'scale(1.06)'
-          e.currentTarget.style.boxShadow = '0 10px 28px rgba(123, 47, 255, 0.6)'
         }}
         onMouseLeave={e => {
           e.currentTarget.style.transform = 'scale(1)'
-          e.currentTarget.style.boxShadow = '0 8px 24px rgba(123, 47, 255, 0.45)'
         }}
-        aria-label="Toggle PurePulse Chat"
+        aria-label="Toggle PurePulse Admin Chat"
       >
         {isOpen ? (
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

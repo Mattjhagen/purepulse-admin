@@ -102,12 +102,28 @@ export default function TicketsPage() {
   const load = useCallback(async () => {
     setLoading(true)
     const [ticketsRes, clientsRes] = await Promise.all([
-      supabase.from('tickets').select('*, clients(name)').order('created_at', { ascending: false }),
+      supabase.from('tickets').select('*, clients(name, plan)').order('created_at', { ascending: true }),
       supabase.from('clients').select('*').eq('status', 'active').order('name'),
     ])
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    setTickets((ticketsRes.data ?? []) as any[])
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const PLAN_WEIGHTS: Record<string, number> = {
+      '$100': 4, '$100/mo': 4, 'enterprise': 4,
+      '$75': 3, '$75/mo': 3, 'pro': 3,
+      '$50': 2, '$50/mo': 2, 'growth': 2,
+      '$20': 1, '$20/mo': 1, 'starter': 1,
+    }
+    const PRIORITY_WEIGHTS: Record<string, number> = { urgent: 4, high: 3, medium: 2, low: 1 }
+
+    const raw = (ticketsRes.data ?? []) as any[]
+    raw.sort((a, b) => {
+      const planA = a.clients?.plan || ''
+      const planB = b.clients?.plan || ''
+      const wA = PLAN_WEIGHTS[planA.toLowerCase()] || PRIORITY_WEIGHTS[a.priority] || 1
+      const wB = PLAN_WEIGHTS[planB.toLowerCase()] || PRIORITY_WEIGHTS[b.priority] || 1
+      if (wA !== wB) return wB - wA
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    })
+
+    setTickets(raw)
     setClients((clientsRes.data ?? []) as any[])
     setLoading(false)
   }, [supabase])

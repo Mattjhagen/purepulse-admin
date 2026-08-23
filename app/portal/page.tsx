@@ -841,7 +841,7 @@ export default function CustomerPortalPage() {
             {tab === 'campaign' && (
               <div>
                 <h1 style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.04em', marginBottom: '0.5rem' }}>Your Campaign</h1>
-                <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>Review and approve your AI-generated marketing deliverables.</p>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>Review and approve your custom marketing deliverables.</p>
 
                 {campaigns.length === 0 ? (
                   <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
@@ -993,7 +993,7 @@ export default function CustomerPortalPage() {
                   <div>
                     <h1 style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.04em', marginBottom: '0.5rem' }}>Brand Brief</h1>
                     <p style={{ color: 'var(--text-muted)' }}>
-                      {brief ? 'Your brand brief is on file and guides all AI-generated content.' : 'Help us understand your business so we can create content that hits.'}
+                      {brief ? 'Your brand brief is on file and guides all your custom content.' : 'Help us understand your business so we can create content that hits.'}
                     </p>
                   </div>
                   {brief && !briefEditing && (
@@ -1013,13 +1013,13 @@ export default function CustomerPortalPage() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     {briefSuccess && (
                       <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 'var(--radius-sm)', padding: '0.875rem 1rem', color: '#22c55e', fontSize: '0.875rem' }}>
-                        Brief saved! Your AI brand summary has been updated.
+                        Brief saved! Your brand strategy summary has been updated.
                       </div>
                     )}
 
                     {brief.ai_summary && (
                       <div style={{ background: 'rgba(123,47,255,0.06)', border: '1px solid rgba(123,47,255,0.2)', borderRadius: 'var(--radius)', padding: '1.25rem 1.5rem' }}>
-                        <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#7B2FFF', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.625rem' }}>AI Brand Summary</p>
+                        <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#7B2FFF', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.625rem' }}>Brand Strategy Summary</p>
                         <p style={{ lineHeight: 1.75, color: 'var(--text)' }}>{brief.ai_summary}</p>
                       </div>
                     )}
@@ -1202,7 +1202,7 @@ export default function CustomerPortalPage() {
                     </div>
 
                     <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
-                      After submitting, we&apos;ll generate an AI brand summary that guides all your content.
+                      After submitting, we&apos;ll create a custom brand strategy summary that guides all your content.
                     </p>
                   </form>
                 )}
