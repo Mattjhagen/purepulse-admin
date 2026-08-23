@@ -20,17 +20,46 @@ const FREE_MODELS = [
 
 function cleanAiResponse(text: string, defaultFallback: string): string {
   if (!text) return defaultFallback
+  let cleaned = text.trim()
+
+  // 1. Strip XML thinking tags
+  cleaned = cleaned.replace(/<(?:think|thought)>[\s\S]*?<\/(?:think|thought)>/gi, '').trim()
+
+  // 2. If response contains reasoning analysis blocks, extract only the final conversational message
+  if (/^(?:Here'?s a thinking process|- Rule \d|1\.\s*\*\*Analyze|Draft Response)/i.test(cleaned) || cleaned.includes("Determine Response Strategy")) {
+    // Check if there is a clean paragraph after thinking blocks
+    const doubleNewlineSplit = cleaned.split(/
+
++/)
+    const cleanParagraphs = doubleNewlineSplit.filter(p => {
+      const lower = p.toLowerCase()
+      return !lower.startsWith('- rule') && 
+             !lower.startsWith('1.') && 
+             !lower.startsWith('2.') && 
+             !lower.startsWith('3.') && 
+             !lower.startsWith('4.') && 
+             !lower.startsWith('5.') && 
+             !lower.includes('thinking process') && 
+             !lower.includes('response strategy') && 
+             !lower.includes('analyze user input')
+    })
+    
+    if (cleanParagraphs.length > 0) {
+      cleaned = cleanParagraphs.join('
+
+').trim()
+    } else {
+      return defaultFallback
+    }
+  }
+
+  cleaned = cleaned.replace(/^(?:Assistant|Response|PulseBot|Answer|Draft):\s*/i, '').trim()
   
-  const trimmed = text.trim()
-  // Discard raw response if it is a raw chain-of-thought dump
-  if (/^Here'?s a thinking process:/i.test(trimmed) || /^1\.\s*\*\*Analyze User Input:\*\*/i.test(trimmed) || trimmed.toLowerCase().includes("persona: purepulse admin assistant")) {
+  // Final safety check: if internal terms leaked into public response, fallback to support email redirect
+  if (cleaned.toLowerCase().includes('t310') || cleaned.toLowerCase().includes('r510') || cleaned.toLowerCase().includes('r410')) {
     return defaultFallback
   }
 
-  // Strip XML thinking tags
-  let cleaned = trimmed.replace(/<(?:think|thought)>[\s\S]*?<\/(?:think|thought)>/gi, '').trim()
-  cleaned = cleaned.replace(/^(?:Assistant|Response|PulseBot|Answer):\s*/i, '').trim()
-  
   return cleaned || defaultFallback
 }
 
