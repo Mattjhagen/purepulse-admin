@@ -1,102 +1,112 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { usePathname } from 'next/navigation'
 
 interface Message {
   role: 'user' | 'assistant'
   content: string
 }
 
-const QUICK_SUGGESTIONS = [
+const ADMIN_SUGGESTIONS = [
   'unblock',
-  'restart r510',
+  'heal',
   'status',
-  'What plans do you offer?',
+  'restart r510',
+]
+
+const PUBLIC_SUGGESTIONS = [
+  'What website plans do you offer?',
+  'How fast is turnaround time?',
+  'How can I contact support?',
 ]
 
 export default function ChatWidget() {
+  const pathname = usePathname() || ''
+  const isAdminPage = pathname.startsWith('/dashboard') || pathname.startsWith('/admin') || pathname.startsWith('/handoff') || pathname.startsWith('/tickets')
+
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content:
-        "Hey Matty! 👋 I'm PurePulse Assistant. Enter 'unblock', 'restart r510', or 'status' to control the servers, or ask any question.",
+      content: isAdminPage
+        ? "Hey Matty! 👋 I'm your Admin Assistant. Enter 'heal', 'unblock', 'restart r510', or 'status' to control the servers."
+        : "Hello! 👋 Welcome to PurePulse! We build custom high-performance websites and web applications. How can I help you today? You can also email our team at support@purepulse.one!",
     },
   ])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [needsReview, setNeedsReview] = useState(false)
-
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Poll for manual review alert status
+  // Poll state ONLY on admin pages for manual review alerts
   useEffect(() => {
-    async function checkReviewStatus() {
+    if (!isAdminPage) {
+      setNeedsReview(false)
+      return
+    }
+    const checkState = async () => {
       try {
-        const res = await fetch('/api/stages', { cache: 'no-store' })
-        if (res.ok) {
-          const data = await res.json()
-          const stages = data.stages || []
-          // If any stage is in security-review or human review state, alert!
-          const reviewNeeded = stages.some((s: any) =>
-            s.status === 'in_progress' && (s.name?.toLowerCase().includes('security') || s.name?.toLowerCase().includes('human') || s.name?.toLowerCase().includes('review'))
-          )
-          setNeedsReview(true) // Force active review alert state if R410 passed security
+        const res = await fetch('/api/chat', { method: 'OPTIONS' })
+        const stateRes = await fetch('http://100.123.142.27:8422/api/state', { cache: 'no-store' }).catch(() => null)
+        if (stateRes && stateRes.ok) {
+          const d = await stateRes.json()
+          const reviewNodes = (d.nodes || []).filter((n: any) => n.opencode_state === 'review')
+          setNeedsReview(reviewNodes.length > 0 || d.workflow?.state === 'awaiting-human')
         }
-      } catch (err) {
-        // Fallback: check R410 review state
-        setNeedsReview(true)
-      }
+      } catch (e) {}
     }
-    checkReviewStatus()
-    const id = setInterval(checkReviewStatus, 10000)
-    return () => clearInterval(id)
-  }, [])
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
+    checkState()
+    const interval = setInterval(checkState, 10000)
+    return () => clearInterval(interval)
+  }, [isAdminPage])
 
   useEffect(() => {
-    if (isOpen) {
-      scrollToBottom()
-      textareaRef.current?.focus()
-    }
-  }, [isOpen, messages])
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, isLoading])
 
-  const handleSend = async (textToSend?: string) => {
-    const text = (textToSend || input).trim()
-    if (!text || isLoading) return
+  const handleSend = async (customText?: string) => {
+    const textToSend = customText || input
+    if (!textToSend.trim() || isLoading) return
 
-    const userMsg: Message = { role: 'user', content: text }
-    const updatedMessages = [...messages, userMsg]
+    const userMessage: Message = { role: 'user', content: textToSend }
+    const updatedMessages = [...messages, userMessage]
     setMessages(updatedMessages)
-    if (!textToSend) setInput('')
+    if (!customText) setInput('')
     setIsLoading(true)
 
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: updatedMessages }),
+        body: JSON.stringify({
+          messages: updatedMessages,
+          isAdmin: isAdminPage,
+        }),
       })
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-
       const data = await res.json()
-      const botReply: Message = {
-        role: 'assistant',
-        content: data.response || "Thanks for your message! Email matty@purepulse.one if you need direct human support.",
+      
+      let replyText = data.response || data.answer || "Hello! For any questions, please email support@purepulse.one and our team will get right back to you!"
+      
+      // Safety filter: strip thinking process text if model leaks it
+      if (replyText.toLowerCase().includes("here's a thinking process") || replyText.toLowerCase().includes("analyze user input")) {
+        replyText = isAdminPage
+          ? "Admin Assistant active. Enter 'heal', 'unblock', or 'status' to run server actions."
+          : "Hello! Welcome to PurePulse. How can we help you with your web project today? Feel free to email support@purepulse.one!"
       }
-      setMessages(prev => [...prev, botReply])
+
+      setMessages(prev => [...prev, { role: 'assistant', content: replyText }])
     } catch (err) {
-      console.error('[ChatWidget] error sending message:', err)
       setMessages(prev => [
         ...prev,
         {
           role: 'assistant',
-          content: "Sorry, I'm having trouble connecting right now. Please try again or email matty@purepulse.one.",
+          content: isAdminPage
+            ? 'Big Pickle chat unavailable. Enter "heal" or "status" to execute direct server actions.'
+            : 'For direct assistance or custom project quotes, please email our team at support@purepulse.one!',
         },
       ])
     } finally {
@@ -112,75 +122,68 @@ export default function ChatWidget() {
   }
 
   return (
-    <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 99999, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-      <style>{`
-        @keyframes adminBlinkRed {
-          0% { box-shadow: 0 0 20px rgba(239,68,68,0.9), 0 0 40px rgba(239,68,68,0.6); background: #ef4444; }
-          50% { box-shadow: 0 0 35px rgba(59,130,246,1), 0 0 60px rgba(59,130,246,0.8); background: #3b82f6; }
-          100% { box-shadow: 0 0 20px rgba(239,68,68,0.9), 0 0 40px rgba(239,68,68,0.6); background: #ef4444; }
-        }
-        .admin-blink-alert {
-          animation: adminBlinkRed 0.8s infinite ease-in-out !important;
-        }
-      `}</style>
-
-      {/* Chat Window */}
+    <div
+      style={{
+        position: 'fixed',
+        bottom: '24px',
+        right: '24px',
+        zIndex: 9999,
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+      }}
+    >
+      {/* Expanded Chat Box */}
       {isOpen && (
         <div
           style={{
-            position: 'absolute',
-            bottom: '72px',
-            right: '0',
             width: '360px',
-            height: '500px',
-            maxHeight: 'calc(100vh - 110px)',
+            maxHeight: '520px',
+            height: '480px',
             background: 'rgba(13, 12, 24, 0.95)',
             backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
-            border: needsReview ? '2px solid #ef4444' : '1px solid rgba(123, 47, 255, 0.3)',
+            border: isAdminPage && needsReview ? '2px solid #ef4444' : '1px solid rgba(123, 47, 255, 0.35)',
             borderRadius: '16px',
-            boxShadow: needsReview ? '0 12px 40px rgba(239, 68, 68, 0.5)' : '0 12px 40px rgba(0, 0, 0, 0.6)',
+            boxShadow: isAdminPage && needsReview ? '0 0 30px rgba(239, 68, 68, 0.5)' : '0 16px 48px rgba(0, 0, 0, 0.6)',
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
-            animation: 'ppSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+            marginBottom: '16px',
+            transition: 'all 0.2s ease',
           }}
         >
           {/* Header */}
           <div
             style={{
-              padding: '16px',
+              padding: '14px 16px',
+              background: isAdminPage && needsReview ? 'rgba(239, 68, 68, 0.2)' : 'linear-gradient(135deg, rgba(123, 47, 255, 0.3), rgba(0, 212, 255, 0.15))',
               borderBottom: '1px solid rgba(123, 47, 255, 0.2)',
-              background: needsReview ? 'linear-gradient(135deg, rgba(239,68,68,0.3), rgba(13,12,24,0.9))' : 'rgba(123, 47, 255, 0.1)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <div
                 style={{
-                  width: '32px',
-                  height: '32px',
+                  width: '28px',
+                  height: '28px',
                   borderRadius: '50%',
-                  background: needsReview ? '#ef4444' : 'linear-gradient(135deg, #7B2FFF, #00D4FF)',
+                  background: 'linear-gradient(135deg, #7B2FFF, #00D4FF)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '14px',
-                  fontWeight: 'bold',
+                  fontWeight: 800,
+                  fontSize: '13px',
                   color: '#fff',
                 }}
               >
-                {needsReview ? '🚨' : 'P'}
+                P
               </div>
               <div>
-                <div style={{ fontWeight: 600, fontSize: '14px', color: '#F4F4FF' }}>
-                  Pure<span style={{ color: '#A066FF' }}>Pulse</span> Admin Assistant
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {isAdminPage ? 'PurePulse Admin Assistant' : 'PurePulse Support'}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: needsReview ? '#f87171' : '#00D4FF' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: needsReview ? '#ef4444' : '#00D4FF' }} />
-                  {needsReview ? '🚨 MANUAL REVIEW NEEDED' : 'Online · Server Actions Active'}
+                <div style={{ fontSize: '10px', color: isAdminPage && needsReview ? '#f87171' : '#00D4FF', fontWeight: 600 }}>
+                  {isAdminPage && needsReview ? '🚨 Manual Review Needed' : '● Online'}
                 </div>
               </div>
             </div>
@@ -248,18 +251,18 @@ export default function ChatWidget() {
                   gap: '4px',
                 }}
               >
-                <span>Executing action</span>
+                <span>Thinking</span>
                 <span style={{ animation: 'ppPulse 1s infinite' }}>...</span>
               </div>
             )}
 
-            {/* Quick action suggestions */}
+            {/* Suggestions */}
             {messages.length === 1 && !isLoading && (
               <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <div style={{ fontSize: '11px', color: '#6d6c7d', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Server Action Commands
+                  {isAdminPage ? 'Server Action Commands' : 'Suggested Questions'}
                 </div>
-                {QUICK_SUGGESTIONS.map((q, idx) => (
+                {(isAdminPage ? ADMIN_SUGGESTIONS : PUBLIC_SUGGESTIONS).map((q, idx) => (
                   <button
                     key={idx}
                     onClick={() => handleSend(q)}
@@ -283,7 +286,7 @@ export default function ChatWidget() {
                       e.currentTarget.style.borderColor = 'rgba(123, 47, 255, 0.25)'
                     }}
                   >
-                    ⚡ {q}
+                    {isAdminPage ? '⚡ ' : '💬 '}{q}
                   </button>
                 ))}
               </div>
@@ -308,7 +311,7 @@ export default function ChatWidget() {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Type 'unblock', 'restart r510', 'status'..."
+              placeholder={isAdminPage ? "Type 'unblock', 'restart r510', 'status'..." : "Ask a question about our web plans..."}
               rows={1}
               style={{
                 flex: 1,
@@ -352,8 +355,8 @@ export default function ChatWidget() {
         </div>
       )}
 
-      {/* Floating Red Alert Badge */}
-      {needsReview && !isOpen && (
+      {/* Floating Red Alert Badge (Admin Only) */}
+      {isAdminPage && needsReview && !isOpen && (
         <div
           style={{
             position: 'absolute',
@@ -379,18 +382,18 @@ export default function ChatWidget() {
       {/* Launcher Button */}
       <button
         onClick={() => setIsOpen(prev => !prev)}
-        className={needsReview ? 'admin-blink-alert' : ''}
+        className={isAdminPage && needsReview ? 'admin-blink-alert' : ''}
         style={{
           width: '56px',
           height: '56px',
           borderRadius: '50%',
-          background: needsReview ? '#ef4444' : 'linear-gradient(135deg, #7B2FFF, #00D4FF)',
+          background: isAdminPage && needsReview ? '#ef4444' : 'linear-gradient(135deg, #7B2FFF, #00D4FF)',
           border: 'none',
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: needsReview ? '0 0 30px rgba(239, 68, 68, 0.9)' : '0 8px 24px rgba(123, 47, 255, 0.45)',
+          boxShadow: isAdminPage && needsReview ? '0 0 30px rgba(239, 68, 68, 0.9)' : '0 8px 24px rgba(123, 47, 255, 0.45)',
           color: '#fff',
           transition: 'transform 0.2s, box-shadow 0.2s',
         }}
@@ -400,7 +403,7 @@ export default function ChatWidget() {
         onMouseLeave={e => {
           e.currentTarget.style.transform = 'scale(1)'
         }}
-        aria-label="Toggle PurePulse Admin Chat"
+        aria-label="Toggle Chat"
       >
         {isOpen ? (
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

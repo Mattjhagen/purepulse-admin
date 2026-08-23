@@ -21,35 +21,16 @@ const FREE_MODELS = [
 function cleanAiResponse(text: string, defaultFallback: string): string {
   if (!text) return defaultFallback
   
-  // 1. Strip explicit <think> or <thought> tags
-  let cleaned = text.replace(/<(?:think|thought)>[\s\S]*?<\/(?:think|thought)>/gi, '').trim()
-  
-  // 2. Strip "Here's a thinking process:" dumps
-  if (cleaned.toLowerCase().includes("here's a thinking process") || cleaned.toLowerCase().includes("thinking process:")) {
-    const lines = cleaned.split('\n')
-    const filteredLines: string[] = []
-    let inThinkingBlock = false
-    
-    for (const line of lines) {
-      const lower = line.toLowerCase()
-      if (lower.includes("here's a thinking process") || lower.includes("thinking process:") || lower.includes("analyze user input:")) {
-        inThinkingBlock = true;
-        continue;
-      }
-      if (inThinkingBlock) {
-        // Stop skipping when we hit normal conversational text
-        if (line.trim() !== '' && !line.startsWith('1.') && !line.startsWith('2.') && !line.startsWith('3.') && !line.startsWith('-') && !lower.includes('persona:') && !lower.includes('context:')) {
-          inThinkingBlock = false;
-        } else {
-          continue;
-        }
-      }
-      filteredLines.push(line)
-    }
-    cleaned = filteredLines.join('\n').trim()
+  const trimmed = text.trim()
+  // Discard raw response if it is a raw chain-of-thought dump
+  if (/^Here'?s a thinking process:/i.test(trimmed) || /^1\.\s*\*\*Analyze User Input:\*\*/i.test(trimmed) || trimmed.toLowerCase().includes("persona: purepulse admin assistant")) {
+    return defaultFallback
   }
 
+  // Strip XML thinking tags
+  let cleaned = trimmed.replace(/<(?:think|thought)>[\s\S]*?<\/(?:think|thought)>/gi, '').trim()
   cleaned = cleaned.replace(/^(?:Assistant|Response|PulseBot|Answer):\s*/i, '').trim()
+  
   return cleaned || defaultFallback
 }
 
@@ -67,12 +48,12 @@ export async function POST(req: NextRequest) {
     }
 
     const referer = req.headers.get('referer') || ''
-    const isAdmin = body.isAdmin === true || referer.includes('/dashboard') || referer.includes('login.purepulse.one')
+    const isAdmin = body.isAdmin === true || (referer.includes('/dashboard') && !referer.includes('purepulse.one/portal'))
 
     const lastMsg = rawMessages[rawMessages.length - 1]?.content || ''
     const lowerMsg = String(lastMsg).toLowerCase().trim()
 
-    // --- ADMIN DASHBOARD MODE ONLY ---
+    // --- ADMIN DASHBOARD ACTIONS ONLY ---
     if (isAdmin) {
       if (lowerMsg === 'unblock' || lowerMsg === 'heal' || lowerMsg === 'clean' || lowerMsg === 'fix' || lowerMsg === 'fix queue') {
         try {
@@ -135,7 +116,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // --- SYSTEM PROMPT SEPARATION ---
+    // --- SYSTEM PROMPTS & PERSONA SEPARATION ---
     let SYSTEM_PROMPT = ''
 
     if (isAdmin) {
@@ -152,15 +133,16 @@ ${liveContext}
 Instructions:
 - Answer Matty concisely and contextually about server health, pipeline handoffs, git branch state, or billing.
 - Mention that entering 'heal', 'unblock', 'restart r510', or 'status' will execute direct server actions.
-- Output ONLY your final response. NEVER show thinking steps, internal analysis, or reasoning tags.`
+- DO NOT show thinking steps or internal reasoning.`
     } else {
-      SYSTEM_PROMPT = `You are PurePulse Assistant, a friendly and professional customer service representative for PurePulse (https://purepulse.one).
+      SYSTEM_PROMPT = `You are PurePulse Sales & Support Representative for PurePulse (https://purepulse.one).
 
-Rules:
-1. NEVER mention internal servers, T310, R510, R410, AI engines, internal codebases, or admin commands. You have NO access to servers.
-2. Answer questions about PurePulse's custom web development services, pricing plans ($20/mo Starter, $50/mo Growth, $75/mo Pro, $100/mo Unlimited Enterprise), features, maintenance, and turnaround times.
-3. If a visitor asks complex technical questions, custom project quotes, or anything you cannot answer, direct them to email support@purepulse.one: "For custom project details or specific inquiries, please feel free to email our team at support@purepulse.one and we will get right back to you!"
-4. Output ONLY your final polite customer-facing response. NEVER output thinking steps, reasoning analysis, or internal commentary.`
+Strict Public Rules:
+1. You are talking to potential clients visiting the public website.
+2. ABSOLUTELY NO MENTION of internal servers, T310, R510, R410, AI engines, internal repositories, git, or admin commands. You have NO access to servers or internal systems.
+3. Answer questions about PurePulse's custom web design and development services, feature packages, turnaround times, and pricing plans ($20/mo Starter, $50/mo Growth, $75/mo Pro, $100/mo Unlimited Enterprise).
+4. If a visitor asks a question you cannot answer or asks for custom project quotes, DIRECT THEM TO EMAIL SUPPORT@PUREPULSE.ONE: "For custom project details or specific inquiries, please feel free to email our team directly at support@purepulse.one and we will get right back to you!"
+5. Output ONLY your final polite customer-facing response. NEVER output thinking steps, reasoning analysis, or internal commentary.`
     }
 
     const messages = [
@@ -177,7 +159,7 @@ Rules:
     
     const defaultGreeting = isAdmin
       ? "Hey Matty! 👋 I'm your Admin Assistant. Enter 'heal', 'unblock', 'restart r510', or 'status' to control the servers."
-      : "Hello! 👋 Welcome to PurePulse! How can I help you with our custom web development plans today? For direct inquiries, email support@purepulse.one."
+      : "Hello! 👋 Welcome to PurePulse! We build custom high-performance websites and web applications tailored for your business. How can I help you today? You can also reach our team directly at support@purepulse.one!"
 
     if (!apiKey) {
       return NextResponse.json({ response: defaultGreeting, model: 'simulated-fallback' }, { headers: CORS_HEADERS })
@@ -198,8 +180,7 @@ Rules:
             model,
             messages,
             temperature: 0.5,
-            max_tokens: 500,
-            include_reasoning: false,
+            max_tokens: 400,
           }),
         })
 
@@ -219,6 +200,6 @@ Rules:
     return NextResponse.json({ response: defaultGreeting, model: 'smart-fallback' }, { headers: CORS_HEADERS })
 
   } catch (err: unknown) {
-    return NextResponse.json({ response: "Hello! Welcome to PurePulse. How can we help you with your web project today? You can also email us at support@purepulse.one!" }, { status: 500, headers: CORS_HEADERS })
+    return NextResponse.json({ response: "Hello! Welcome to PurePulse. How can we help you with your web project today? Feel free to email our team directly at support@purepulse.one!" }, { status: 500, headers: CORS_HEADERS })
   }
 }
