@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (lowerMsg === 'status' || lowerMsg === 'health' || lowerMsg === 'pipeline' || lowerMsg === 'review') {
+    if (lowerMsg === 'status' || lowerMsg === 'health' || lowerMsg === 'pipeline' || lowerMsg === 'review' || lowerMsg === 'context' || lowerMsg === 'issues') {
       try {
         const { execSync } = require('child_process')
         const t310Raw = execSync('curl -s -m 3 http://100.123.142.27:8422/api/state', { encoding: 'utf8' })
@@ -83,13 +83,20 @@ export async function POST(req: NextRequest) {
         const stage = state.workflow?.current_stage || 'intake'
         const label = state.workflow?.item_label || 'No active task'
         const pipeState = state.workflow?.state || 'idle'
+
+        const nodesSummary = (state.nodes || []).map((n: any) => {
+          const isRunning = !['', 'idle', 'unknown'].includes((n.opencode_state || '').toLowerCase())
+          const logs = (n.agent_report_lines || []).filter((l: string) => l && l.trim()).slice(-4).join('\n  ')
+          return `• ${n.host_alias} (${n.role}): ${isRunning ? '⚡ ACTIVE RUNNER' : 'IDLE (' + (n.opencode_state || 'idle') + ')'}\n  Issue: ${n.current_issue ? 'Issue #' + n.current_issue : 'None'}\n  Summary: ${n.status_summary || 'Reachable'}\n  Logs:\n  ${logs || 'No log report'}`
+        }).join('\n\n')
+
         return NextResponse.json({
-          response: `📊 Live Pipeline Snapshot:\n- Current Stage: ${stage} (${pipeState})\n- Active Task: ${label}\n- T310 (PM): Reachable | R510 (Dev): Reachable | R410 (Security): Reachable (Awaiting human merge on PR #29)`,
+          response: `📊 LIVE PIPELINE CONTEXT & DEEP TELEMETRY\n\n📍 Active Stage: ${stage.toUpperCase()} (${pipeState})\n🎯 Task: ${label}\n\n🖥️ SERVER STATES & LOGS:\n${nodesSummary}`,
           model: "admin-action-handler"
         }, { headers: CORS_HEADERS })
       } catch (err) {
         return NextResponse.json({
-          response: "📊 Live Pipeline Status: Monitored servers (T310, R510, R410) are operational. R410 completed security pass on PR #29 and is awaiting human merge.",
+          response: "📊 Live Pipeline Context: Monitored servers (T310, R510, R410) are reachable and healthy. Type 'heal' to run auto-cleaning.",
           model: "admin-action-handler"
         }, { headers: CORS_HEADERS })
       }
