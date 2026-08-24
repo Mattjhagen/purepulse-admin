@@ -40,6 +40,11 @@ export function isAdmin(email?: string | null, role?: string | null): boolean {
   return false
 }
 
+export function isSuperuser(email?: string | null): boolean {
+  if (!email) return false
+  return MASTER_ADMIN_EMAILS.includes(email.toLowerCase().trim())
+}
+
 export function isManager(email?: string | null, role?: string | null): boolean {
   if (!email) return false
   if (isAdmin(email, role)) return true

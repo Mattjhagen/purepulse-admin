@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Client, TimeEntry } from '@/lib/types'
 import { formatDateTime, formatHours, formatMoney, calcDurationHours, calcEarnings, getWeekBounds } from '@/lib/utils'
-import { Play, Square, Coffee, Clock, Plus, ArrowRight, X, Pencil, TrendingUp, DollarSign, Target } from 'lucide-react'
+import { Play, Square, Clock, Plus, ArrowRight, X, Pencil, TrendingUp, DollarSign, Target, ShieldCheck, Users, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 
@@ -102,15 +102,20 @@ function WeekBarsCard({ entries, weekStart }: { entries: WeekEntry[]; weekStart:
   )
 }
 
-type EntryRow = TimeEntry & { clients: { name: string } }
+type EntryRow = TimeEntry & { 
+  clients: { name: string }
+  user_name?: string
+  user_email?: string
+  user_role?: string 
+}
 
-function ManualEntryModal({ clients, entry, onClose, onSave }: {
+function ManualEntryModal({ clients, entry, targetUserId, onClose, onSave }: {
   clients: Client[]
   entry?: EntryRow | null
+  targetUserId?: string
   onClose: () => void
   onSave: () => void
 }) {
-  const supabase = createClient()
   const toLocal = (iso: string) => {
     const d = new Date(iso)
     const pad = (n: number) => String(n).padStart(2, '0')
@@ -131,7 +136,6 @@ function ManualEntryModal({ clients, entry, onClose, onSave }: {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setError(''); setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
     const clockIn = new Date(form.clock_in).toISOString()
     const clockOut = form.clock_out ? new Date(form.clock_out).toISOString() : null
     if (clockOut && new Date(clockOut) <= new Date(clockIn)) {
@@ -139,26 +143,40 @@ function ManualEntryModal({ clients, entry, onClose, onSave }: {
     }
     const client = clients.find(c => c.id === form.client_id)
     const payload = {
+      id: entry?.id,
+      action: 'manual',
       client_id: form.client_id,
       description: form.description || null,
       clock_in: clockIn,
       clock_out: clockOut,
       hourly_rate: Number(form.hourly_rate) || client?.hourly_rate || 85,
-      status: clockOut ? 'closed' : 'open',
-      updated_at: new Date().toISOString(),
+      target_user_id: targetUserId,
     }
-    const { error: err } = entry?.id
-      ? await supabase.from('time_entries').update(payload).eq('id', entry.id)
-      : await supabase.from('time_entries').insert({ ...payload, user_id: user?.id })
-    if (err) { setError(err.message); setLoading(false); return }
-    onSave()
+
+    try {
+      const res = await fetch('/api/time-clock', {
+        method: entry?.id ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        setError(data.error || 'Failed to save entry')
+        setLoading(false)
+        return
+      }
+      onSave()
+    } catch {
+      setError('Error saving entry')
+      setLoading(false)
+    }
   }
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-          <h2 className="modal-title" style={{ marginBottom: 0 }}>{entry ? 'Edit Entry' : 'Manual Entry'}</h2>
+          <h2 className="modal-title" style={{ marginBottom: 0 }}>{entry ? 'Edit Time Entry' : 'Manual Time Entry'}</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={20} /></button>
         </div>
         {error && <p className="error-msg" style={{ marginBottom: '1rem' }}>{error}</p>}
@@ -175,8 +193,8 @@ function ManualEntryModal({ clients, entry, onClose, onSave }: {
             </select>
           </div>
           <div className="form-group">
-            <label>Description</label>
-            <input className="input" value={form.description} onChange={e => set('description', e.target.value)} placeholder="What were you working on?" />
+            <label>Description / Work Notes</label>
+            <input className="input" value={form.description} onChange={e => set('description', e.target.value)} placeholder="What was worked on?" />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div className="form-group">
@@ -189,7 +207,7 @@ function ManualEntryModal({ clients, entry, onClose, onSave }: {
             </div>
           </div>
           <div className="form-group">
-            <label>Hourly Rate *</label>
+            <label>Hourly Rate ($) *</label>
             <input className="input" type="number" min={0} step={0.01} required value={form.hourly_rate} onChange={e => set('hourly_rate', e.target.value)} />
           </div>
           <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
@@ -219,10 +237,8 @@ export default function TimeClockPage() {
 
   const [clients, setClients] = useState<Client[]>([])
   const [entries, setEntries] = useState<EntryRow[]>([])
-  const [weekEntries, setWeekEntries] = useState<WeekEntry[]>([])
   const [openEntry, setOpenEntry] = useState<EntryRow | null>(null)
   const [loading, setLoading] = useState(true)
-  const [userId, setUserId] = useState<string>('')
   const [modal, setModal] = useState<{ open: boolean; entry?: EntryRow | null }>({ open: false })
   const [selectedClient, setSelectedClient] = useState(preselectedClient ?? '')
   const [description, setDescription] = useState('')
@@ -230,38 +246,42 @@ export default function TimeClockPage() {
   const [error, setError] = useState('')
   const [clientFilter, setClientFilter] = useState('')
 
+  // Superuser state
+  const [isSuper, setIsSuper] = useState(false)
+  const [teamMembers, setTeamMembers] = useState<any[]>([])
+  const [selectedMemberFilter, setSelectedMemberFilter] = useState<string>('me')
+
   const now = new Date()
-  const { start: weekStart, end: weekEnd } = getWeekBounds(now)
+  const { start: weekStart } = getWeekBounds(now)
 
   const load = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    setUserId(user.id)
+    setLoading(true)
+    try {
+      // 1. Fetch clients
+      const { data: clientsData } = await supabase.from('clients').select('*').eq('status', 'active').order('name')
+      setClients(clientsData ?? [])
 
-    const [clientsRes, entriesRes, weekRes] = await Promise.all([
-      supabase.from('clients').select('*').eq('status', 'active').order('name'),
-      supabase.from('time_entries')
-        .select('*, clients(name)')
-        .eq('user_id', user.id)
-        .order('clock_in', { ascending: false })
-        .limit(25),
-      supabase.from('time_entries')
-        .select('id, clock_in, clock_out, hourly_rate, status')
-        .eq('user_id', user.id)
-        .gte('clock_in', weekStart.toISOString())
-        .lte('clock_in', weekEnd.toISOString()),
-    ])
+      // 2. Fetch time entries from server API
+      let url = '/api/time-clock'
+      if (selectedMemberFilter && selectedMemberFilter !== 'me') {
+        url += `?user_id=${encodeURIComponent(selectedMemberFilter)}`
+      }
 
-    setClients(clientsRes.data ?? [])
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const all = (entriesRes.data ?? []) as any[]
-    setEntries(all)
-    setOpenEntry(all.find((e: EntryRow) => e.status === 'open') ?? null)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    setWeekEntries((weekRes.data ?? []) as any[])
-    setLoading(false)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase])
+      const res = await fetch(url)
+      const data = await res.json()
+
+      if (data.entries) {
+        setEntries(data.entries)
+        setOpenEntry(data.openEntry || null)
+        setIsSuper(Boolean(data.isSuperuser))
+        setTeamMembers(data.teamMembers || [])
+      }
+    } catch (err) {
+      console.error('TimeClock load error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [supabase, selectedMemberFilter])
 
   useEffect(() => { load() }, [load])
 
@@ -269,54 +289,75 @@ export default function TimeClockPage() {
     if (!selectedClient) { setError('Select a client first'); return }
     setError(''); setClocking(true)
     const client = clients.find(c => c.id === selectedClient)
-    const { error: err } = await supabase.from('time_entries').insert({
-      user_id: userId,
-      client_id: selectedClient,
-      hourly_rate: client?.hourly_rate ?? 85,
-      description: description || null,
-      status: 'open',
-    })
-    if (err) { setError(err.message); setClocking(false); return }
-    setDescription('')
-    await load()
-    setClocking(false)
+
+    try {
+      const res = await fetch('/api/time-clock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: selectedClient,
+          hourly_rate: client?.hourly_rate || 85,
+          description: description || null,
+          target_user_id: selectedMemberFilter !== 'me' && selectedMemberFilter !== 'all' ? selectedMemberFilter : undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        setError(data.error || 'Failed to clock in')
+      } else {
+        setDescription('')
+        await load()
+      }
+    } catch {
+      setError('Clock-in failed')
+    } finally {
+      setClocking(false)
+    }
   }
 
   async function clockOut() {
     if (!openEntry) return
     setClocking(true)
-    await supabase.from('time_entries').update({ clock_out: new Date().toISOString(), status: 'closed' }).eq('id', openEntry.id)
-    await load()
-    setClocking(false)
+    try {
+      await fetch('/api/time-clock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'clock-out',
+          entry_id: openEntry.id,
+        }),
+      })
+      await load()
+    } catch {} finally {
+      setClocking(false)
+    }
   }
 
-  async function startBreak() {
-    if (!openEntry) return
-    await supabase.from('time_entry_breaks').insert({ time_entry_id: openEntry.id, break_start: new Date().toISOString() })
+  async function deleteEntry(id: string) {
+    if (!confirm('Are you sure you want to delete this time entry? This action cannot be undone.')) return
+    try {
+      await fetch(`/api/time-clock?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+      await load()
+    } catch {}
   }
 
   const closedEntries = entries.filter(e => e.status === 'closed')
 
-  // Stats from week data
+  // Stats from current dataset
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
   const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999)
 
-  const weekClosed = weekEntries.filter(e => e.status === 'closed' && e.clock_out)
-  const todayClosed = weekClosed.filter(e => {
+  const todayClosed = closedEntries.filter(e => {
     const d = new Date(e.clock_in)
     return d >= todayStart && d <= todayEnd
   })
   const hoursToday = todayClosed.reduce((s, e) => s + calcDurationHours(e.clock_in, e.clock_out), 0)
-  const hoursWeek = weekClosed.reduce((s, e) => s + calcDurationHours(e.clock_in, e.clock_out), 0)
-  const earningsWeek = weekClosed.reduce((s, e) => s + calcEarnings(calcDurationHours(e.clock_in, e.clock_out), e.hourly_rate).total, 0)
+  const hoursWeek = closedEntries.reduce((s, e) => s + calcDurationHours(e.clock_in, e.clock_out), 0)
+  const earningsWeek = closedEntries.reduce((s, e) => s + calcEarnings(calcDurationHours(e.clock_in, e.clock_out), e.hourly_rate).total, 0)
 
   const dailyGoal = 8
   const dailyProgress = Math.min((hoursToday / dailyGoal) * 100, 100)
 
-  // Client filter for recent entries
-  const clientsWithEntries = [...new Map(
-    closedEntries.map(e => [e.client_id, { id: e.client_id, name: e.clients?.name ?? e.client_id }])
-  ).values()]
   const filtered = clientFilter ? closedEntries.filter(e => e.client_id === clientFilter) : closedEntries
 
   if (loading) return <div style={{ textAlign: 'center', padding: '4rem' }}><span className="spinner" style={{ margin: '0 auto' }} /></div>
@@ -324,21 +365,59 @@ export default function TimeClockPage() {
   return (
     <>
       <div className="page-header">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <h1>Time Clock</h1>
-            <p>Track hours by client with automatic overtime calculation.</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h1 style={{ margin: 0 }}>Time Clock</h1>
+              {isSuper && (
+                <span style={{ fontSize: '0.68rem', fontWeight: 800, background: '#7B2FFF', color: '#fff', padding: '2px 8px', borderRadius: 4, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Superuser Master Control
+                </span>
+              )}
+            </div>
+            <p style={{ marginTop: '4px' }}>Track billable hours by client with real-time employee attribution.</p>
           </div>
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <button className="btn btn-secondary btn-sm" onClick={() => setModal({ open: true })}>
+              <Plus size={13} /> Manual Entry
+            </button>
             <Link href="/time-clock/timesheets" className="btn btn-ghost btn-sm">Timesheets</Link>
             <Link href="/time-clock/reports" className="btn btn-ghost btn-sm">Reports</Link>
           </div>
         </div>
       </div>
 
+      {/* Superuser Member Selector */}
+      {isSuper && teamMembers.length > 0 && (
+        <div style={{ background: 'rgba(123, 47, 255, 0.08)', border: '1px solid rgba(123, 47, 255, 0.25)', borderRadius: '10px', padding: '0.875rem 1.25rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+            <ShieldCheck size={18} color="#A066FF" />
+            <div>
+              <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#F4F4FF' }}>Superuser Timesheet Inspector:</span>
+              <span style={{ fontSize: '0.75rem', color: '#A066FF', marginLeft: '6px' }}>Filter or manage any team member's active clock &amp; log</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <select
+              className="input"
+              style={{ fontSize: '0.8125rem', padding: '0.35rem 0.75rem', minWidth: '220px', background: '#14141F', border: '1px solid #2D2D42' }}
+              value={selectedMemberFilter}
+              onChange={e => setSelectedMemberFilter(e.target.value)}
+            >
+              <option value="me">My Account Clock</option>
+              <option value="all">All Team Members (Master View)</option>
+              {teamMembers.map((tm) => (
+                <option key={tm.id} value={tm.auth_user_id || tm.id}>
+                  {tm.name} ({tm.role.toUpperCase()}) — {tm.email}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-        {/* Today */}
         <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
           <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(99,102,241,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <Clock size={18} color="#6366f1" />
@@ -352,162 +431,180 @@ export default function TimeClockPage() {
           </div>
         </div>
 
-        {/* This Week */}
-        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
-          <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(99,102,241,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <TrendingUp size={18} color="#6366f1" />
-          </div>
-          <div>
-            <p style={{ fontSize: '1.25rem', fontWeight: 800, lineHeight: 1 }}>{formatHours(hoursWeek)}</p>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>This Week</p>
-          </div>
-        </div>
-
-        {/* Week Earnings */}
         <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
           <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(34,197,94,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <DollarSign size={18} color="#22c55e" />
+            <TrendingUp size={18} color="#22c55e" />
           </div>
-          <div>
-            <p style={{ fontSize: '1.125rem', fontWeight: 800, lineHeight: 1 }}>{formatMoney(earningsWeek)}</p>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Week Earnings</p>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: '1.25rem', fontWeight: 800, lineHeight: 1 }}>{formatHours(hoursWeek)}</p>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Total Tracked</p>
           </div>
         </div>
 
-        {/* Active Session */}
         <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
-          <div style={{ width: 36, height: 36, borderRadius: '50%', background: openEntry ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <Play size={18} color={openEntry ? '#22c55e' : undefined} style={!openEntry ? { opacity: 0.3 } : undefined} />
+          <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(245,158,11,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <DollarSign size={18} color="#f59e0b" />
           </div>
-          <div>
-            <p style={{ fontSize: '1.375rem', fontWeight: 800, lineHeight: 1 }}>{openEntry ? '1' : '0'}</p>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Active Session</p>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: '1.25rem', fontWeight: 800, lineHeight: 1 }}>{formatMoney(earningsWeek)}</p>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Billable Value</p>
           </div>
         </div>
 
-        {/* Weekly bar chart — spans 2 columns */}
-        <WeekBarsCard entries={weekEntries} weekStart={weekStart} />
+        <WeekBarsCard entries={closedEntries.map(e => ({ id: e.id, clock_in: e.clock_in, clock_out: e.clock_out ?? null, hourly_rate: Number(e.hourly_rate), status: e.status }))} weekStart={weekStart} />
       </div>
 
-      {/* Active timer */}
+      {/* Clock In / Active Session */}
       {openEntry ? (
-        <div className="card-elevated" style={{ marginBottom: '2rem', borderColor: 'rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.04)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-            <span className="badge badge-green">● Live</span>
-            <span style={{ fontWeight: 700, fontSize: '1.125rem' }}>{openEntry.clients?.name}</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '2rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
-            <div>
-              <span style={{ fontSize: '3rem', fontWeight: 800, letterSpacing: '-0.05em' }}>
+        <div className="card" style={{
+          background: 'linear-gradient(135deg, rgba(34,197,94,0.08) 0%, rgba(13,13,13,0.95) 100%)',
+          border: '1px solid rgba(34,197,94,0.3)',
+          marginBottom: '2rem',
+          padding: '1.75rem',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 8px #22c55e', animation: 'pulse 2s infinite' }} />
+              <div>
+                <p style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#22c55e', fontWeight: 700 }}>
+                  Active Session {openEntry.user_name ? `• ${openEntry.user_name}` : ''}
+                </p>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, marginTop: '0.25rem' }}>
+                  {openEntry.clients?.name ?? 'Client Session'}
+                </h2>
+                {openEntry.description && (
+                  <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>{openEntry.description}</p>
+                )}
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '2rem', fontWeight: 900, fontFamily: 'monospace', letterSpacing: '-0.03em' }}>
                 <LiveDuration clockIn={openEntry.clock_in} />
-              </span>
-              <span style={{ color: 'var(--text-muted)', marginLeft: '0.5rem' }}>elapsed</span>
-            </div>
-            <div>
-              <span style={{ fontSize: '2rem', fontWeight: 800, letterSpacing: '-0.04em' }}>
-                <LiveEarnings clockIn={openEntry.clock_in} hourlyRate={openEntry.hourly_rate} />
-              </span>
-              <span style={{ color: 'var(--text-muted)', marginLeft: '0.5rem' }}>earned</span>
+              </div>
+              <div style={{ fontSize: '0.875rem', marginTop: '0.25rem' }}>
+                <LiveEarnings clockIn={openEntry.clock_in} hourlyRate={Number(openEntry.hourly_rate)} />
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}> ({formatMoney(openEntry.hourly_rate)}/hr)</span>
+              </div>
             </div>
           </div>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
-            Clocked in at {formatDateTime(openEntry.clock_in)} · {formatMoney(openEntry.hourly_rate)}/hr
-          </p>
-          {openEntry.description && <p style={{ marginBottom: '1.25rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>{openEntry.description}</p>}
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
-            <button className="btn btn-danger" onClick={clockOut} disabled={clocking}>
-              <Square size={14} /> Clock out
+
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <button className="btn btn-danger" onClick={clockOut} disabled={clocking} style={{ padding: '0.625rem 1.5rem', fontWeight: 700 }}>
+              <Square size={16} /> {clocking ? <span className="spinner" /> : 'Clock Out'}
             </button>
-            <button className="btn btn-ghost" onClick={startBreak}>
-              <Coffee size={14} /> Break
-            </button>
+            <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+              Clocked in at {formatDateTime(openEntry.clock_in)}
+            </span>
           </div>
         </div>
       ) : (
-        <div className="card-elevated" style={{ marginBottom: '2rem' }}>
-          <h2 style={{ fontWeight: 700, marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Clock size={18} /> Clock In
+        <div className="card" style={{ marginBottom: '2rem', padding: '1.75rem' }}>
+          <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem' }}>
+            {selectedMemberFilter !== 'me' && selectedMemberFilter !== 'all' ? 'Clock In Team Member' : 'Start Working'}
           </h2>
           {error && <p className="error-msg" style={{ marginBottom: '1rem' }}>{error}</p>}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div className="form-group">
-              <label>Client *</label>
-              <select className="input" value={selectedClient} onChange={e => setSelectedClient(e.target.value)}>
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div style={{ flex: '1 1 200px' }}>
+              <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.375rem' }}>Client *</label>
+              <select className="input" value={selectedClient} onChange={e => setSelectedClient(e.target.value)} style={{ width: '100%' }}>
                 <option value="">Select a client…</option>
-                {clients.map(c => (
-                  <option key={c.id} value={c.id}>{c.name} — {formatMoney(c.hourly_rate)}/hr</option>
-                ))}
+                {clients.map(c => <option key={c.id} value={c.id}>{c.name} — {formatMoney(c.hourly_rate)}/hr</option>)}
               </select>
             </div>
-            <div className="form-group">
-              <label>Description (optional)</label>
-              <input className="input" placeholder="What are you working on?" value={description} onChange={e => setDescription(e.target.value)} />
+            <div style={{ flex: '2 1 260px' }}>
+              <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.375rem' }}>Description / Work Item</label>
+              <input
+                className="input"
+                placeholder="What are you working on?"
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') clockIn() }}
+                style={{ width: '100%' }}
+              />
             </div>
-            <div>
-              <button className="btn btn-primary" onClick={clockIn} disabled={clocking || !selectedClient}>
-                {clocking ? <span className="spinner" /> : <><Play size={14} /> Clock in</>}
-              </button>
-            </div>
+            <button className="btn btn-primary" onClick={clockIn} disabled={clocking || !selectedClient} style={{ padding: '0.625rem 1.5rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
+              <Play size={16} /> {clocking ? <span className="spinner" /> : 'Clock In'}
+            </button>
           </div>
         </div>
       )}
 
-      {/* Recent entries */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.875rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-        <h2 style={{ fontSize: '1rem', fontWeight: 700 }}>Recent Entries</h2>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          {clientsWithEntries.length > 1 && (
-            <select
-              className="input input-sm"
-              style={{ width: 'auto', fontSize: '0.8125rem' }}
-              value={clientFilter}
-              onChange={e => setClientFilter(e.target.value)}
-            >
-              <option value="">All clients</option>
-              {clientsWithEntries.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          )}
-          <button className="btn btn-ghost btn-sm" onClick={() => setModal({ open: true, entry: null })}>
-            <Plus size={14} /> Manual entry
-          </button>
-          <Link href="/time-clock/timesheets" className="btn btn-ghost btn-sm">Full timesheets <ArrowRight size={13} /></Link>
+      {/* Recent Entries */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+        <h2 style={{ fontSize: '1rem', fontWeight: 700 }}>
+          {isSuper && selectedMemberFilter === 'all' ? 'All Team Time Entries' : 'Recent Time Entries'}
+        </h2>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <select className="input" style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }} value={clientFilter} onChange={e => setClientFilter(e.target.value)}>
+            <option value="">All Clients</option>
+            {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
         </div>
       </div>
 
       {filtered.length === 0 ? (
-        <div className="empty-state"><p>No time entries yet.</p></div>
+        <div className="empty-state">
+          <Clock size={36} />
+          <p>No closed time entries recorded yet.</p>
+        </div>
       ) : (
-        <div className="table-wrap">
-          <table>
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr>
-                <th>Client</th>
-                <th>Description</th>
-                <th>Date</th>
-                <th>In</th>
-                <th>Out</th>
-                <th>Hours</th>
-                <th>Earnings</th>
-                <th></th>
+              <tr style={{ borderBottom: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)', textAlign: 'left', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <th style={{ padding: '0.75rem 1rem' }}>Member</th>
+                <th style={{ padding: '0.75rem 1rem' }}>Client</th>
+                <th style={{ padding: '0.75rem 1rem' }}>Clock In / Out</th>
+                <th style={{ padding: '0.75rem 1rem' }}>Hours</th>
+                <th style={{ padding: '0.75rem 1rem' }}>Rate</th>
+                <th style={{ padding: '0.75rem 1rem' }}>Total</th>
+                <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.slice(0, 15).map(e => {
-                const hours = calcDurationHours(e.clock_in, e.clock_out)
-                const { total } = calcEarnings(hours, e.hourly_rate)
+              {filtered.map((entry) => {
+                const duration = calcDurationHours(entry.clock_in, entry.clock_out)
+                const earnings = calcEarnings(duration, Number(entry.hourly_rate))
                 return (
-                  <tr key={e.id}>
-                    <td style={{ fontWeight: 500 }}>{e.clients?.name}</td>
-                    <td style={{ color: 'var(--text-muted)', fontSize: '0.8125rem', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.description ?? '—'}</td>
-                    <td style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{dayLabel(e.clock_in)}</td>
-                    <td style={{ color: 'var(--text-muted)' }}>{new Date(e.clock_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                    <td style={{ color: 'var(--text-muted)' }}>{e.clock_out ? new Date(e.clock_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
-                    <td>{formatHours(hours)}</td>
-                    <td style={{ fontWeight: 600 }}>{formatMoney(total)}</td>
-                    <td>
-                      <button className="btn btn-ghost btn-sm" onClick={() => setModal({ open: true, entry: e })}>
-                        <Pencil size={12} />
-                      </button>
+                  <tr key={entry.id} style={{ borderBottom: '1px solid var(--border)', fontSize: '0.84rem' }}>
+                    <td style={{ padding: '0.75rem 1rem' }}>
+                      <span style={{ fontWeight: 600, color: 'var(--text)' }}>{entry.user_name || 'Team Member'}</span>
+                      {entry.user_role && (
+                        <span style={{ fontSize: '0.65rem', background: 'rgba(255,255,255,0.06)', padding: '1px 5px', borderRadius: 4, marginLeft: '6px', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                          {entry.user_role}
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ padding: '0.75rem 1rem' }}>
+                      <span style={{ fontWeight: 600 }}>{entry.clients?.name ?? 'Client'}</span>
+                      {entry.description && <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>{entry.description}</p>}
+                    </td>
+                    <td style={{ padding: '0.75rem 1rem', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                      <div>{dayLabel(entry.clock_in)} • {new Date(entry.clock_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                      {entry.clock_out && <div>to {new Date(entry.clock_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>}
+                    </td>
+                    <td style={{ padding: '0.75rem 1rem', fontWeight: 700 }}>{formatHours(duration)}</td>
+                    <td style={{ padding: '0.75rem 1rem', color: 'var(--text-muted)' }}>{formatMoney(entry.hourly_rate)}/hr</td>
+                    <td style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#22c55e' }}>{formatMoney(earnings.total)}</td>
+                    <td style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'flex-end' }}>
+                        <button
+                          onClick={() => setModal({ open: true, entry })}
+                          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+                          title="Edit Entry"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        {isSuper && (
+                          <button
+                            onClick={() => deleteEntry(entry.id)}
+                            style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: '4px' }}
+                            title="Delete Entry"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )
@@ -521,8 +618,9 @@ export default function TimeClockPage() {
         <ManualEntryModal
           clients={clients}
           entry={modal.entry}
-          onClose={() => setModal({ open: false })}
-          onSave={() => { setModal({ open: false }); load() }}
+          targetUserId={selectedMemberFilter !== 'me' && selectedMemberFilter !== 'all' ? selectedMemberFilter : undefined}
+          onClose={() => setModal({ open: false, entry: null })}
+          onSave={() => { setModal({ open: false, entry: null }); load() }}
         />
       )}
     </>

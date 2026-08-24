@@ -38,6 +38,9 @@ export async function POST(req: NextRequest) {
     const teamMember = teamRes.rows[0]
 
     if (teamMember) {
+      if (teamMember.status === 'inactive') {
+        return NextResponse.json({ error: 'Your account access has been revoked/deactivated. Please contact an administrator.' }, { status: 403 })
+      }
       name = teamMember.name || name
       role = teamMember.role || role
       title = teamMember.title || title

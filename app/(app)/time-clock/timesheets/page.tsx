@@ -3,19 +3,24 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Client, TimeEntry } from '@/lib/types'
 import { formatMoney, formatHours, calcDurationHours, calcEarnings, getWeekBounds } from '@/lib/utils'
-import { ChevronLeft, ChevronRight, Download, Calendar, Plus, X, Pencil, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Download, Calendar, Plus, X, Pencil, Trash2, ShieldCheck } from 'lucide-react'
 import Link from 'next/link'
 
 type ViewMode = 'weekly' | 'daily' | 'all'
-type EntryRow = TimeEntry & { clients: { name: string; hourly_rate: number } }
+type EntryRow = TimeEntry & { 
+  clients: { name: string; hourly_rate?: number }
+  user_name?: string
+  user_email?: string
+  user_role?: string 
+}
 
-function ManualEntryModal({ clients, entry, onClose, onSave }: {
+function ManualEntryModal({ clients, entry, targetUserId, onClose, onSave }: {
   clients: Client[]
   entry?: EntryRow | null
+  targetUserId?: string
   onClose: () => void
   onSave: () => void
 }) {
-  const supabase = createClient()
   const toLocal = (iso: string) => {
     const d = new Date(iso)
     const pad = (n: number) => String(n).padStart(2, '0')
@@ -36,33 +41,47 @@ function ManualEntryModal({ clients, entry, onClose, onSave }: {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setError(''); setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
     const clockIn = new Date(form.clock_in).toISOString()
     const clockOut = form.clock_out ? new Date(form.clock_out).toISOString() : null
     if (clockOut && new Date(clockOut) <= new Date(clockIn)) {
       setError('Clock-out must be after clock-in'); setLoading(false); return
     }
+    const client = clients.find(c => c.id === form.client_id)
     const payload = {
+      id: entry?.id,
+      action: 'manual',
       client_id: form.client_id,
       description: form.description || null,
       clock_in: clockIn,
       clock_out: clockOut,
-      hourly_rate: Number(form.hourly_rate),
-      status: clockOut ? 'closed' : 'open',
-      updated_at: new Date().toISOString(),
+      hourly_rate: Number(form.hourly_rate) || client?.hourly_rate || 85,
+      target_user_id: targetUserId,
     }
-    const { error: err } = entry?.id
-      ? await supabase.from('time_entries').update(payload).eq('id', entry.id)
-      : await supabase.from('time_entries').insert({ ...payload, user_id: user?.id })
-    if (err) { setError(err.message); setLoading(false); return }
-    onSave()
+
+    try {
+      const res = await fetch('/api/time-clock', {
+        method: entry?.id ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        setError(data.error || 'Failed to save entry')
+        setLoading(false)
+        return
+      }
+      onSave()
+    } catch {
+      setError('Error saving entry')
+      setLoading(false)
+    }
   }
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-          <h2 className="modal-title" style={{ marginBottom: 0 }}>{entry ? 'Edit Entry' : 'Manual Entry'}</h2>
+          <h2 className="modal-title" style={{ marginBottom: 0 }}>{entry ? 'Edit Time Entry' : 'Manual Time Entry'}</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={20} /></button>
         </div>
         {error && <p className="error-msg" style={{ marginBottom: '1rem' }}>{error}</p>}
@@ -80,7 +99,7 @@ function ManualEntryModal({ clients, entry, onClose, onSave }: {
           </div>
           <div className="form-group">
             <label>Description</label>
-            <input className="input" value={form.description} onChange={e => set('description', e.target.value)} placeholder="What were you working on?" />
+            <input className="input" value={form.description} onChange={e => set('description', e.target.value)} placeholder="What was worked on?" />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div className="form-group">
@@ -93,7 +112,7 @@ function ManualEntryModal({ clients, entry, onClose, onSave }: {
             </div>
           </div>
           <div className="form-group">
-            <label>Hourly Rate *</label>
+            <label>Hourly Rate ($) *</label>
             <input className="input" type="number" min={0} step={0.01} required value={form.hourly_rate} onChange={e => set('hourly_rate', e.target.value)} />
           </div>
           <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
@@ -128,8 +147,12 @@ export default function TimesheetsPage() {
   const [mode, setMode] = useState<ViewMode>('weekly')
   const [weekOffset, setWeekOffset] = useState(0)
   const [modal, setModal] = useState<{ open: boolean; entry?: EntryRow | null }>({ open: false })
-  const [deleting, setDeleting] = useState<string | null>(null)
   const [clientFilter, setClientFilter] = useState('')
+
+  // Superuser state
+  const [isSuper, setIsSuper] = useState(false)
+  const [teamMembers, setTeamMembers] = useState<any[]>([])
+  const [selectedMemberFilter, setSelectedMemberFilter] = useState<string>('me')
 
   const { start, end } = (() => {
     const base = new Date()
@@ -139,302 +162,288 @@ export default function TimesheetsPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    try {
+      const { data: clientsData } = await supabase.from('clients').select('*').order('name')
+      setClients(clientsData ?? [])
 
-    let query = supabase
-      .from('time_entries')
-      .select('*, clients(name, hourly_rate)')
-      .eq('user_id', user.id)
-      .neq('status', 'voided')
-      .order('clock_in', { ascending: false })
+      let url = '/api/time-clock'
+      if (selectedMemberFilter && selectedMemberFilter !== 'me') {
+        url += `?user_id=${encodeURIComponent(selectedMemberFilter)}`
+      }
 
-    if (mode === 'weekly') {
-      query = query.gte('clock_in', start.toISOString()).lte('clock_in', end.toISOString())
-    } else if (mode === 'daily') {
-      const today = new Date(); today.setHours(0, 0, 0, 0)
-      const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1)
-      query = query.gte('clock_in', today.toISOString()).lt('clock_in', tomorrow.toISOString())
-    } else {
-      query = query.limit(200)
+      const res = await fetch(url)
+      const data = await res.json()
+
+      if (data.entries) {
+        setEntries(data.entries)
+        setIsSuper(Boolean(data.isSuperuser))
+        setTeamMembers(data.teamMembers || [])
+      }
+    } catch (err) {
+      console.error('Timesheets load error:', err)
+    } finally {
+      setLoading(false)
     }
-
-    const [{ data: entriesData }, { data: clientsData }] = await Promise.all([
-      query,
-      supabase.from('clients').select('*').order('name'),
-    ])
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    setEntries((entriesData ?? []) as any[])
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    setClients((clientsData ?? []) as any[])
-    setLoading(false)
-  }, [supabase, mode, weekOffset, start, end])
+  }, [supabase, selectedMemberFilter])
 
   useEffect(() => { load() }, [load])
 
   async function deleteEntry(id: string) {
-    if (!confirm('Delete this time entry?')) return
-    setDeleting(id)
-    await supabase.from('time_entries').update({ status: 'voided' }).eq('id', id)
-    await load()
-    setDeleting(null)
+    if (!confirm('Are you sure you want to delete this time entry? This action cannot be undone.')) return
+    try {
+      await fetch(`/api/time-clock?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+      await load()
+    } catch {}
   }
 
-  function exportCSV() {
-    const rows = [['Date', 'Client', 'Description', 'Clock In', 'Clock Out', 'Hours', 'Rate', 'Earnings']]
-    for (const e of filteredEntries.filter(e => e.clock_out)) {
-      const hours = calcDurationHours(e.clock_in, e.clock_out)
-      const { total } = calcEarnings(hours, e.hourly_rate)
-      rows.push([
-        new Date(e.clock_in).toLocaleDateString(),
-        e.clients?.name ?? '',
-        e.description ?? '',
-        new Date(e.clock_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        e.clock_out ? new Date(e.clock_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-        hours.toFixed(2),
-        String(e.hourly_rate),
-        total.toFixed(2),
-      ])
+  // Filter entries
+  const visibleEntries = entries.filter(e => {
+    if (clientFilter && e.client_id !== clientFilter) return false
+    if (mode === 'weekly') {
+      const d = new Date(e.clock_in)
+      return d >= start && d <= end
     }
-    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+    return true
+  })
+
+  // Calculations
+  const totalHours = visibleEntries.reduce((s, e) => s + calcDurationHours(e.clock_in, e.clock_out), 0)
+  const totalEarnings = visibleEntries.reduce((s, e) => s + calcEarnings(calcDurationHours(e.clock_in, e.clock_out), Number(e.hourly_rate)).total, 0)
+
+  // Group by date
+  const grouped = visibleEntries.reduce((acc, entry) => {
+    const key = dateGroupKey(entry.clock_in)
+    if (!acc[key]) acc[key] = []
+    acc[key].push(entry)
+    return acc
+  }, {} as Record<string, EntryRow[]>)
+
+  const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a))
+
+  function exportCSV() {
+    const rows = [
+      ['Member', 'Email', 'Client', 'Clock In', 'Clock Out', 'Hours', 'Rate', 'Total', 'Description'],
+      ...visibleEntries.map(e => {
+        const hours = calcDurationHours(e.clock_in, e.clock_out)
+        const earned = calcEarnings(hours, Number(e.hourly_rate)).total
+        return [
+          e.user_name || 'Team Member',
+          e.user_email || '',
+          e.clients?.name ?? e.client_id,
+          new Date(e.clock_in).toLocaleString(),
+          e.clock_out ? new Date(e.clock_out).toLocaleString() : 'Active',
+          hours.toFixed(2),
+          e.hourly_rate,
+          earned.toFixed(2),
+          `"${(e.description || '').replace(/"/g, '""')}"`,
+        ]
+      }),
+    ]
+    const csv = rows.map(r => r.join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
-    const a = document.createElement('a'); a.href = url; a.download = 'timesheet.csv'; a.click()
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `timesheet-${selectedMemberFilter}-${mode}-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
     URL.revokeObjectURL(url)
   }
 
-  // Client filter
-  const clientsInEntries = [...new Map(
-    entries.map(e => [e.client_id, { id: e.client_id, name: e.clients?.name ?? e.client_id }])
-  ).values()]
-  const filteredEntries = clientFilter ? entries.filter(e => e.client_id === clientFilter) : entries
-
-  // Aggregate by client
-  type ClientSummary = { name: string; hours: number; regular: number; overtime: number; earnings: number }
-  const byClient: Record<string, ClientSummary> = {}
-  let totalHours = 0, totalEarnings = 0
-
-  for (const e of filteredEntries.filter(e => e.clock_out)) {
-    const hours = calcDurationHours(e.clock_in, e.clock_out)
-    const { regular, overtime, total } = calcEarnings(hours, e.hourly_rate)
-    const cname = e.clients?.name ?? 'Unknown'
-    if (!byClient[cname]) byClient[cname] = { name: cname, hours: 0, regular: 0, overtime: 0, earnings: 0 }
-    byClient[cname].hours += hours
-    byClient[cname].regular += regular
-    byClient[cname].overtime += overtime
-    byClient[cname].earnings += total
-    totalHours += hours
-    totalEarnings += total
-  }
-
-  const summaries = Object.values(byClient).sort((a, b) => b.earnings - a.earnings)
-  const maxClientEarnings = Math.max(...summaries.map(s => s.earnings), 1)
-
-  // Date-group entries
-  const dateGroupMap = new Map<string, EntryRow[]>()
-  for (const e of filteredEntries) {
-    const key = dateGroupKey(e.clock_in)
-    if (!dateGroupMap.has(key)) dateGroupMap.set(key, [])
-    dateGroupMap.get(key)!.push(e)
-  }
-  const dateGroups = [...dateGroupMap.entries()]
-
-  function weekLabel() {
-    const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
-    return `${start.toLocaleDateString('en-US', opts)} – ${end.toLocaleDateString('en-US', opts)}`
-  }
+  if (loading) return <div style={{ textAlign: 'center', padding: '4rem' }}><span className="spinner" style={{ margin: '0 auto' }} /></div>
 
   return (
     <>
       <div className="page-header">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <Link href="/time-clock" className="btn btn-ghost btn-sm"><ChevronLeft size={14} /> Time Clock</Link>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h1 style={{ margin: 0 }}>Timesheets</h1>
+              {isSuper && (
+                <span style={{ fontSize: '0.68rem', fontWeight: 800, background: '#7B2FFF', color: '#fff', padding: '2px 8px', borderRadius: 4, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Superuser Access
+                </span>
+              )}
+            </div>
+            <p style={{ marginTop: '4px' }}>Review, edit, and export logged billable hours and team timesheets.</p>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button className="btn btn-primary btn-sm" onClick={() => setModal({ open: true })}>
+              <Plus size={13} /> Add Entry
+            </button>
+            <button className="btn btn-secondary btn-sm" onClick={exportCSV}>
+              <Download size={13} /> Export CSV
+            </button>
+            <Link href="/time-clock" className="btn btn-ghost btn-sm">Time Clock</Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Superuser Member Selector */}
+      {isSuper && teamMembers.length > 0 && (
+        <div style={{ background: 'rgba(123, 47, 255, 0.08)', border: '1px solid rgba(123, 47, 255, 0.25)', borderRadius: '10px', padding: '0.875rem 1.25rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+            <ShieldCheck size={18} color="#A066FF" />
             <div>
-              <h1>Timesheets</h1>
-              <p>View and export your time records by period.</p>
+              <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#F4F4FF' }}>Superuser Timesheet Master:</span>
+              <span style={{ fontSize: '0.75rem', color: '#A066FF', marginLeft: '6px' }}>Select an employee to inspect, edit, or adjust their timesheet</span>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
-            <button className="btn btn-ghost btn-sm" onClick={() => setModal({ open: true, entry: null })}>
-              <Plus size={14} /> Manual entry
-            </button>
-            <button className="btn btn-ghost btn-sm" onClick={exportCSV}>
-              <Download size={14} /> Export CSV
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Controls */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: '0' }}>
-          {(['daily', 'weekly', 'all'] as ViewMode[]).map(v => (
-            <button key={v} className="btn btn-ghost btn-sm"
-              style={{ borderRadius: v === 'daily' ? 'var(--radius-full) 0 0 var(--radius-full)' : v === 'all' ? '0 var(--radius-full) var(--radius-full) 0' : '0', background: mode === v ? 'rgba(255,255,255,0.1)' : undefined, borderRight: v !== 'all' ? 'none' : undefined }}
-              onClick={() => { setMode(v); setWeekOffset(0) }}
-            >
-              {v === 'daily' ? 'Today' : v === 'weekly' ? 'Weekly' : 'All time'}
-            </button>
-          ))}
-        </div>
-
-        {mode === 'weekly' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <button className="btn btn-ghost btn-sm" onClick={() => setWeekOffset(o => o + 1)}><ChevronLeft size={14} /></button>
-            <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}><Calendar size={13} style={{ display: 'inline', marginRight: '0.375rem' }} />{weekLabel()}</span>
-            <button className="btn btn-ghost btn-sm" onClick={() => setWeekOffset(o => Math.max(0, o - 1))} disabled={weekOffset === 0}><ChevronRight size={14} /></button>
-          </div>
-        )}
-
-        {clientsInEntries.length > 1 && (
-          <select
-            className="input input-sm"
-            style={{ width: 'auto', fontSize: '0.8125rem', marginLeft: 'auto' }}
-            value={clientFilter}
-            onChange={e => setClientFilter(e.target.value)}
-          >
-            <option value="">All clients</option>
-            {clientsInEntries.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        )}
-      </div>
-
-      {/* Summary cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-        <div className="stat-tile">
-          <div className="stat-value">{formatHours(totalHours)}</div>
-          <div className="stat-label">Total Hours</div>
-        </div>
-        <div className="stat-tile">
-          <div className="stat-value">{formatMoney(totalEarnings)}</div>
-          <div className="stat-label">Total Earnings</div>
-        </div>
-        <div className="stat-tile">
-          <div className="stat-value">{filteredEntries.filter(e => e.clock_out).length}</div>
-          <div className="stat-label">Sessions</div>
-        </div>
-        {summaries.length > 0 && (
-          <div className="stat-tile">
-            <div className="stat-value">{formatHours(totalHours / Math.max(summaries.length, 1))}</div>
-            <div className="stat-label">Avg / Client</div>
-          </div>
-        )}
-      </div>
-
-      {/* By client with progress bars */}
-      {summaries.length > 1 && (
-        <div style={{ marginBottom: '2rem' }}>
-          <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem' }}>By Client</h2>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr><th>Client</th><th>Hours</th><th>Regular</th><th>Overtime</th><th>Earnings</th><th style={{ width: 120 }}></th></tr>
-              </thead>
-              <tbody>
-                {summaries.map(s => (
-                  <tr key={s.name}>
-                    <td style={{ fontWeight: 500 }}>{s.name}</td>
-                    <td>{formatHours(s.hours)}</td>
-                    <td style={{ color: 'var(--text-muted)' }}>{formatMoney(s.regular)}</td>
-                    <td style={{ color: s.overtime > 0 ? 'var(--accent-amber, #f59e0b)' : 'var(--text-muted)' }}>{formatMoney(s.overtime)}</td>
-                    <td style={{ fontWeight: 600 }}>{formatMoney(s.earnings)}</td>
-                    <td>
-                      <div style={{ height: 5, borderRadius: 3, background: 'var(--border)', overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${(s.earnings / maxClientEarnings) * 100}%`, background: '#6366f1', borderRadius: 3 }} />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <select
+              className="input"
+              style={{ fontSize: '0.8125rem', padding: '0.35rem 0.75rem', minWidth: '240px', background: '#14141F', border: '1px solid #2D2D42' }}
+              value={selectedMemberFilter}
+              onChange={e => setSelectedMemberFilter(e.target.value)}
+            >
+              <option value="me">My Timesheet</option>
+              <option value="all">All Team Members (Master Timesheet)</option>
+              {teamMembers.map((tm) => (
+                <option key={tm.id} value={tm.auth_user_id || tm.id}>
+                  {tm.name} ({tm.role.toUpperCase()}) — {tm.email}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       )}
 
-      {/* Date-grouped entries */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-        <h2 style={{ fontSize: '1rem', fontWeight: 700 }}>Time Entries</h2>
+      {/* Filters Bar */}
+      <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem', padding: '1rem 1.25rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', background: 'rgba(255,255,255,0.06)', borderRadius: '6px', padding: '2px' }}>
+            <button
+              onClick={() => setMode('weekly')}
+              style={{
+                padding: '0.35rem 0.75rem', borderRadius: '4px', fontSize: '0.8125rem', border: 'none', cursor: 'pointer',
+                background: mode === 'weekly' ? '#7B2FFF' : 'transparent', color: mode === 'weekly' ? '#fff' : 'var(--text-muted)', fontWeight: mode === 'weekly' ? 700 : 400
+              }}
+            >
+              Weekly
+            </button>
+            <button
+              onClick={() => setMode('all')}
+              style={{
+                padding: '0.35rem 0.75rem', borderRadius: '4px', fontSize: '0.8125rem', border: 'none', cursor: 'pointer',
+                background: mode === 'all' ? '#7B2FFF' : 'transparent', color: mode === 'all' ? '#fff' : 'var(--text-muted)', fontWeight: mode === 'all' ? 700 : 400
+              }}
+            >
+              All Time
+            </button>
+          </div>
+
+          {mode === 'weekly' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: '0.5rem' }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => setWeekOffset(w => w + 1)}><ChevronLeft size={14} /></button>
+              <span style={{ fontSize: '0.8125rem', fontWeight: 600, minWidth: '180px', textAlign: 'center' }}>
+                {start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              </span>
+              <button className="btn btn-ghost btn-sm" onClick={() => setWeekOffset(w => Math.max(0, w - 1))} disabled={weekOffset === 0}><ChevronRight size={14} /></button>
+              {weekOffset > 0 && <button className="btn btn-ghost btn-sm" onClick={() => setWeekOffset(0)}>This Week</button>}
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+          <select className="input" style={{ fontSize: '0.8125rem', padding: '0.35rem 0.75rem' }} value={clientFilter} onChange={e => setClientFilter(e.target.value)}>
+            <option value="">All Clients</option>
+            {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <div style={{ textAlign: 'right' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Period Total: </span>
+            <span style={{ fontWeight: 800, fontSize: '0.9375rem', color: '#F4F4FF' }}>{formatHours(totalHours)}</span>
+            <span style={{ fontWeight: 800, fontSize: '0.9375rem', color: '#22c55e', marginLeft: '8px' }}>({formatMoney(totalEarnings)})</span>
+          </div>
+        </div>
       </div>
 
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '2rem' }}><span className="spinner" style={{ margin: '0 auto' }} /></div>
-      ) : filteredEntries.length === 0 ? (
+      {/* Timesheet Groups */}
+      {sortedDates.length === 0 ? (
         <div className="empty-state">
-          <p>No entries for this period.</p>
-          <button className="btn btn-ghost" style={{ marginTop: '1rem' }} onClick={() => setModal({ open: true, entry: null })}>
-            <Plus size={14} /> Add manual entry
-          </button>
+          <Calendar size={36} />
+          <p>No timesheet entries found for this selection.</p>
         </div>
       ) : (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr><th>Client</th><th>Description</th><th>In</th><th>Out</th><th>Hours</th><th>Rate</th><th>Earnings</th><th></th></tr>
-            </thead>
-            <tbody>
-              {dateGroups.map(([dateKey, dayEntries]) => {
-                const dayHours = dayEntries.filter(e => e.clock_out).reduce((s, e) => s + calcDurationHours(e.clock_in, e.clock_out), 0)
-                const dayEarnings = dayEntries.filter(e => e.clock_out).reduce((s, e) => s + calcEarnings(calcDurationHours(e.clock_in, e.clock_out), e.hourly_rate).total, 0)
-                return [
-                  <tr key={`hdr-${dateKey}`} style={{ background: 'rgba(255,255,255,0.03)' }}>
-                    <td colSpan={8} style={{ padding: '0.5rem 1rem', borderBottom: 'none' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontWeight: 600, fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-                          {dateGroupLabel(dateKey)}
-                        </span>
-                        <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-                          {dayHours > 0 ? `${formatHours(dayHours)} · ${formatMoney(dayEarnings)}` : ''}
-                        </span>
-                      </div>
-                    </td>
-                  </tr>,
-                  ...dayEntries.map(e => {
-                    const hours = calcDurationHours(e.clock_in, e.clock_out)
-                    const { total } = calcEarnings(hours, e.hourly_rate)
+        sortedDates.map((dateKey) => {
+          const dayEntries = grouped[dateKey]
+          const dayHours = dayEntries.reduce((s, e) => s + calcDurationHours(e.clock_in, e.clock_out), 0)
+          const dayEarnings = dayEntries.reduce((s, e) => s + calcEarnings(calcDurationHours(e.clock_in, e.clock_out), Number(e.hourly_rate)).total, 0)
+
+          return (
+            <div key={dateKey} className="card" style={{ marginBottom: '1.25rem', padding: 0, overflow: 'hidden' }}>
+              <div style={{ padding: '0.75rem 1.25rem', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: 700, fontSize: '0.875rem' }}>{dateGroupLabel(dateKey)}</span>
+                <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+                  Day Total: <strong>{formatHours(dayHours)}</strong> • <strong style={{ color: '#22c55e' }}>{formatMoney(dayEarnings)}</strong>
+                </span>
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)', fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                    <th style={{ padding: '0.625rem 1.25rem', textAlign: 'left' }}>Member</th>
+                    <th style={{ padding: '0.625rem 1.25rem', textAlign: 'left' }}>Client</th>
+                    <th style={{ padding: '0.625rem 1.25rem', textAlign: 'left' }}>Times</th>
+                    <th style={{ padding: '0.625rem 1.25rem', textAlign: 'left' }}>Hours</th>
+                    <th style={{ padding: '0.625rem 1.25rem', textAlign: 'left' }}>Rate</th>
+                    <th style={{ padding: '0.625rem 1.25rem', textAlign: 'left' }}>Total</th>
+                    <th style={{ padding: '0.625rem 1.25rem', textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dayEntries.map((entry) => {
+                    const hours = calcDurationHours(entry.clock_in, entry.clock_out)
+                    const earnings = calcEarnings(hours, Number(entry.hourly_rate))
                     return (
-                      <tr key={e.id}>
-                        <td style={{ fontWeight: 500 }}>{e.clients?.name ?? '—'}</td>
-                        <td style={{ color: 'var(--text-muted)', fontSize: '0.8125rem', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.description ?? '—'}</td>
-                        <td style={{ color: 'var(--text-muted)' }}>{new Date(e.clock_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                        <td style={{ color: 'var(--text-muted)' }}>{e.clock_out ? new Date(e.clock_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : <span className="badge badge-green">active</span>}</td>
-                        <td>{formatHours(hours)}</td>
-                        <td style={{ color: 'var(--text-muted)' }}>{formatMoney(e.hourly_rate)}/hr</td>
-                        <td style={{ fontWeight: 600 }}>{e.clock_out ? formatMoney(total) : '—'}</td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '0.25rem' }}>
-                            <button className="btn btn-ghost btn-sm" onClick={() => setModal({ open: true, entry: e })}><Pencil size={12} /></button>
-                            <button className="btn btn-ghost btn-sm" style={{ color: 'var(--text-muted)' }} onClick={() => deleteEntry(e.id)} disabled={deleting === e.id}>
-                              {deleting === e.id ? <span className="spinner" style={{ width: 12, height: 12 }} /> : <Trash2 size={12} />}
+                      <tr key={entry.id} style={{ borderBottom: '1px solid var(--border)', fontSize: '0.84rem' }}>
+                        <td style={{ padding: '0.625rem 1.25rem' }}>
+                          <span style={{ fontWeight: 600 }}>{entry.user_name || 'Team Member'}</span>
+                        </td>
+                        <td style={{ padding: '0.625rem 1.25rem' }}>
+                          <span style={{ fontWeight: 600 }}>{entry.clients?.name ?? 'Client'}</span>
+                          {entry.description && <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>{entry.description}</p>}
+                        </td>
+                        <td style={{ padding: '0.625rem 1.25rem', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                          {new Date(entry.clock_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – {entry.clock_out ? new Date(entry.clock_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Active'}
+                        </td>
+                        <td style={{ padding: '0.625rem 1.25rem', fontWeight: 700 }}>{formatHours(hours)}</td>
+                        <td style={{ padding: '0.625rem 1.25rem', color: 'var(--text-muted)' }}>{formatMoney(entry.hourly_rate)}/hr</td>
+                        <td style={{ padding: '0.625rem 1.25rem', fontWeight: 700, color: '#22c55e' }}>{formatMoney(earnings.total)}</td>
+                        <td style={{ padding: '0.625rem 1.25rem', textAlign: 'right' }}>
+                          <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'flex-end' }}>
+                            <button
+                              onClick={() => setModal({ open: true, entry })}
+                              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+                              title="Edit Entry"
+                            >
+                              <Pencil size={14} />
                             </button>
+                            {isSuper && (
+                              <button
+                                onClick={() => deleteEntry(entry.id)}
+                                style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: '4px' }}
+                                title="Delete Entry"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
                     )
-                  })
-                ]
-              })}
-              {/* Total row */}
-              {filteredEntries.filter(e => e.clock_out).length > 0 && (
-                <tr style={{ background: 'rgba(255,255,255,0.03)', fontWeight: 700 }}>
-                  <td colSpan={4} style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Total</td>
-                  <td>{formatHours(totalHours)}</td>
-                  <td></td>
-                  <td style={{ fontWeight: 700 }}>{formatMoney(totalEarnings)}</td>
-                  <td></td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )
+        })
       )}
 
       {modal.open && (
         <ManualEntryModal
           clients={clients}
           entry={modal.entry}
-          onClose={() => setModal({ open: false })}
-          onSave={() => { setModal({ open: false }); load() }}
+          targetUserId={selectedMemberFilter !== 'me' && selectedMemberFilter !== 'all' ? selectedMemberFilter : undefined}
+          onClose={() => setModal({ open: false, entry: null })}
+          onSave={() => { setModal({ open: false, entry: null }); load() }}
         />
       )}
     </>
