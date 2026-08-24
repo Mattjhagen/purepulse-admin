@@ -1,12 +1,12 @@
 import { Client } from 'pg'
 
 export function getDbClient() {
+  const connectionString =
+    process.env.DATABASE_URL ||
+    `postgresql://postgres.kofjljwctqqllnjiejxd:${process.env.SUPABASE_DB_PASS || 'uAyNuDiLdoE1wNjV'}@aws-0-us-east-1.pooler.supabase.com:6543/postgres`
+
   return new Client({
-    user: 'postgres.kofjljwctqqllnjiejxd',
-    password: process.env.SUPABASE_DB_PASS || process.env.DATABASE_PASSWORD || process.env.POSTGRES_PASSWORD || 'uAyNuDiLdoE1wNjV',
-    host: 'aws-0-us-east-1.pooler.supabase.com',
-    port: 6543,
-    database: 'postgres',
+    connectionString,
     ssl: { rejectUnauthorized: false },
   })
 }
