@@ -4,7 +4,8 @@ import { formatDate, formatMoney } from '@/lib/utils'
 import {
   ChevronLeft, Gift, MousePointer, CheckCircle, DollarSign,
   Edit3, Save, X, AlertTriangle, Printer, Copy, ToggleLeft, ToggleRight,
-  TrendingUp, Landmark, Eye, EyeOff, ExternalLink, Trash2
+  TrendingUp, Landmark, Eye, EyeOff, ExternalLink, Trash2,
+  FileText, UploadCloud, Download, Loader2, Paperclip
 } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
@@ -15,6 +16,9 @@ type Referral = {
   commission_per_conversion: number; total_earned: number; total_paid: number
   notes: string | null; active: boolean; created_at: string; updated_at: string
   stripe_account_id: string | null; stripe_payouts_enabled: boolean
+  application_pdf_url?: string | null
+  application_pdf_name?: string | null
+  application_pdf_uploaded_at?: string | null
 }
 
 type Click = {
@@ -125,6 +129,10 @@ export default function ReferralDetailPage({ params }: { params: Promise<{ id: s
   const [payingViaStripe, setPayingViaStripe] = useState(false)
   const [payoutError, setPayoutError] = useState('')
   const [showPreview, setShowPreview] = useState(false)
+  const [uploadingPdf, setUploadingPdf] = useState(false)
+  const [pdfMsg, setPdfMsg] = useState('')
+  const [showPdfPreview, setShowPdfPreview] = useState(false)
+  const [dragActive, setDragActive] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -298,6 +306,60 @@ export default function ReferralDetailPage({ params }: { params: Promise<{ id: s
     navigator.clipboard.writeText(`${appOrigin}/ref/${referral.code}`)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  async function uploadPdf(file: File) {
+    if (!file) return
+    setUploadingPdf(true)
+    setPdfMsg('')
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch(`/api/referrals/${id}/document`, {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await res.json()
+      if (res.ok && data.ok) {
+        setReferral(prev => prev ? ({
+          ...prev,
+          application_pdf_url: data.url,
+          application_pdf_name: data.fileName,
+          application_pdf_uploaded_at: data.uploadedAt,
+        }) : null)
+        setPdfMsg('Indeed application PDF attached successfully!')
+        setTimeout(() => setPdfMsg(''), 4000)
+      } else {
+        alert(data.error || 'Failed to upload application.')
+      }
+    } catch (e) {
+      console.error(e)
+      alert('Error uploading PDF application.')
+    } finally {
+      setUploadingPdf(false)
+    }
+  }
+
+  async function deletePdf() {
+    if (!confirm('Are you sure you want to remove the attached Indeed application PDF?')) return
+    try {
+      const res = await fetch(`/api/referrals/${id}/document`, {
+        method: 'DELETE',
+      })
+      if (res.ok) {
+        setReferral(prev => prev ? ({
+          ...prev,
+          application_pdf_url: null,
+          application_pdf_name: null,
+          application_pdf_uploaded_at: null,
+        }) : null)
+        setShowPdfPreview(false)
+        setPdfMsg('Attached application removed.')
+        setTimeout(() => setPdfMsg(''), 4000)
+      }
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   if (loading) return <div style={{ textAlign: 'center', padding: '4rem' }}><span className="spinner" style={{ margin: '0 auto' }} /></div>
@@ -578,6 +640,186 @@ export default function ReferralDetailPage({ params }: { params: Promise<{ id: s
                     <p style={{ color: 'var(--text-muted)' }}>{referral.notes}</p>
                   </div>
                 )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Indeed Application & Resume Attachment Section */}
+        <div className="card-elevated" style={{ maxWidth: 720, marginBottom: '2rem', border: '1px solid #1F1F2E', background: '#0D0D14', borderRadius: '12px', overflow: 'hidden' }}>
+          <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #1F1F2E', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+              <div style={{ background: 'rgba(123,47,255,0.15)', color: '#A066FF', width: '34px', height: '34px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <FileText size={18} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '0.9375rem', fontWeight: 700, color: '#F4F4FF' }}>
+                  Indeed Application &amp; Resume (PDF)
+                </h3>
+                <span style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>
+                  {referral.application_pdf_url ? 'Attached and ready for review' : 'Attach applicant resume or Indeed PDF export for this partner'}
+                </span>
+              </div>
+            </div>
+
+            {referral.application_pdf_url && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <button
+                  onClick={() => setShowPdfPreview(!showPdfPreview)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                    background: '#14141F', border: '1px solid #2D2D42', color: '#D1D5DB',
+                    fontSize: '0.75rem', fontWeight: 600, padding: '0.4rem 0.75rem', borderRadius: '6px', cursor: 'pointer'
+                  }}
+                >
+                  <Eye size={13} /> {showPdfPreview ? 'Hide Preview' : 'Preview PDF'}
+                </button>
+                <a
+                  href={referral.application_pdf_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                    background: '#7B2FFF', color: '#fff',
+                    fontSize: '0.75rem', fontWeight: 600, padding: '0.4rem 0.875rem', borderRadius: '6px', textDecoration: 'none'
+                  }}
+                >
+                  <ExternalLink size={13} /> Open
+                </a>
+              </div>
+            )}
+          </div>
+
+          <div style={{ padding: '1.5rem' }}>
+            {pdfMsg && (
+              <div style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: '#A7F3D0', padding: '0.625rem 1rem', borderRadius: '8px', fontSize: '0.8125rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <CheckCircle size={15} color="#10B981" /> {pdfMsg}
+              </div>
+            )}
+
+            {referral.application_pdf_url ? (
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', background: '#14141F', border: '1px solid #2D2D42', borderRadius: '10px', padding: '1rem 1.25rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ background: 'rgba(239,68,68,0.15)', color: '#EF4444', width: '42px', height: '42px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <FileText size={22} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '0.875rem', color: '#F4F4FF' }}>
+                        {referral.application_pdf_name || 'Indeed_Application.pdf'}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: '#9CA3AF', marginTop: '0.125rem' }}>
+                        Attached {referral.application_pdf_uploaded_at ? new Date(referral.application_pdf_uploaded_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Recently'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <a
+                      href={referral.application_pdf_url}
+                      download={referral.application_pdf_name || 'Indeed_Application.pdf'}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                        background: '#1F1F2E', border: '1px solid #374151', color: '#D1D5DB',
+                        fontSize: '0.75rem', fontWeight: 600, padding: '0.4rem 0.75rem', borderRadius: '6px', textDecoration: 'none'
+                      }}
+                    >
+                      <Download size={13} /> Download
+                    </a>
+
+                    <label style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                      background: '#1F1F2E', border: '1px solid #374151', color: '#D1D5DB',
+                      fontSize: '0.75rem', fontWeight: 600, padding: '0.4rem 0.75rem', borderRadius: '6px', cursor: 'pointer'
+                    }}>
+                      <UploadCloud size={13} /> Replace
+                      <input
+                        type="file"
+                        accept=".pdf,.doc,.docx,application/pdf"
+                        style={{ display: 'none' }}
+                        onChange={e => {
+                          const file = e.target.files?.[0]
+                          if (file) uploadPdf(file)
+                        }}
+                      />
+                    </label>
+
+                    <button
+                      onClick={deletePdf}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                        background: 'transparent', border: '1px solid #7F1D1D', color: '#F87171',
+                        fontSize: '0.75rem', fontWeight: 600, padding: '0.4rem 0.65rem', borderRadius: '6px', cursor: 'pointer'
+                      }}
+                    >
+                      <Trash2 size={13} /> Remove
+                    </button>
+                  </div>
+                </div>
+
+                {/* Embedded PDF Viewer Preview */}
+                {showPdfPreview && (
+                  <div style={{ marginTop: '1.25rem', borderRadius: '10px', overflow: 'hidden', border: '1px solid #2D2D42', height: '520px', background: '#000' }}>
+                    <iframe
+                      src={referral.application_pdf_url}
+                      style={{ width: '100%', height: '100%', border: 'none' }}
+                      title="Indeed Application Preview"
+                    />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div>
+                <label
+                  onDragOver={(e) => { e.preventDefault(); setDragActive(true) }}
+                  onDragLeave={() => setDragActive(false)}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    setDragActive(false)
+                    const file = e.dataTransfer.files?.[0]
+                    if (file) uploadPdf(file)
+                  }}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    border: dragActive ? '2px dashed #7B2FFF' : '2px dashed #2D2D42',
+                    borderRadius: '10px', padding: '2.5rem 1.5rem', textAlign: 'center',
+                    background: dragActive ? 'rgba(123,47,255,0.06)' : '#14141F',
+                    cursor: 'pointer', transition: 'all 0.15s',
+                  }}
+                >
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx,application/pdf"
+                    style={{ display: 'none' }}
+                    onChange={e => {
+                      const file = e.target.files?.[0]
+                      if (file) uploadPdf(file)
+                    }}
+                  />
+                  {uploadingPdf ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', color: '#A066FF' }}>
+                      <Loader2 size={30} className="animate-spin" />
+                      <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>Uploading Indeed Application PDF...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ background: 'rgba(123,47,255,0.12)', color: '#A066FF', width: '48px', height: '48px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.75rem' }}>
+                        <UploadCloud size={24} />
+                      </div>
+                      <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#F4F4FF', marginBottom: '0.25rem' }}>
+                        Upload Indeed Application PDF
+                      </span>
+                      <p style={{ margin: 0, fontSize: '0.8125rem', color: '#9CA3AF' }}>
+                        Drag &amp; drop candidate PDF application here, or <span style={{ color: '#A066FF', textDecoration: 'underline' }}>browse file</span>
+                      </p>
+                      <span style={{ fontSize: '0.75rem', color: '#6B7280', marginTop: '0.5rem' }}>
+                        Supports PDF, Word Documents (.pdf, .docx, .doc) up to 25MB
+                      </span>
+                    </>
+                  )}
+                </label>
               </div>
             )}
           </div>

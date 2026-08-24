@@ -28,9 +28,7 @@ function cleanAiResponse(text: string, defaultFallback: string): string {
   // 2. If response contains reasoning analysis blocks, extract only the final conversational message
   if (/^(?:Here'?s a thinking process|- Rule \d|1\.\s*\*\*Analyze|Draft Response)/i.test(cleaned) || cleaned.includes("Determine Response Strategy")) {
     // Check if there is a clean paragraph after thinking blocks
-    const doubleNewlineSplit = cleaned.split(/
-
-+/)
+    const doubleNewlineSplit = cleaned.split(/\n\n+/)
     const cleanParagraphs = doubleNewlineSplit.filter(p => {
       const lower = p.toLowerCase()
       return !lower.startsWith('- rule') && 
@@ -45,9 +43,7 @@ function cleanAiResponse(text: string, defaultFallback: string): string {
     })
     
     if (cleanParagraphs.length > 0) {
-      cleaned = cleanParagraphs.join('
-
-').trim()
+      cleaned = cleanParagraphs.join('\n\n').trim()
     } else {
       return defaultFallback
     }

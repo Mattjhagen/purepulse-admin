@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { processIngest, resetRateLimiterForTests, type IngestDeps } from '@/lib/handoff-ingest'
+import { processIngest, type IngestDeps } from '@/lib/handoff-ingest'
 import { adminSupabase } from '@/lib/supabase'
-
-export { resetRateLimiterForTests }
 
 // Middleware leaves /api public; this handler self-gates with a bearer token.
 export async function POST(req: NextRequest) {

@@ -48,6 +48,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       updated_at: affiliate.updated_at,
       stripe_account_id: affiliate.stripe_account_id ?? null,
       stripe_payouts_enabled: affiliate.stripe_payouts_enabled ?? false,
+      application_pdf_url: affiliate.application_pdf_url ?? null,
+      application_pdf_name: affiliate.application_pdf_name ?? null,
+      application_pdf_uploaded_at: affiliate.application_pdf_uploaded_at ?? null,
     }
 
     const mappedClicks = (affRefs ?? []).map(r => ({
@@ -83,11 +86,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       total_earned: 0,
       total_paid: 0,
       notes: `Applicant from Video Interview (${interview.status})`,
-      active: interview.status === 'onboarded' || interview.status === 'completed',
+      active: interview.status === 'onboarded' || interview.status === 'completed' || interview.status === 'strong_hire',
       created_at: interview.created_at,
       updated_at: interview.created_at,
       stripe_account_id: null,
       stripe_payouts_enabled: false,
+      application_pdf_url: interview.application_pdf_url ?? null,
+      application_pdf_name: interview.application_pdf_name ?? null,
+      application_pdf_uploaded_at: interview.application_pdf_uploaded_at ?? null,
     }
     return NextResponse.json({ referral: mappedReferral, clicks: [] })
   }
