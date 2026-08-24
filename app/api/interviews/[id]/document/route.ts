@@ -25,12 +25,32 @@ export async function POST(
     const buffer = Buffer.from(arrayBuffer)
 
     // Upload to 'applications' storage bucket
-    const { data: uploadData, error: uploadErr } = await supabase.storage
+    let { data: uploadData, error: uploadErr } = await supabase.storage
       .from('applications')
       .upload(storagePath, buffer, {
         contentType: file.type || 'application/pdf',
         upsert: true,
       })
+
+    // If bucket not found, dynamically create it and retry upload
+    if (uploadErr && (uploadErr.message.includes('not found') || uploadErr.message.includes('Bucket'))) {
+      try {
+        await supabase.storage.createBucket('applications', {
+          public: true,
+          fileSizeLimit: 52428800,
+        })
+        const retry = await supabase.storage
+          .from('applications')
+          .upload(storagePath, buffer, {
+            contentType: file.type || 'application/pdf',
+            upsert: true,
+          })
+        uploadData = retry.data
+        uploadErr = retry.error
+      } catch (bErr) {
+        console.warn('[interviews/document] Bucket creation warning:', bErr)
+      }
+    }
 
     if (uploadErr) {
       console.error('[interview document upload] Storage upload error:', uploadErr)
