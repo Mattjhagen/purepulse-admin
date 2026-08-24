@@ -72,9 +72,21 @@ export default function TeamPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase.from('team_members').select('*').order('name')
-    setMembers(data ?? [])
-    setLoading(false)
+    try {
+      const res = await fetch('/api/team')
+      const data = await res.json()
+      if (Array.isArray(data.members)) {
+        setMembers(data.members)
+      } else {
+        const { data: dbMembers } = await supabase.from('team_members').select('*').order('name')
+        setMembers(dbMembers ?? [])
+      }
+    } catch {
+      const { data: dbMembers } = await supabase.from('team_members').select('*').order('name')
+      setMembers(dbMembers ?? [])
+    } finally {
+      setLoading(false)
+    }
   }, [supabase])
 
   useEffect(() => { load() }, [load])
