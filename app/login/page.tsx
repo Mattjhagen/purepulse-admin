@@ -47,43 +47,37 @@ export default function LoginPage() {
     e.preventDefault()
     setError('')
     setLoading(true)
+    const cleanEmail = email.toLowerCase().trim()
+
     try {
-      const data = await signIn(email.toLowerCase().trim(), password)
-      const user = data.user
-      const userRole = user?.user_metadata?.role
+      // 1. Try unified team auth endpoint
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail, password }),
+      })
 
-      if (userRole === 'affiliate') {
-        router.push('/affiliates/dashboard')
+      const data = await res.json()
+
+      if (res.ok && data.ok) {
+        if (data.user?.role === 'affiliate') {
+          window.location.href = '/affiliates/dashboard'
+        } else {
+          window.location.href = '/dashboard'
+        }
         return
       }
 
-      // Check team members table
-      const { data: member } = await supabase
-        .from('team_members')
-        .select('role, status')
-        .or(`auth_user_id.eq.${user?.id},email.eq.${email.toLowerCase().trim()}`)
-        .maybeSingle()
-
-      if (member) {
-        router.push('/dashboard')
+      // 2. Fallback to Supabase auth client
+      try {
+        await signIn(cleanEmail, password)
+        window.location.href = '/dashboard'
         return
-      }
+      } catch {}
 
-      // Check affiliates table
-      const { data: aff } = await supabase
-        .from('affiliates')
-        .select('id')
-        .or(`auth_user_id.eq.${user?.id},email.eq.${email.toLowerCase().trim()}`)
-        .maybeSingle()
-
-      if (aff) {
-        router.push('/affiliates/dashboard')
-        return
-      }
-
-      router.push('/dashboard')
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Invalid credentials. Please check your email and password.')
+      setError(data.error || 'Invalid login credentials. Please check your email and password.')
+    } catch {
+      setError('An error occurred during login. Please try again.')
     } finally {
       setLoading(false)
     }

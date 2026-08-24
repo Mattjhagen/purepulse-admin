@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDbClient, setUserPasswordAndConfirm } from '@/lib/db'
+import { signSession } from '@/lib/session'
 
 export const dynamic = 'force-dynamic'
 
@@ -108,12 +109,32 @@ export async function POST(req: NextRequest) {
       [userId, member.id]
     )
 
-    return NextResponse.json({
+    // 4. Create and set authenticated session cookie
+    const sessionPayload = {
+      id: userId || member.id,
+      name: member.name,
+      email: cleanEmail,
+      role: member.role,
+      title: member.title,
+    }
+
+    const sessionToken = signSession(sessionPayload)
+    const response = NextResponse.json({
       ok: true,
       role: member.role,
       name: member.name,
       message: 'Account password configured successfully!',
     })
+
+    response.cookies.set('purepulse_team_session', sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 30 * 24 * 60 * 60,
+    })
+
+    return response
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Error setting up account'
     console.error('[POST /api/team/setup] Exception:', err)
