@@ -63,38 +63,34 @@ export async function POST(
 
     const now = new Date().toISOString()
 
-    // 1. Update affiliates table
-    const { data: updatedAffiliate, error: affErr } = await supabase
-      .from('affiliates')
-      .update({
-        application_pdf_url: publicUrl,
-        application_pdf_name: file.name,
-        application_pdf_uploaded_at: now,
-        updated_at: now,
-      })
-      .eq('id', id)
-      .select()
-      .maybeSingle()
+    const [{ data: legacyReferral }, { data: directAffiliate }] = await Promise.all([
+      supabase.from('referrals').select('id, email').eq('id', id).maybeSingle(),
+      supabase.from('affiliates').select('id, email').eq('id', id).maybeSingle(),
+    ])
+    const profileEmail = legacyReferral?.email || directAffiliate?.email || null
+    const documentFields = {
+      application_pdf_url: publicUrl,
+      application_pdf_name: file.name,
+      application_pdf_uploaded_at: now,
+    }
 
-    // 2. Also update interviews if matching by email or id
-    if (updatedAffiliate?.email) {
-      await supabase
-        .from('interviews')
-        .update({
-          application_pdf_url: publicUrl,
-          application_pdf_name: file.name,
-          application_pdf_uploaded_at: now,
-        })
-        .ilike('candidate_email', updatedAffiliate.email)
-    } else {
-      await supabase
-        .from('interviews')
-        .update({
-          application_pdf_url: publicUrl,
-          application_pdf_name: file.name,
-          application_pdf_uploaded_at: now,
-        })
-        .eq('id', id)
+    const writes = [
+      supabase.from('referrals').update({ ...documentFields, updated_at: now }).eq('id', id),
+      supabase.from('affiliates').update({ ...documentFields, updated_at: now }).eq('id', id),
+      supabase.from('interviews').update(documentFields).eq('id', id),
+    ]
+    if (profileEmail) {
+      writes.push(
+        supabase.from('referrals').update({ ...documentFields, updated_at: now }).ilike('email', profileEmail),
+        supabase.from('affiliates').update({ ...documentFields, updated_at: now }).ilike('email', profileEmail),
+        supabase.from('interviews').update(documentFields).ilike('candidate_email', profileEmail),
+      )
+    }
+    const writeResults = await Promise.all(writes)
+    const writeError = writeResults.find(result => result.error)?.error
+    if (writeError) {
+      console.error('[document upload] Metadata update error:', writeError)
+      return NextResponse.json({ error: `File uploaded, but profile attachment failed: ${writeError.message}` }, { status: 500 })
     }
 
     return NextResponse.json({
@@ -120,38 +116,30 @@ export async function DELETE(
     const supabase = adminSupabase()
     const now = new Date().toISOString()
 
-    // 1. Update affiliates
-    const { data: aff } = await supabase
-      .from('affiliates')
-      .update({
-        application_pdf_url: null,
-        application_pdf_name: null,
-        application_pdf_uploaded_at: null,
-        updated_at: now,
-      })
-      .eq('id', id)
-      .select('email')
-      .maybeSingle()
+    const [{ data: legacyReferral }, { data: directAffiliate }] = await Promise.all([
+      supabase.from('referrals').select('email').eq('id', id).maybeSingle(),
+      supabase.from('affiliates').select('email').eq('id', id).maybeSingle(),
+    ])
+    const profileEmail = legacyReferral?.email || directAffiliate?.email || null
+    const emptyDocument = {
+      application_pdf_url: null,
+      application_pdf_name: null,
+      application_pdf_uploaded_at: null,
+    }
+    await Promise.all([
+      supabase.from('referrals').update({ ...emptyDocument, updated_at: now }).eq('id', id),
+      supabase.from('affiliates').update({ ...emptyDocument, updated_at: now }).eq('id', id),
+      supabase.from('interviews').update(emptyDocument).eq('id', id),
+      ...(profileEmail ? [
+        supabase.from('referrals').update({ ...emptyDocument, updated_at: now }).ilike('email', profileEmail),
+        supabase.from('affiliates').update({ ...emptyDocument, updated_at: now }).ilike('email', profileEmail),
+        supabase.from('interviews').update(emptyDocument).ilike('candidate_email', profileEmail),
+      ] : []),
+    ])
 
-    // 2. Update interviews
-    if (aff?.email) {
-      await supabase
-        .from('interviews')
-        .update({
-          application_pdf_url: null,
-          application_pdf_name: null,
-          application_pdf_uploaded_at: null,
-        })
-        .ilike('candidate_email', aff.email)
-    } else {
-      await supabase
-        .from('interviews')
-        .update({
-          application_pdf_url: null,
-          application_pdf_name: null,
-          application_pdf_uploaded_at: null,
-        })
-        .eq('id', id)
+    const { data: files } = await supabase.storage.from('applications').list(id, { limit: 100 })
+    if (files?.length) {
+      await supabase.storage.from('applications').remove(files.map(file => `${id}/${file.name}`))
     }
 
     return NextResponse.json({

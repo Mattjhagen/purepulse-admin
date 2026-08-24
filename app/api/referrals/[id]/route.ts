@@ -1,6 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminSupabase } from '@/lib/supabase'
 
+async function recoverStoredApplication(supabase: ReturnType<typeof adminSupabase>, id: string) {
+  const { data: files, error } = await supabase.storage.from('applications').list(id, {
+    limit: 100,
+    sortBy: { column: 'created_at', order: 'desc' },
+  })
+  if (error || !files?.length) return null
+  const file = files.find(item => item.name && item.id)
+  if (!file) return null
+  const storagePath = `${id}/${file.name}`
+  const { data: { publicUrl } } = supabase.storage.from('applications').getPublicUrl(storagePath)
+  return {
+    application_pdf_url: publicUrl,
+    application_pdf_name: file.name.replace(/^\d+_/, ''),
+    application_pdf_uploaded_at: file.created_at || new Date().toISOString(),
+  }
+}
+
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = adminSupabase()
@@ -12,6 +29,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   ])
 
   if (referral) {
+    if (!referral.application_pdf_url) {
+      const recovered = await recoverStoredApplication(supabase, id)
+      if (recovered) {
+        Object.assign(referral, recovered)
+        await supabase.from('referrals').update({ ...recovered, updated_at: new Date().toISOString() }).eq('id', id)
+        if (referral.email) {
+          await supabase.from('affiliates').update({ ...recovered, updated_at: new Date().toISOString() }).ilike('email', referral.email)
+        }
+      }
+    }
     return NextResponse.json({ referral, clicks: clicks ?? [] })
   }
 
@@ -23,6 +50,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     .maybeSingle()
 
   if (affiliate) {
+    if (!affiliate.application_pdf_url) {
+      const recovered = await recoverStoredApplication(supabase, id)
+      if (recovered) {
+        Object.assign(affiliate, recovered)
+        await supabase.from('affiliates').update({ ...recovered, updated_at: new Date().toISOString() }).eq('id', id)
+      }
+    }
     const [{ data: affRefs }, { data: affComms }] = await Promise.all([
       supabase.from('affiliate_referrals').select('*, clients(name, email, company)').eq('affiliate_id', id),
       supabase.from('affiliate_commissions').select('*').eq('affiliate_id', id),
