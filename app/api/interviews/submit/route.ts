@@ -46,6 +46,7 @@ export async function POST(req: NextRequest) {
       video_urls = {},
       text_answers = {},
       roleplay_video_url,
+      interview_token,
     } = body
 
     if (!candidate_name?.trim() || !candidate_email?.trim()) {
@@ -53,6 +54,27 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = adminSupabase()
+    let affiliateId: string | null = null
+    let resolvedName = candidate_name.trim()
+    let resolvedEmail = candidate_email.trim().toLowerCase()
+    let resolvedPhone = candidate_phone?.trim() || null
+
+    if (interview_token?.trim()) {
+      const { data: affiliate, error: tokenError } = await supabase
+        .from('affiliates')
+        .select('id, name, email, phone')
+        .eq('interview_token', interview_token.trim())
+        .maybeSingle()
+
+      if (tokenError || !affiliate) {
+        return NextResponse.json({ error: 'This interview link is invalid or has expired.' }, { status: 400 })
+      }
+
+      affiliateId = affiliate.id
+      resolvedName = affiliate.name
+      resolvedEmail = affiliate.email.trim().toLowerCase()
+      resolvedPhone = affiliate.phone?.trim() || resolvedPhone
+    }
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0] ?? req.headers.get('x-real-ip') ?? null
     const userAgent = req.headers.get('user-agent') ?? null
 
@@ -60,9 +82,10 @@ export async function POST(req: NextRequest) {
 
     const insertPayload = {
       id: interviewId,
-      candidate_name: candidate_name.trim(),
-      candidate_email: candidate_email.trim().toLowerCase(),
-      candidate_phone: candidate_phone?.trim() || null,
+      affiliate_id: affiliateId,
+      candidate_name: resolvedName,
+      candidate_email: resolvedEmail,
+      candidate_phone: resolvedPhone,
       job_title,
       status: 'submitted',
       video_urls,
@@ -73,25 +96,10 @@ export async function POST(req: NextRequest) {
       created_at: new Date().toISOString(),
     }
 
-    // Attempt insert into 'interviews' table
-    try {
-      const { data: interview, error } = await supabase
-        .from('interviews')
-        .insert(insertPayload)
-        .select()
-        .maybeSingle()
-
-      if (error) {
-        console.warn('[interviews/submit] Supabase insert with select error, retrying without select:', error.message)
-        const { error: retryError } = await supabase
-          .from('interviews')
-          .insert(insertPayload)
-        if (retryError) {
-          console.error('[interviews/submit] Supabase retry error:', retryError.message)
-        }
-      }
-    } catch (dbErr) {
-      console.warn('[interviews/submit] DB insert exception handled:', dbErr)
+    const { error: insertError } = await supabase.from('interviews').insert(insertPayload)
+    if (insertError) {
+      console.error('[interviews/submit] Supabase insert error:', insertError.message)
+      return NextResponse.json({ error: 'We could not save your interview. Please try again.' }, { status: 500 })
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://login.purepulse.one'
@@ -191,10 +199,6 @@ export async function POST(req: NextRequest) {
     })
   } catch (err) {
     console.error('[interviews/submit] Handler exception:', err)
-    return NextResponse.json({
-      ok: true,
-      interview_id: `int_${Date.now()}`,
-      message: 'Interview recorded with fallback',
-    })
+    return NextResponse.json({ error: 'Interview submission failed. Please try again.' }, { status: 500 })
   }
 }

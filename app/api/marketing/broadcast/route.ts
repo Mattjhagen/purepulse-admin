@@ -27,7 +27,9 @@ export async function POST(req: NextRequest) {
 
   // Handle single test email send to admin
   if (isTest) {
-    const personalizedHtml = html.replace(/\{\{name\}\}/g, 'Matty')
+    const personalizedHtml = html
+      .replace(/\{\{name\}\}/g, 'Matty')
+      .replace(/\{\{interview_url\}\}/g, 'https://login.purepulse.one/interview')
     try {
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -62,7 +64,8 @@ export async function POST(req: NextRequest) {
   const supabase = adminSupabase()
 
   // Fetch emails from clients and/or leads
-  let emails: { name: string; email: string }[] = []
+  let emails: { name: string; email: string; interviewToken?: string | null; affiliateId?: string }[] = []
+  const isPrescreenCampaign = html.includes('{{interview_url}}')
 
   if (recipients.includes('clients')) {
     const { data } = await supabase.from('clients').select('name, email').not('email', 'is', null)
@@ -74,8 +77,16 @@ export async function POST(req: NextRequest) {
     if (data) emails.push(...data.map((r: { name: string; email: string }) => ({ name: r.name, email: r.email })))
   }
 
-  if (recipients.includes('affiliates')) {
-    const { data } = await supabase.from('affiliates').select('name, email').not('email', 'is', null)
+  if (recipients.some((group: string) => group.startsWith('affiliates'))) {
+    const { data: allAffiliateRows } = await supabase
+      .from('affiliates')
+      .select('id, name, email, interview_token, prescreen_contacted_at')
+      .not('email', 'is', null)
+    const data = (allAffiliateRows ?? []).filter(row => {
+      if (recipients.includes('affiliates_contacted')) return Boolean(row.prescreen_contacted_at)
+      if (recipients.includes('affiliates_not_contacted')) return !row.prescreen_contacted_at
+      return true
+    })
     if (data) {
       const testSet = new Set([
         'admin@p3lending.space', 'purepulseone@gmail.com', 'pounce-woolens63@icloud.com',
@@ -84,7 +95,12 @@ export async function POST(req: NextRequest) {
         'referrals@purepulse.one', 'matty@purpulse.one'
       ])
       const valid = data.filter((r: { email: string }) => !testSet.has(r.email.toLowerCase().trim()))
-      emails.push(...valid.map((r: { name: string; email: string }) => ({ name: r.name, email: r.email })))
+      emails.push(...valid.map((r: { id: string; name: string; email: string; interview_token?: string | null }) => ({
+        name: r.name,
+        email: r.email,
+        interviewToken: r.interview_token,
+        affiliateId: r.id,
+      })))
     }
   }
 
@@ -112,7 +128,12 @@ export async function POST(req: NextRequest) {
 
     const batchPayload = chunk.map(recipient => {
       const firstName = (recipient.name?.trim() || 'there').split(' ')[0]
-      const personalizedHtml = html.replace(/\{\{name\}\}/g, firstName)
+      const interviewUrl = recipient.interviewToken
+        ? `https://login.purepulse.one/interview?token=${encodeURIComponent(recipient.interviewToken)}`
+        : 'https://login.purepulse.one/interview'
+      const personalizedHtml = html
+        .replace(/\{\{name\}\}/g, firstName)
+        .replace(/\{\{interview_url\}\}/g, interviewUrl)
       return {
         from: fromEmail,
         to: recipient.email.trim(),
@@ -161,6 +182,19 @@ export async function POST(req: NextRequest) {
   const sent = results.filter(r => r.ok).length
   const failed = results.filter(r => !r.ok).length
 
+  if (isPrescreenCampaign && sent > 0) {
+    const successfulEmails = new Set(results.filter(r => r.ok).map(r => r.email.toLowerCase().trim()))
+    const contactedIds = emails
+      .filter(e => e.affiliateId && successfulEmails.has(e.email.toLowerCase().trim()))
+      .map(e => e.affiliateId as string)
+    if (contactedIds.length > 0) {
+      await supabase
+        .from('affiliates')
+        .update({ prescreen_contacted_at: new Date().toISOString() })
+        .in('id', contactedIds)
+    }
+  }
+
   return NextResponse.json({ sent, failed, results })
 }
 
@@ -170,7 +204,7 @@ export async function GET() {
   const [clientsRes, leadsRes, affiliatesRes] = await Promise.all([
     supabase.from('clients').select('id, name, email').not('email', 'is', null),
     supabase.from('leads').select('id, name, email').not('email', 'is', null),
-    supabase.from('affiliates').select('id, name, email').not('email', 'is', null),
+    supabase.from('affiliates').select('id, name, email, prescreen_contacted_at').not('email', 'is', null),
   ])
 
   const testSet = new Set([
@@ -188,5 +222,7 @@ export async function GET() {
     clients: clientsRes.data ?? [],
     leads: leadsRes.data ?? [],
     affiliates: validAffiliates,
+    affiliatesContacted: validAffiliates.filter((a: { prescreen_contacted_at?: string | null }) => Boolean(a.prescreen_contacted_at)),
+    affiliatesNotContacted: validAffiliates.filter((a: { prescreen_contacted_at?: string | null }) => !a.prescreen_contacted_at),
   })
 }

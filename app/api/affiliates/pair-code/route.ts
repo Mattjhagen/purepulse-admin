@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { adminSupabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
-
 export async function POST(req: Request) {
   const supabase = adminSupabase();
   try {
@@ -39,7 +38,7 @@ export async function POST(req: Request) {
       deepLink,
       webSiteUrl: 'https://mattjhagen.github.io/PurePulseMeet/',
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
+  } catch (err: unknown) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Server error' }, { status: 500 });
   }
 }

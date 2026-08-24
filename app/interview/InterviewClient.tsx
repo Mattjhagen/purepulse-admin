@@ -107,6 +107,7 @@ const QUESTIONS: Question[] = [
 
 export default function InterviewClient({ token }: { token?: string }) {
   const searchParams = useSearchParams()
+  const interviewToken = searchParams.get('token') || ''
   const [step, setStep] = useState<'welcome' | 'device_check' | 'questions' | 'review' | 'submitted'>('welcome')
   
   // Unique Session ID for this interview attempt
@@ -126,6 +127,33 @@ export default function InterviewClient({ token }: { token?: string }) {
   const [email, setEmail] = useState(searchParams.get('email') || '')
   const [phone, setPhone] = useState(searchParams.get('phone') || '')
   const [formError, setFormError] = useState('')
+  const [identityResolved, setIdentityResolved] = useState(false)
+  const [identityLoading, setIdentityLoading] = useState(Boolean(interviewToken))
+
+  useEffect(() => {
+    if (!interviewToken) return
+
+    let cancelled = false
+    fetch(`/api/interviews/prescreen?token=${encodeURIComponent(interviewToken)}`)
+      .then(async (res) => {
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Unable to verify this interview link.')
+        if (cancelled) return
+        setName(data.name || '')
+        setEmail(data.email || '')
+        setPhone(data.phone || '')
+        setIdentityResolved(true)
+        setFormError('')
+      })
+      .catch((err) => {
+        if (!cancelled) setFormError(err instanceof Error ? err.message : 'Unable to verify this interview link.')
+      })
+      .finally(() => {
+        if (!cancelled) setIdentityLoading(false)
+      })
+
+    return () => { cancelled = true }
+  }, [interviewToken])
 
   // Device & Stream State
   const [stream, setStream] = useState<MediaStream | null>(null)
@@ -145,7 +173,7 @@ export default function InterviewClient({ token }: { token?: string }) {
   const [showTextFallback, setShowTextFallback] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
-  const [submissionSuccess, setSubmissionSuccess] = useState(false)
+  const [submissionError, setSubmissionError] = useState('')
   const [validationError, setValidationError] = useState('')
 
   // Refs
@@ -365,6 +393,7 @@ export default function InterviewClient({ token }: { token?: string }) {
   // Handle Complete Submission
   const submitInterview = async () => {
     setIsUploading(true)
+    setSubmissionError('')
     setUploadProgress(15)
 
     try {
@@ -387,14 +416,13 @@ export default function InterviewClient({ token }: { token?: string }) {
               method: 'POST',
               body: formData,
             })
-            if (res.ok) {
-              const data = await res.json()
-              if (data.url) {
-                finalVideoUrls[qId] = data.url
-              }
+            const data = await res.json()
+            if (!res.ok || data.warning || !data.url) {
+              throw new Error(data.error || data.warning || `Could not upload ${qId}`)
             }
+            finalVideoUrls[qId] = data.url
           } catch (uploadErr) {
-            console.warn(`[submitInterview] Video upload for ${qId} fallback:`, uploadErr)
+            throw new Error(`A video response could not be uploaded. Please try again. (${uploadErr instanceof Error ? uploadErr.message : qId})`)
           }
         }
         completedUploads++
@@ -414,25 +442,22 @@ export default function InterviewClient({ token }: { token?: string }) {
             video_urls: finalVideoUrls,
             text_answers: textFallbackAnswers,
             roleplay_video_url: finalVideoUrls.roleplay || null,
+            interview_token: interviewToken || undefined,
           }),
         })
 
-        if (submitRes.ok) {
-          const submitData = await submitRes.json()
-          console.log('[submitInterview] Submitted successfully:', submitData)
-        }
+        const submitData = await submitRes.json()
+        if (!submitRes.ok) throw new Error(submitData.error || 'Interview submission failed.')
+        console.log('[submitInterview] Submitted successfully:', submitData)
       } catch (submitErr) {
-        console.warn('[submitInterview] Submit metadata non-blocking fallback:', submitErr)
+        throw submitErr
       }
 
       setUploadProgress(100)
-      setSubmissionSuccess(true)
       setStep('submitted')
     } catch (err) {
       console.error('[submitInterview] Error:', err)
-      setUploadProgress(100)
-      setSubmissionSuccess(true)
-      setStep('submitted')
+      setSubmissionError(err instanceof Error ? err.message : 'Interview submission failed. Please try again.')
     } finally {
       setIsUploading(false)
     }
@@ -500,6 +525,7 @@ export default function InterviewClient({ token }: { token?: string }) {
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                readOnly={identityResolved}
                 placeholder="e.g. Alex Johnson"
                 style={{ width: '100%', background: '#14141F', border: '1px solid #2D2D42', borderRadius: '8px', padding: '0.75rem 1rem', color: '#fff', fontSize: '0.9375rem', outline: 'none' }}
               />
@@ -513,6 +539,7 @@ export default function InterviewClient({ token }: { token?: string }) {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                readOnly={identityResolved}
                 placeholder="e.g. alex@example.com"
                 style={{ width: '100%', background: '#14141F', border: '1px solid #2D2D42', borderRadius: '8px', padding: '0.75rem 1rem', color: '#fff', fontSize: '0.9375rem', outline: 'none' }}
               />
@@ -526,6 +553,7 @@ export default function InterviewClient({ token }: { token?: string }) {
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
+                readOnly={identityResolved && Boolean(phone)}
                 placeholder="e.g. (555) 000-0000"
                 style={{ width: '100%', background: '#14141F', border: '1px solid #2D2D42', borderRadius: '8px', padding: '0.75rem 1rem', color: '#fff', fontSize: '0.9375rem', outline: 'none' }}
               />
@@ -535,6 +563,11 @@ export default function InterviewClient({ token }: { token?: string }) {
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <button
               onClick={() => {
+                if (identityLoading) return
+                if (interviewToken && !identityResolved) {
+                  setFormError('We could not verify this personal interview link. Please request a new invitation.')
+                  return
+                }
                 if (!name.trim() || !email.trim()) {
                   setFormError('Please enter your full name and email address to continue.')
                   return
@@ -551,8 +584,9 @@ export default function InterviewClient({ token }: { token?: string }) {
                 border: 'none', cursor: 'pointer',
                 boxShadow: '0 4px 16px rgba(123,47,255,0.4)',
               }}
+              disabled={identityLoading}
             >
-              Continue to Camera &amp; Mic Check <ArrowRight size={18} />
+              {identityLoading ? 'Verifying invitation…' : 'Continue to Camera & Mic Check'} {!identityLoading && <ArrowRight size={18} />}
             </button>
           </div>
         </div>
@@ -1002,6 +1036,11 @@ export default function InterviewClient({ token }: { token?: string }) {
               </div>
             </div>
           )}
+          {submissionError && (
+            <div style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.35)', color: '#FCA5A5', padding: '0.875rem 1rem', borderRadius: '8px', fontSize: '0.875rem', marginBottom: '1rem' }}>
+              {submissionError}
+            </div>
+          )}
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <button
@@ -1117,4 +1156,3 @@ export default function InterviewClient({ token }: { token?: string }) {
     </div>
   )
 }
-

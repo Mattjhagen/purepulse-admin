@@ -1,17 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Mail, Send, Eye, Edit3, CheckCircle2, AlertCircle } from 'lucide-react'
-
-const BRAND = {
-  bg: '#07070D',
-  cardBg: '#0E0E18',
-  accent: '#7B2FFF',
-  accentLight: '#A066FF',
-  text: '#F4F4FF',
-  muted: '#888',
-  border: 'rgba(123,47,255,0.2)',
-}
+import { Mail, Plus, Trash2 } from 'lucide-react'
 
 function brandEmail(title: string, preview: string, bodyHtml: string) {
   return `<!DOCTYPE html>
@@ -57,7 +47,17 @@ function brandEmail(title: string, preview: string, bodyHtml: string) {
 </html>`
 }
 
-const TEMPLATES = [
+type MarketingTemplate = {
+  id: string
+  category: 'clients' | 'affiliates'
+  name: string
+  subject: string
+  preview: string
+  body: string
+  custom?: boolean
+}
+
+const TEMPLATES: MarketingTemplate[] = [
   // --- CLIENT & LEAD TEMPLATES ---
   {
     id: 'welcome',
@@ -188,51 +188,22 @@ const TEMPLATES = [
   {
     id: 'affiliate-portal-setup',
     category: 'affiliates',
-    name: '🔑 Partner Portal Setup & Interview',
-    subject: '🔑 Action Required: Complete Your PurePulse Partner Portal & Interview',
-    preview: 'Finish your portal setup, complete your brief video interview, and connect direct deposit payouts.',
+    name: '🎥 Complete Video Pre-Screen',
+    subject: '🎥 Next Step: Complete Your PurePulse Video Interview',
+    preview: 'Record your responses to complete the next step in the PurePulse selection process.',
     body: `
-      <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#A066FF;">Action Required</p>
-      <h1 style="margin:0 0 16px;font-size:22px;font-weight:800;color:#FFFFFF;">Hi {{name}}, let's get your partner portal ready! 🚀</h1>
-      <p style="margin:0 0 16px;font-size:15px;color:rgba(244,244,255,0.85);line-height:1.7;">Thank you for signing up to become a PurePulse Affiliate Partner. To start referring businesses and earning <strong>10%–50% recurring monthly commissions</strong>, finish your partner onboarding steps:</p>
-
-      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px;">
-        <div style="background:rgba(244,244,255,0.04);border:1px solid rgba(123,47,255,0.25);border-radius:10px;padding:16px;">
-          <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#FFFFFF;">1️⃣ Sign In to Your Partner Dashboard</p>
-          <p style="margin:0;font-size:13px;color:rgba(244,244,255,0.7);line-height:1.5;">Enter your email at <a href="https://login.purepulse.one/affiliates/login" style="color:#00D4FF;text-decoration:none;">login.purepulse.one/affiliates/login</a> for instant magic link sign-in (no password required).</p>
-        </div>
-        <div style="background:rgba(244,244,255,0.04);border:1px solid rgba(123,47,255,0.25);border-radius:10px;padding:16px;">
-          <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#FFFFFF;">2️⃣ Grab Your Unique Link &amp; QR Code</p>
-          <p style="margin:0;font-size:13px;color:rgba(244,244,255,0.7);line-height:1.5;">Copy your personal tracking link and download high-resolution flyers and business cards featuring your QR code.</p>
-        </div>
-        <div style="background:rgba(244,244,255,0.04);border:1px solid rgba(123,47,255,0.25);border-radius:10px;padding:16px;">
-          <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#FFFFFF;">3️⃣ Set Up Direct Deposit via Stripe</p>
-          <p style="margin:0;font-size:13px;color:rgba(244,244,255,0.7);line-height:1.5;">Open the <strong>Payouts &amp; Banking</strong> tab to connect your bank account securely through Stripe Global Payouts.</p>
-        </div>
-        <div style="background:rgba(234,88,12,0.12);border:1px solid rgba(234,88,12,0.35);border-radius:10px;padding:16px;">
-          <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#FB923C;">🎥 4️⃣ One Last Step: Complete Video Interview &amp; Onboarding</p>
-          <p style="margin:0 0 10px;font-size:13px;color:rgba(244,244,255,0.8);line-height:1.5;">Complete our automated 9-question asynchronous video interview to finalize your partner file and unlock priority deal support.</p>
-          <a href="https://login.purepulse.one/interview" style="display:inline-block;background:#EA580C;color:#FFFFFF;padding:8px 18px;border-radius:6px;font-weight:700;text-decoration:none;font-size:12.5px;">Complete 5-Min Video Interview →</a>
-        </div>
-      </div>
-
-      <div style="margin-bottom:28px;">
-        <a href="https://login.purepulse.one/affiliates/login" style="display:inline-block;background:#7B2FFF;color:#FFFFFF;padding:14px 32px;border-radius:10px;font-weight:700;text-decoration:none;font-size:14px;box-shadow:0 4px 16px rgba(123,47,255,0.4);">
-          Activate Your Partner Portal →
-        </a>
-      </div>
-
+      <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#A066FF;">Application Next Step</p>
+      <h1 style="margin:0 0 16px;font-size:22px;font-weight:800;color:#FFFFFF;">Hi {{name}}, we'd like to learn more about you.</h1>
+      <p style="margin:0 0 16px;font-size:15px;color:rgba(244,244,255,0.85);line-height:1.7;">Thank you for your interest in the PurePulse Affiliate Sales Partner opportunity. Please complete our virtual pre-screen interview so our hiring team can learn more about your outreach approach and communication style.</p>
       <div style="background:rgba(123,47,255,0.1);border:1px solid rgba(123,47,255,0.3);border-radius:12px;padding:18px;margin-bottom:24px;">
-        <p style="margin:0 0 10px;font-size:12px;font-weight:700;color:#A066FF;text-transform:uppercase;letter-spacing:1px;">Recurring Commission Rates</p>
-        <table cellpadding="0" cellspacing="0" style="width:100%;color:rgba(244,244,255,0.9);font-size:13px;">
-          <tr><td style="padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.08);">Starter Plan ($20/mo):</td><td align="right" style="padding:5px 0;font-weight:700;color:#10B981;">10% ($2.00/mo)</td></tr>
-          <tr><td style="padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.08);">Growth Plan ($50/mo):</td><td align="right" style="padding:5px 0;font-weight:700;color:#10B981;">40% ($20.00/mo)</td></tr>
-          <tr><td style="padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.08);">Premium Plan ($75/mo):</td><td align="right" style="padding:5px 0;font-weight:700;color:#10B981;">45% ($33.75/mo)</td></tr>
-          <tr><td style="padding:5px 0;">Business Plan ($100/mo):</td><td align="right" style="padding:5px 0;font-weight:700;color:#10B981;">50% ($50.00/mo)</td></tr>
-        </table>
+        <p style="margin:0 0 8px;font-size:14px;font-weight:700;color:#FFFFFF;">🎥 What to expect</p>
+        <p style="margin:0;font-size:13px;color:rgba(244,244,255,0.75);line-height:1.7;">Watch a brief role overview, record responses to guided questions, and complete a short sales roleplay. Use a smartphone, laptop, or tablet with a camera and microphone.</p>
       </div>
-
-      <p style="margin:24px 0 0;font-size:14px;color:rgba(244,244,255,0.6);">Questions? Reply directly to this email anytime.<br><br>Best regards,<br><strong style="color:#FFF;">Matty Hagen</strong><br>PurePulse Partner Program · <a href="https://purepulse.one" style="color:#00D4FF;text-decoration:none;">purepulse.one</a></p>
+      <div style="text-align:center;margin:0 0 26px;">
+        <a href="{{interview_url}}" style="display:inline-block;background:#7B2FFF;color:#FFFFFF;padding:14px 32px;border-radius:10px;font-weight:700;text-decoration:none;font-size:14px;box-shadow:0 4px 16px rgba(123,47,255,0.4);">Complete My Video Interview →</a>
+      </div>
+      <p style="margin:0 0 16px;font-size:13px;color:rgba(244,244,255,0.65);line-height:1.6;">This is your personal interview link. Please do not forward it to another applicant. Once submitted, our hiring team will review your responses within 24–48 hours.</p>
+      <p style="margin:24px 0 0;font-size:14px;color:rgba(244,244,255,0.6);">Best regards,<br><strong style="color:#FFF;">PurePulse Hiring Team</strong><br><a href="mailto:hiring@purepulse.one" style="color:#00D4FF;text-decoration:none;">hiring@purepulse.one</a></p>
     `,
   },
   {
@@ -392,6 +363,7 @@ const TEMPLATES = [
 ]
 
 export default function MarketingPage() {
+  const [customTemplates, setCustomTemplates] = useState<MarketingTemplate[]>([])
   const [templateFilter, setTemplateFilter] = useState<'all' | 'clients' | 'affiliates'>('all')
   const [selectedTemplate, setSelectedTemplate] = useState(TEMPLATES[0])
   const [customSubject, setCustomSubject] = useState(TEMPLATES[0].subject)
@@ -402,7 +374,11 @@ export default function MarketingPage() {
   const [sendingTest, setSendingTest] = useState(false)
   const [testResult, setTestResult] = useState<string | null>(null)
   const [result, setResult] = useState<{ sent: number; failed: number; results?: { email: string; ok: boolean; error?: string }[]; error?: string } | null>(null)
-  const [counts, setCounts] = useState<{ clients: number; leads: number; affiliates: number }>({ clients: 0, leads: 0, affiliates: 0 })
+  const [counts, setCounts] = useState({ clients: 0, leads: 0, affiliates: 0, affiliatesContacted: 0, affiliatesNotContacted: 0 })
+  const [showTemplateForm, setShowTemplateForm] = useState(false)
+  const [savingTemplate, setSavingTemplate] = useState(false)
+  const [templateError, setTemplateError] = useState('')
+  const [newTemplate, setNewTemplate] = useState({ name: '', category: 'affiliates' as 'clients' | 'affiliates', subject: '', preview: '', body: '' })
 
   useEffect(() => {
     fetch('/api/marketing/broadcast')
@@ -411,33 +387,78 @@ export default function MarketingPage() {
         clients: d.clients?.length ?? 0,
         leads: d.leads?.length ?? 0,
         affiliates: d.affiliates?.length ?? 0,
+        affiliatesContacted: d.affiliatesContacted?.length ?? 0,
+        affiliatesNotContacted: d.affiliatesNotContacted?.length ?? 0,
       }))
       .catch(() => {})
   }, [])
 
-  function pickTemplate(t: typeof TEMPLATES[0]) {
+  useEffect(() => {
+    fetch('/api/marketing/templates')
+      .then(r => r.json())
+      .then(d => setCustomTemplates((d.templates ?? []).map((t: MarketingTemplate) => ({ ...t, custom: true }))))
+      .catch(() => {})
+  }, [])
+
+  function pickTemplate(t: MarketingTemplate) {
     setSelectedTemplate(t)
     setCustomSubject(t.subject)
     setCustomBody(t.body)
     setResult(null)
     setTestResult(null)
     // Auto-select appropriate audience when picking template
-    if (t.category === 'affiliates' && !recipientGroups.includes('affiliates')) {
+    if (t.id === 'affiliate-portal-setup') {
+      setRecipientGroups(['affiliates_not_contacted'])
+    } else if (t.category === 'affiliates' && !recipientGroups.some(g => g.startsWith('affiliates'))) {
       setRecipientGroups(['affiliates'])
-    } else if (t.category === 'clients' && recipientGroups.includes('affiliates') && recipientGroups.length === 1) {
+    } else if (t.category === 'clients' && recipientGroups.some(g => g.startsWith('affiliates')) && recipientGroups.length === 1) {
       setRecipientGroups(['clients'])
     }
   }
 
-  function toggleGroup(g: string) {
-    setRecipientGroups(prev =>
-      prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g]
-    )
+  async function saveTemplate() {
+    setSavingTemplate(true)
+    setTemplateError('')
+    try {
+      const res = await fetch('/api/marketing/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newTemplate),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Could not save template.')
+      const saved = { ...data.template, custom: true } as MarketingTemplate
+      setCustomTemplates(prev => [saved, ...prev])
+      pickTemplate(saved)
+      setNewTemplate({ name: '', category: 'affiliates', subject: '', preview: '', body: '' })
+      setShowTemplateForm(false)
+    } catch (err) {
+      setTemplateError(err instanceof Error ? err.message : 'Could not save template.')
+    } finally {
+      setSavingTemplate(false)
+    }
   }
 
+  async function deleteTemplate(template: MarketingTemplate) {
+    if (!template.custom || !confirm(`Delete template "${template.name}"?`)) return
+    const res = await fetch(`/api/marketing/templates?id=${encodeURIComponent(template.id)}`, { method: 'DELETE' })
+    if (!res.ok) return
+    setCustomTemplates(prev => prev.filter(t => t.id !== template.id))
+    if (selectedTemplate.id === template.id) pickTemplate(TEMPLATES[0])
+  }
+
+  function toggleGroup(g: string) {
+    setRecipientGroups(prev => {
+      if (prev.includes(g)) return prev.filter(x => x !== g)
+      if (g.startsWith('affiliates')) return [...prev.filter(x => !x.startsWith('affiliates')), g]
+      return [...prev, g]
+    })
+  }
+
+  const allTemplates = [...customTemplates, ...TEMPLATES]
   const filteredTemplates = templateFilter === 'all'
-    ? TEMPLATES
-    : TEMPLATES.filter(t => t.category === templateFilter)
+    ? allTemplates
+    : allTemplates.filter(t => t.category === templateFilter)
 
   const previewHtml = brandEmail(customSubject, selectedTemplate.preview, customBody)
 
@@ -445,6 +466,8 @@ export default function MarketingPage() {
     recipientGroups.includes('clients') ? counts.clients : 0,
     recipientGroups.includes('leads') ? counts.leads : 0,
     recipientGroups.includes('affiliates') ? counts.affiliates : 0,
+    recipientGroups.includes('affiliates_contacted') ? counts.affiliatesContacted : 0,
+    recipientGroups.includes('affiliates_not_contacted') ? counts.affiliatesNotContacted : 0,
   ].reduce((a, b) => a + b, 0)
 
 
@@ -489,6 +512,16 @@ export default function MarketingPage() {
         setResult({ sent: 0, failed: 1, error: data.error ?? 'Unknown error' })
       } else {
         setResult(data)
+        fetch('/api/marketing/broadcast')
+          .then(r => r.json())
+          .then(d => setCounts({
+            clients: d.clients?.length ?? 0,
+            leads: d.leads?.length ?? 0,
+            affiliates: d.affiliates?.length ?? 0,
+            affiliatesContacted: d.affiliatesContacted?.length ?? 0,
+            affiliatesNotContacted: d.affiliatesNotContacted?.length ?? 0,
+          }))
+          .catch(() => {})
       }
     } catch (e) {
       setResult({ sent: 0, failed: 1, error: String(e) })
@@ -516,7 +549,17 @@ export default function MarketingPage() {
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                 <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1.5px', color: 'var(--text-muted)' }}>Templates</p>
-                <span style={{ fontSize: '11px', color: '#A066FF', fontWeight: 600 }}>{filteredTemplates.length} total</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {selectedTemplate.custom && (
+                    <button type="button" onClick={() => deleteTemplate(selectedTemplate)} title="Delete selected template" style={{ border: 'none', background: 'transparent', color: '#EF4444', cursor: 'pointer', padding: '2px' }}>
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                  <button type="button" onClick={() => setShowTemplateForm(v => !v)} style={{ border: '1px solid rgba(123,47,255,0.4)', background: 'rgba(123,47,255,0.12)', color: '#A066FF', borderRadius: '5px', cursor: 'pointer', padding: '3px 7px', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', fontWeight: 700 }}>
+                    <Plus size={11} /> New
+                  </button>
+                  <span style={{ fontSize: '11px', color: '#A066FF', fontWeight: 600 }}>{filteredTemplates.length}</span>
+                </div>
               </div>
               {/* Category Filter Tabs */}
               <div style={{ display: 'flex', gap: '4px', background: 'var(--bg)', padding: '2px', borderRadius: '6px', border: '1px solid var(--border)' }}>
@@ -539,6 +582,22 @@ export default function MarketingPage() {
                 ))}
               </div>
             </div>
+            {showTemplateForm && (
+              <div style={{ padding: '12px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '8px', background: 'rgba(123,47,255,0.05)' }}>
+                <input value={newTemplate.name} onChange={e => setNewTemplate(v => ({ ...v, name: e.target.value }))} placeholder="Template name" style={{ padding: '8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: '12px' }} />
+                <select value={newTemplate.category} onChange={e => setNewTemplate(v => ({ ...v, category: e.target.value as 'clients' | 'affiliates' }))} style={{ padding: '8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: '12px' }}>
+                  <option value="affiliates">Affiliates</option>
+                  <option value="clients">Clients</option>
+                </select>
+                <input value={newTemplate.subject} onChange={e => setNewTemplate(v => ({ ...v, subject: e.target.value }))} placeholder="Subject line" style={{ padding: '8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: '12px' }} />
+                <input value={newTemplate.preview} onChange={e => setNewTemplate(v => ({ ...v, preview: e.target.value }))} placeholder="Preview text" style={{ padding: '8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: '12px' }} />
+                <textarea value={newTemplate.body} onChange={e => setNewTemplate(v => ({ ...v, body: e.target.value }))} placeholder="Email body HTML. Use {{name}} and {{interview_url}} when needed." rows={8} style={{ padding: '8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: '11px', fontFamily: 'monospace', resize: 'vertical' }} />
+                {templateError && <p style={{ margin: 0, color: '#EF4444', fontSize: '11px' }}>{templateError}</p>}
+                <button type="button" onClick={saveTemplate} disabled={savingTemplate} style={{ padding: '8px', border: 'none', borderRadius: '6px', background: '#7B2FFF', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+                  {savingTemplate ? 'Saving…' : 'Save Template'}
+                </button>
+              </div>
+            )}
             <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
               {filteredTemplates.map(t => (
                 <button
@@ -578,7 +637,9 @@ export default function MarketingPage() {
             {[
               { key: 'clients', label: 'Clients', count: counts.clients },
               { key: 'leads', label: 'Leads', count: counts.leads },
-              { key: 'affiliates', label: 'Affiliates', count: counts.affiliates },
+              { key: 'affiliates', label: 'All Affiliates', count: counts.affiliates },
+              { key: 'affiliates_not_contacted', label: 'Affiliates — Not Contacted', count: counts.affiliatesNotContacted },
+              { key: 'affiliates_contacted', label: 'Affiliates — Contacted', count: counts.affiliatesContacted },
             ].map(({ key, label, count }) => (
               <label key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '10px', cursor: 'pointer' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

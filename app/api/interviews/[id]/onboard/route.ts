@@ -30,7 +30,7 @@ export async function POST(
   const supabase = hasServiceRole ? adminSupabase() : await createServerSupabaseClient()
 
   // 1. Fetch interview
-  let { data: interview, error: fetchErr } = await supabase
+  let { data: interview } = await supabase
     .from('interviews')
     .select('*')
     .eq('id', id)
@@ -47,7 +47,7 @@ export async function POST(
   }
 
 
-  if (fetchErr || !interview) {
+  if (!interview) {
     return NextResponse.json({ error: 'Interview not found' }, { status: 404 })
   }
 
@@ -58,11 +58,24 @@ export async function POST(
 
   // 2. Check if affiliate record already exists or create new
   let referralCode = generateReferralCode(name)
-  const { data: existingAffiliate } = await supabase
-    .from('affiliates')
-    .select('*')
-    .eq('email', email)
-    .single()
+  let existingAffiliate: { id: string; referral_code: string } | null = null
+  if (interview.affiliate_id) {
+    const { data } = await supabase
+      .from('affiliates')
+      .select('*')
+      .eq('id', interview.affiliate_id)
+      .maybeSingle()
+    existingAffiliate = data
+  }
+
+  if (!existingAffiliate) {
+    const { data } = await supabase
+      .from('affiliates')
+      .select('*')
+      .ilike('email', email)
+      .maybeSingle()
+    existingAffiliate = data
+  }
 
   let affiliateId = existingAffiliate?.id
 
