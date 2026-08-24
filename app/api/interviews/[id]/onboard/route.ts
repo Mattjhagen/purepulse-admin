@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { requireAdmin } from '@/lib/require-admin'
 import { getResend } from '@/lib/resend'
 import { generateAffiliateAuthLink } from '@/lib/portal-auth-link'
+import { sendEmailSafely } from '@/lib/email'
 
 function adminSupabase() {
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_PROJECT_URL || 'https://cucksfwkdmrkeiwmdlut.supabase.co'
@@ -129,9 +130,7 @@ export async function POST(
   // 4. Send official onboarding acceptance email via Resend
   const referralLink = `https://purepulse.one/pricing?ref=${referralCode}`
   try {
-    const resend = getResend()
-    await resend.emails.send({
-      from: 'Matty at PurePulse <matty@purepulse.one>',
+    await sendEmailSafely({
       to: email,
       subject: `🎉 Congratulations! You're invited to the PurePulse Affiliate Team`,
       html: `

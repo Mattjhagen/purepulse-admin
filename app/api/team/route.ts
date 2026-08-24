@@ -53,6 +53,8 @@ const ROLE_DETAILS: Record<string, { label: string; badgeColor: string; descript
   },
 }
 
+import { sendEmailSafely } from '@/lib/email'
+
 async function sendRoleInviteEmail(params: {
   name: string
   email: string
@@ -61,14 +63,8 @@ async function sendRoleInviteEmail(params: {
   setupUrl: string
   inviterName?: string
 }) {
-  if (!process.env.RESEND_API_KEY) {
-    console.warn('[sendRoleInviteEmail] RESEND_API_KEY not configured')
-    return
-  }
-
   const { name, email, role, title, setupUrl, inviterName = 'The PurePulse Team' } = params
   const roleInfo = ROLE_DETAILS[role.toLowerCase()] || ROLE_DETAILS.member
-  const resend = new Resend(process.env.RESEND_API_KEY)
 
   const subject = `Welcome to PurePulse — Set up your ${roleInfo.label} account`
 
@@ -142,27 +138,13 @@ async function sendRoleInviteEmail(params: {
     </div>
   `
 
-  try {
-    await resend.emails.send({
-      from: 'PurePulse Team <team@purepulse.one>',
-      to: email,
-      subject,
-      html,
-    })
-  } catch (e) {
-    // Fallback sender if custom domain domain differs
-    console.warn('[sendRoleInviteEmail] Primary sender error, retrying with fallback:', e)
-    try {
-      await resend.emails.send({
-        from: 'PurePulse <onboarding@resend.dev>',
-        to: email,
-        subject,
-        html,
-      })
-    } catch (retryErr) {
-      console.error('[sendRoleInviteEmail] Fallback sender failed:', retryErr)
-    }
-  }
+  await sendEmailSafely({
+    to: email,
+    subject,
+    html,
+    from: 'PurePulse Team <team@purepulse.one>',
+    replyTo: 'matty@purepulse.one',
+  })
 }
 
 export async function POST(req: NextRequest) {

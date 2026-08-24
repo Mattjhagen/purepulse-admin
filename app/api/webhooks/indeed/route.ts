@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminSupabase } from '@/lib/supabase'
-import { Resend } from 'resend'
+import { sendEmailSafely } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -132,43 +132,39 @@ export async function POST(req: NextRequest) {
       }, { onConflict: 'email' })
 
     // 5. Send automated pre-screen video interview invitation to candidate
-    if (process.env.RESEND_API_KEY) {
-      try {
-        const resend = new Resend(process.env.RESEND_API_KEY)
-        const prescreenUrl = `https://login.purepulse.one/interview/prescreen?email=${encodeURIComponent(candidateEmail)}&name=${encodeURIComponent(candidateName)}`
+    try {
+      const prescreenUrl = `https://login.purepulse.one/interview/prescreen?email=${encodeURIComponent(candidateEmail)}&name=${encodeURIComponent(candidateName)}`
 
-        await resend.emails.send({
-          from: 'PurePulse Careers <careers@purepulse.one>',
-          to: candidateEmail,
-          subject: `Next Step: Complete Your Quick Virtual Video Interview with PurePulse`,
-          html: `
-            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background: #07070D; color: #F4F4FF; border-radius: 12px; overflow: hidden; border: 1px solid #1F1F2E;">
-              <div style="padding: 24px 32px; border-bottom: 1px solid #1F1F2E; text-align: center;">
-                <span style="font-size: 20px; font-weight: 800; color: #F4F4FF; letter-spacing: -0.5px;">Pure<span style="color: #A066FF;">Pulse</span></span>
-              </div>
-              <div style="padding: 32px;">
-                <h2 style="margin: 0 0 12px; font-size: 18px; color: #F4F4FF;">Hi ${candidateName},</h2>
-                <p style="color: #9CA3AF; font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
-                  Thank you for applying for the <strong>${jobTitle}</strong> position on Indeed! We have received your application and resume.
-                </p>
-                <p style="color: #D1D5DB; font-size: 14px; line-height: 1.6; margin-bottom: 24px;">
-                  To expedite our hiring review, the next step is to complete our quick 9-question interactive video pre-screen. It takes only a few minutes and can be completed from your phone or computer.
-                </p>
-                <div style="text-align: center; margin: 30px 0;">
-                  <a href="${prescreenUrl}" style="background: #7B2FFF; color: #ffffff; padding: 12px 28px; border-radius: 8px; font-weight: 700; text-decoration: none; font-size: 15px; display: inline-block;">
-                    Start Video Pre-Screen →
-                  </a>
-                </div>
-                <p style="font-size: 12px; color: #6B7280; text-align: center; margin-top: 24px;">
-                  If you have any questions, feel free to reply directly to this email.
-                </p>
-              </div>
+      await sendEmailSafely({
+        to: candidateEmail,
+        subject: `Next Step: Complete Your Quick Virtual Video Interview with PurePulse`,
+        html: `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background: #07070D; color: #F4F4FF; border-radius: 12px; overflow: hidden; border: 1px solid #1F1F2E;">
+            <div style="padding: 24px 32px; border-bottom: 1px solid #1F1F2E; text-align: center;">
+              <span style="font-size: 20px; font-weight: 800; color: #F4F4FF; letter-spacing: -0.5px;">Pure<span style="color: #A066FF;">Pulse</span></span>
             </div>
-          `,
-        })
-      } catch (emailErr) {
-        console.warn('[Indeed Webhook] Invitation email error:', emailErr)
-      }
+            <div style="padding: 32px;">
+              <h2 style="margin: 0 0 12px; font-size: 18px; color: #F4F4FF;">Hi ${candidateName},</h2>
+              <p style="color: #9CA3AF; font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
+                Thank you for applying for the <strong>${jobTitle}</strong> position on Indeed! We have received your application and resume.
+              </p>
+              <p style="color: #D1D5DB; font-size: 14px; line-height: 1.6; margin-bottom: 24px;">
+                To expedite our hiring review, the next step is to complete our quick 9-question interactive video pre-screen. It takes only a few minutes and can be completed from your phone or computer.
+              </p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${prescreenUrl}" style="background: #7B2FFF; color: #ffffff; padding: 12px 28px; border-radius: 8px; font-weight: 700; text-decoration: none; font-size: 15px; display: inline-block;">
+                  Start Video Pre-Screen →
+                </a>
+              </div>
+              <p style="font-size: 12px; color: #6B7280; text-align: center; margin-top: 24px;">
+                If you have any questions, feel free to reply directly to this email.
+              </p>
+            </div>
+          </div>
+        `,
+      })
+    } catch (emailErr) {
+      console.warn('[Indeed Webhook] Invitation email error:', emailErr)
     }
 
     return NextResponse.json({

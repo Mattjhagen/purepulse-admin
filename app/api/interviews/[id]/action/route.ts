@@ -14,6 +14,7 @@ async function sendEmailSafely(options: {
   const resend = getResend()
   const fromAddresses = [
     'Matty at PurePulse <matty@purepulse.one>',
+    'PurePulse <team@cmameet.site>',
     'PurePulse Hiring <hiring@login.purepulse.one>',
     'PurePulse <onboarding@resend.dev>',
   ]
