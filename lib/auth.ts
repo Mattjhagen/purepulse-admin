@@ -1,7 +1,7 @@
 'use client'
 import { createClient } from './supabase'
 
-const ADMIN_EMAILS = ['matty@purepulse.one', 'mattjhagen0@gmail.com']
+const MASTER_ADMIN_EMAILS = ['matty@purepulse.one', 'mattjhagen0@gmail.com']
 
 export async function signIn(email: string, password: string) {
   const supabase = createClient()
@@ -27,7 +27,17 @@ export async function getUser() {
   return data.user
 }
 
-export function isAdmin(email?: string | null): boolean {
+export function isAdmin(email?: string | null, role?: string | null): boolean {
   if (!email) return false
-  return ADMIN_EMAILS.includes(email)
+  const clean = email.toLowerCase().trim()
+  if (MASTER_ADMIN_EMAILS.includes(clean)) return true
+  if (role && role.toLowerCase() === 'admin') return true
+  return false
+}
+
+export function isManager(email?: string | null, role?: string | null): boolean {
+  if (!email) return false
+  if (isAdmin(email, role)) return true
+  if (role && (role.toLowerCase() === 'manager' || role.toLowerCase() === 'admin')) return true
+  return false
 }

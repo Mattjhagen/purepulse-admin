@@ -48,10 +48,42 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      await signIn(email, password)
+      const data = await signIn(email.toLowerCase().trim(), password)
+      const user = data.user
+      const userRole = user?.user_metadata?.role
+
+      if (userRole === 'affiliate') {
+        router.push('/affiliates/dashboard')
+        return
+      }
+
+      // Check team members table
+      const { data: member } = await supabase
+        .from('team_members')
+        .select('role, status')
+        .or(`auth_user_id.eq.${user?.id},email.eq.${email.toLowerCase().trim()}`)
+        .maybeSingle()
+
+      if (member) {
+        router.push('/dashboard')
+        return
+      }
+
+      // Check affiliates table
+      const { data: aff } = await supabase
+        .from('affiliates')
+        .select('id')
+        .or(`auth_user_id.eq.${user?.id},email.eq.${email.toLowerCase().trim()}`)
+        .maybeSingle()
+
+      if (aff) {
+        router.push('/affiliates/dashboard')
+        return
+      }
+
       router.push('/dashboard')
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Invalid credentials')
+      setError(err instanceof Error ? err.message : 'Invalid credentials. Please check your email and password.')
     } finally {
       setLoading(false)
     }

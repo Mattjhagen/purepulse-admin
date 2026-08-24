@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Plus, X, Mail, Phone, DollarSign, Trash2, UserCheck, UserX } from 'lucide-react'
+import { Plus, X, Mail, Phone, DollarSign, Trash2, UserCheck, UserX, Copy, Check, ExternalLink, Send, CheckCircle } from 'lucide-react'
 
 type TeamMember = {
   id: string
@@ -13,6 +13,8 @@ type TeamMember = {
   hourly_rate: number
   status: string
   notes: string | null
+  invite_token?: string | null
+  invite_token_expires_at?: string | null
   created_at: string
 }
 
@@ -65,6 +67,8 @@ export default function TeamPage() {
   const [invPhone, setInvPhone] = useState('')
   const [invRate, setInvRate] = useState('')
   const [invNotes, setInvNotes] = useState('')
+  const [inviteSuccess, setInviteSuccess] = useState<{ name: string; email: string; role: string; setupUrl?: string } | null>(null)
+  const [copiedLink, setCopiedLink] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -112,6 +116,41 @@ export default function TeamPage() {
     if (selected?.id === id) setSelected(null)
   }
 
+  async function resendInvite(m: TeamMember) {
+    setSaving(true)
+    try {
+      const res = await fetch('/api/team', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: m.name,
+          email: m.email,
+          role: m.role,
+          title: m.title,
+          phone: m.phone,
+          hourly_rate: m.hourly_rate,
+          notes: m.notes,
+        }),
+      })
+      const data = await res.json()
+      if (res.ok && data.ok) {
+        setInviteSuccess({
+          name: m.name,
+          email: m.email,
+          role: m.role,
+          setupUrl: data.setupUrl,
+        })
+        load()
+      } else {
+        alert(data.error || 'Failed to resend invite.')
+      }
+    } catch {
+      alert('Error resending invite.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function invite(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
@@ -128,8 +167,16 @@ export default function TeamPage() {
         notes: invNotes.trim() || null,
       }),
     })
-    const { member } = await res.json()
-    if (member) setMembers(prev => [...prev, member as TeamMember].sort((a, b) => a.name.localeCompare(b.name)))
+    const data = await res.json()
+    if (data.member) {
+      setMembers(prev => [...prev.filter(m => m.email !== data.member.email), data.member as TeamMember].sort((a, b) => a.name.localeCompare(b.name)))
+      setInviteSuccess({
+        name: invName.trim(),
+        email: invEmail.trim(),
+        role: invRole,
+        setupUrl: data.setupUrl,
+      })
+    }
     setInvName(''); setInvEmail(''); setInvRole('member'); setInvTitle('')
     setInvPhone(''); setInvRate(''); setInvNotes('')
     setShowInvite(false)
@@ -148,6 +195,48 @@ export default function TeamPage() {
         </div>
         <button className="btn btn-primary" onClick={() => setShowInvite(true)}><Plus size={14} /> Invite Member</button>
       </div>
+
+      {inviteSuccess && (
+        <div style={{ background: 'rgba(123,47,255,0.12)', border: '1px solid rgba(123,47,255,0.3)', borderRadius: '12px', padding: '1rem 1.25rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+            <div style={{ background: '#7B2FFF', color: '#fff', width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Check size={16} />
+            </div>
+            <div>
+              <p style={{ fontWeight: 700, margin: 0, fontSize: '0.875rem', color: '#F4F4FF' }}>
+                Invitation sent to {inviteSuccess.name} ({inviteSuccess.email}) as {inviteSuccess.role.toUpperCase()}
+              </p>
+              <p style={{ margin: 0, fontSize: '0.75rem', color: '#A066FF' }}>
+                They will receive an email with instructions to set up their password and access their account privileges.
+              </p>
+            </div>
+          </div>
+          {inviteSuccess.setupUrl && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(inviteSuccess.setupUrl!)
+                  setCopiedLink(true)
+                  setTimeout(() => setCopiedLink(false), 2500)
+                }}
+                style={{
+                  background: '#14141F', border: '1px solid #2D2D42', color: '#D1D5DB',
+                  fontSize: '0.75rem', fontWeight: 600, padding: '0.35rem 0.65rem', borderRadius: '6px', cursor: 'pointer',
+                  display: 'inline-flex', alignItems: 'center', gap: '0.35rem'
+                }}
+              >
+                {copiedLink ? <><Check size={12} color="#10B981" /> Copied Setup Link</> : <><Copy size={12} /> Copy Setup Link</>}
+              </button>
+              <button
+                onClick={() => setInviteSuccess(null)}
+                style={{ background: 'none', border: 'none', color: '#9CA3AF', cursor: 'pointer', fontSize: '1rem' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Stat pills */}
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.75rem', flexWrap: 'wrap' }}>
@@ -288,6 +377,26 @@ export default function TeamPage() {
                 <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '0.25rem' }}>Notes</label>
                 <textarea className="input" rows={3} style={{ width: '100%', resize: 'vertical' }} placeholder="Internal notes…" value={editNotes} onChange={e => setEditNotes(e.target.value)} />
               </div>
+
+              {selected.status === 'invited' && (
+                <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '8px', padding: '0.75rem', marginTop: '0.5rem' }}>
+                  <p style={{ margin: '0 0 0.5rem', fontSize: '0.75rem', color: '#F59E0B', fontWeight: 600 }}>
+                    Invitation pending setup by {selected.name}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => resendInvite(selected)}
+                    disabled={saving}
+                    style={{
+                      background: '#1F1F2E', border: '1px solid #374151', color: '#F4F4FF',
+                      fontSize: '0.75rem', fontWeight: 600, padding: '0.35rem 0.75rem', borderRadius: '6px', cursor: 'pointer',
+                      display: 'inline-flex', alignItems: 'center', gap: '0.35rem', width: '100%', justifyContent: 'center'
+                    }}
+                  >
+                    <Send size={12} /> Resend Role Invite Email
+                  </button>
+                </div>
+              )}
             </div>
 
             <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border)', display: 'flex', gap: '0.75rem' }}>

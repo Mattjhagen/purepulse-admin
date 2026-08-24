@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
-const PUBLIC_EXACT = ['/', '/login', '/portal', '/pricing', '/pricing/start', '/affiliates', '/affiliates/apply', '/affiliates/login', '/interview']
-const PUBLIC_PREFIXES = ['/login/', '/portal/', '/auth/', '/api/', '/_next/', '/favicon', '/pricing/', '/sign/', '/checkout/', '/referrals/connect/', '/ref/', '/affiliates/', '/interview/']
+const PUBLIC_EXACT = ['/', '/login', '/portal', '/pricing', '/pricing/start', '/affiliates', '/affiliates/apply', '/affiliates/login', '/interview', '/team/setup']
+const PUBLIC_PREFIXES = ['/login/', '/portal/', '/auth/', '/api/', '/_next/', '/favicon', '/pricing/', '/sign/', '/checkout/', '/referrals/connect/', '/ref/', '/affiliates/', '/interview/', '/team/setup']
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -13,7 +13,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_PROJECT_URL || 'https://cucksfwkdmrkeiwmdlut.supabase.co'
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_PROJECT_URL || 'https://kofjljwctqqllnjiejxd.supabase.co'
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY
 
   // Env vars not configured — let the app render (it will handle auth)
