@@ -11,8 +11,13 @@ export async function signIn(email: string, password: string) {
 }
 
 export async function signOut() {
-  const supabase = createClient()
-  await supabase.auth.signOut()
+  try {
+    await fetch('/api/auth/logout', { method: 'POST' })
+  } catch {}
+  try {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+  } catch {}
 }
 
 export async function getSession() {

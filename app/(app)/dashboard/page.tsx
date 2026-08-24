@@ -226,6 +226,7 @@ export default function DashboardPage() {
   const [expiringContracts, setExpiringContracts] = useState<ExpiringContract[]>([])
 
   const load = useCallback(async () => {
+    let currentUserId: string | null = null
     const now = new Date()
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()
@@ -233,12 +234,32 @@ export default function DashboardPage() {
     const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString()
     const thirtyDaysFromNow = new Date(Date.now() + 30 * 86400000).toISOString()
     const { start: weekStart, end: weekEnd } = getWeekBounds(now)
-    const { data: { user } } = await supabase.auth.getUser()
-    const rawName = user?.user_metadata?.full_name
-      ?? user?.user_metadata?.name
-      ?? user?.email?.split('@')[0]
-      ?? ''
-    setUserName(rawName ? rawName.charAt(0).toUpperCase() + rawName.slice(1) : '')
+    try {
+      const meRes = await fetch('/api/auth/me')
+      const meData = await meRes.json()
+      if (meData.user?.name) {
+        setUserName(meData.user.name)
+        currentUserId = meData.user.id || null
+      } else {
+        const { data: { user } } = await supabase.auth.getUser()
+        currentUserId = user?.id || null
+        const rawName = user?.user_metadata?.full_name
+          ?? user?.user_metadata?.name
+          ?? user?.email?.split('@')[0]
+          ?? ''
+        const firstName = rawName.split(' ')[0]
+        setUserName(firstName ? firstName.charAt(0).toUpperCase() + firstName.slice(1) : '')
+      }
+    } catch {
+      const { data: { user } } = await supabase.auth.getUser()
+      currentUserId = user?.id || null
+      const rawName = user?.user_metadata?.full_name
+        ?? user?.user_metadata?.name
+        ?? user?.email?.split('@')[0]
+        ?? ''
+      const firstName = rawName.split(' ')[0]
+      setUserName(firstName ? firstName.charAt(0).toUpperCase() + firstName.slice(1) : '')
+    }
 
     const [
       clientsRes,
@@ -270,8 +291,8 @@ export default function DashboardPage() {
       supabase.from('leads').select('id, name, status, created_at').gte('created_at', sevenDaysAgo).order('created_at', { ascending: false }),
       supabase.from('clients').select('id, name, status, created_at').gte('created_at', sevenDaysAgo).order('created_at', { ascending: false }),
       supabase.from('contracts').select('id, status, signed_at, clients(name)').not('signed_at', 'is', null).gte('signed_at', sevenDaysAgo).order('signed_at', { ascending: false }),
-      user ? supabase.from('time_entries').select('clock_in, clock_out, hourly_rate').eq('user_id', user.id).neq('status', 'voided').gte('clock_in', weekStart.toISOString()).lte('clock_in', weekEnd.toISOString()) : Promise.resolve({ data: [] }),
-      user ? supabase.from('time_entries').select('id').eq('user_id', user.id).is('clock_out', null).limit(1) : Promise.resolve({ data: [] }),
+      currentUserId ? supabase.from('time_entries').select('clock_in, clock_out, hourly_rate').eq('user_id', currentUserId).neq('status', 'voided').gte('clock_in', weekStart.toISOString()).lte('clock_in', weekEnd.toISOString()) : Promise.resolve({ data: [] }),
+      currentUserId ? supabase.from('time_entries').select('id').eq('user_id', currentUserId).is('clock_out', null).limit(1) : Promise.resolve({ data: [] }),
       supabase.from('referrals').select('active, conversions, total_earned, total_paid'),
       supabase.from('contracts').select('id, end_date, plan, clients(name)').in('status', ['signed', 'active']).not('end_date', 'is', null).gte('end_date', now.toISOString()).lte('end_date', thirtyDaysFromNow),
     ])
