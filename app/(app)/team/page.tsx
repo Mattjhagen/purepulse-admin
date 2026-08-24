@@ -106,6 +106,7 @@ export default function TeamPage() {
     if (!selected) return
     setSaving(true)
     const updates = {
+      id: selected.id,
       name: editName.trim(),
       title: editTitle.trim() || null,
       role: editRole,
@@ -113,9 +114,14 @@ export default function TeamPage() {
       hourly_rate: parseFloat(editRate) || 0,
       notes: editNotes.trim() || null,
       status: editStatus,
-      updated_at: new Date().toISOString(),
     }
-    await supabase.from('team_members').update(updates).eq('id', selected.id)
+    try {
+      await fetch('/api/team', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      })
+    } catch {}
     setMembers(prev => prev.map(m => m.id === selected.id ? { ...m, ...updates } : m))
     setSelected(null)
     setSaving(false)
@@ -123,7 +129,9 @@ export default function TeamPage() {
 
   async function deleteMember(id: string, name: string) {
     if (!confirm(`Remove ${name} from the team? This cannot be undone.`)) return
-    await supabase.from('team_members').delete().eq('id', id)
+    try {
+      await fetch(`/api/team?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+    } catch {}
     setMembers(prev => prev.filter(m => m.id !== id))
     if (selected?.id === id) setSelected(null)
   }

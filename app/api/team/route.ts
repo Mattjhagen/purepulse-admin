@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { adminSupabase } from '@/lib/supabase'
+import { getDbClient } from '@/lib/db'
 import crypto from 'crypto'
-import { Resend } from 'resend'
+import { sendEmailSafely } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,8 +52,6 @@ const ROLE_DETAILS: Record<string, { label: string; badgeColor: string; descript
     ],
   },
 }
-
-import { sendEmailSafely } from '@/lib/email'
 
 async function sendRoleInviteEmail(params: {
   name: string
@@ -147,7 +145,23 @@ async function sendRoleInviteEmail(params: {
   })
 }
 
+export async function GET() {
+  const client = getDbClient()
+  try {
+    await client.connect()
+    const res = await client.query('SELECT * FROM team_members ORDER BY name')
+    return NextResponse.json({ members: res.rows ?? [] })
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Internal database error'
+    console.error('[GET /api/team] DB Exception:', err)
+    return NextResponse.json({ error: msg, members: [] }, { status: 500 })
+  } finally {
+    await client.end()
+  }
+}
+
 export async function POST(req: NextRequest) {
+  const client = getDbClient()
   try {
     const { name, email, role, title, phone, hourly_rate, notes } = await req.json()
     if (!name || !email) {
@@ -156,41 +170,56 @@ export async function POST(req: NextRequest) {
 
     const cleanEmail = email.toLowerCase().trim()
     const cleanRole = (role || 'member').toLowerCase().trim()
-    const supabase = adminSupabase()
 
-    // 1. Generate secure invite token (valid for 7 days)
+    // Generate secure invite token (valid for 7 days)
     const inviteToken = crypto.randomBytes(32).toString('hex')
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-    const now = new Date().toISOString()
 
-    // 2. Insert or update team_members table
-    const { data: member, error: dbError } = await supabase
-      .from('team_members')
-      .upsert(
-        {
-          name: name.trim(),
-          email: cleanEmail,
-          role: cleanRole,
-          title: title?.trim() || null,
-          phone: phone?.trim() || null,
-          hourly_rate: Number(hourly_rate || 0),
-          notes: notes?.trim() || null,
-          status: 'invited',
-          invite_token: inviteToken,
-          invite_token_expires_at: expiresAt,
-          updated_at: now,
-        },
-        { onConflict: 'email' }
+    await client.connect()
+    const res = await client.query(
+      `INSERT INTO team_members (
+        name,
+        email,
+        role,
+        title,
+        phone,
+        hourly_rate,
+        notes,
+        status,
+        invite_token,
+        invite_token_expires_at,
+        created_at,
+        updated_at
       )
-      .select()
-      .single()
+      VALUES ($1, $2, $3, $4, $5, $6, $7, 'invited', $8, $9, NOW(), NOW())
+      ON CONFLICT (email) DO UPDATE SET
+        name = EXCLUDED.name,
+        role = EXCLUDED.role,
+        title = EXCLUDED.title,
+        phone = EXCLUDED.phone,
+        hourly_rate = EXCLUDED.hourly_rate,
+        notes = EXCLUDED.notes,
+        status = 'invited',
+        invite_token = EXCLUDED.invite_token,
+        invite_token_expires_at = EXCLUDED.invite_token_expires_at,
+        updated_at = NOW()
+      RETURNING *`,
+      [
+        name.trim(),
+        cleanEmail,
+        cleanRole,
+        title?.trim() || null,
+        phone?.trim() || null,
+        Number(hourly_rate || 0),
+        notes?.trim() || null,
+        inviteToken,
+        expiresAt,
+      ]
+    )
 
-    if (dbError) {
-      console.error('[POST /api/team] DB error:', dbError)
-      return NextResponse.json({ error: dbError.message }, { status: 400 })
-    }
+    const member = res.rows[0]
 
-    // 3. Send role-specific invitation email with password setup link
+    // Send role-specific invitation email with password setup link
     const appOrigin = process.env.NEXT_PUBLIC_APP_URL || 'https://login.purepulse.one'
     const setupUrl = `${appOrigin}/team/setup?token=${inviteToken}&email=${encodeURIComponent(cleanEmail)}`
 
@@ -212,24 +241,56 @@ export async function POST(req: NextRequest) {
     const msg = err instanceof Error ? err.message : 'Internal error'
     console.error('[POST /api/team] Exception:', err)
     return NextResponse.json({ error: msg }, { status: 500 })
+  } finally {
+    await client.end()
   }
 }
 
-export async function GET() {
+export async function DELETE(req: NextRequest) {
+  const client = getDbClient()
   try {
-    const supabase = adminSupabase()
-    const { data: members, error } = await supabase
-      .from('team_members')
-      .select('*')
-      .order('name')
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get('id')
+    if (!id) return NextResponse.json({ error: 'ID is required' }, { status: 400 })
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    return NextResponse.json({ members: members ?? [] })
+    await client.connect()
+    await client.query('DELETE FROM team_members WHERE id = $1', [id])
+    return NextResponse.json({ ok: true })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Internal error'
     return NextResponse.json({ error: msg }, { status: 500 })
+  } finally {
+    await client.end()
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  const client = getDbClient()
+  try {
+    const body = await req.json()
+    const { id, name, title, role, phone, hourly_rate, notes, status } = body
+    if (!id) return NextResponse.json({ error: 'ID is required' }, { status: 400 })
+
+    await client.connect()
+    const res = await client.query(
+      `UPDATE team_members SET
+        name = COALESCE($1, name),
+        title = COALESCE($2, title),
+        role = COALESCE($3, role),
+        phone = COALESCE($4, phone),
+        hourly_rate = COALESCE($5, hourly_rate),
+        notes = COALESCE($6, notes),
+        status = COALESCE($7, status),
+        updated_at = NOW()
+      WHERE id = $8
+      RETURNING *`,
+      [name, title, role, phone, hourly_rate, notes, status, id]
+    )
+    return NextResponse.json({ ok: true, member: res.rows[0] })
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Internal error'
+    return NextResponse.json({ error: msg }, { status: 500 })
+  } finally {
+    await client.end()
   }
 }
