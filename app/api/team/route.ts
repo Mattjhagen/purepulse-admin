@@ -190,46 +190,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: dbError.message }, { status: 400 })
     }
 
-    // 3. Pre-create or link user in Supabase Auth with metadata
-    try {
-      const { data: authUser, error: authErr } = await supabase.auth.admin.createUser({
-        email: cleanEmail,
-        email_confirm: true,
-        user_metadata: {
-          name: name.trim(),
-          role: cleanRole,
-          title: title?.trim() || null,
-        },
-      })
-
-      if (!authErr && authUser?.user) {
-        await supabase
-          .from('team_members')
-          .update({ auth_user_id: authUser.user.id })
-          .eq('id', member.id)
-      } else if (authErr && authErr.message.includes('already registered')) {
-        // Update user metadata if user already exists
-        const { data: userList } = await supabase.auth.admin.listUsers()
-        const existing = userList?.users?.find((u) => u.email?.toLowerCase() === cleanEmail)
-        if (existing) {
-          await supabase.auth.admin.updateUserById(existing.id, {
-            user_metadata: {
-              name: name.trim(),
-              role: cleanRole,
-              title: title?.trim() || null,
-            },
-          })
-          await supabase
-            .from('team_members')
-            .update({ auth_user_id: existing.id })
-            .eq('id', member.id)
-        }
-      }
-    } catch (authException) {
-      console.warn('[POST /api/team] Auth pre-creation notice:', authException)
-    }
-
-    // 4. Send role-specific invitation email
+    // 3. Send role-specific invitation email with password setup link
     const appOrigin = process.env.NEXT_PUBLIC_APP_URL || 'https://login.purepulse.one'
     const setupUrl = `${appOrigin}/team/setup?token=${inviteToken}&email=${encodeURIComponent(cleanEmail)}`
 

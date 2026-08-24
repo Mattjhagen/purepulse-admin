@@ -158,15 +158,11 @@ export default function TeamSetupPage() {
 
       setTimeout(() => {
         if (!signInErr) {
-          if (member?.role === 'admin' || member?.role === 'manager') {
-            router.push('/dashboard')
-          } else {
-            router.push('/dashboard')
-          }
+          window.location.href = '/dashboard'
         } else {
-          router.push('/login')
+          window.location.href = '/login'
         }
-      }, 1500)
+      }, 1200)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error setting password.')
       setSubmitting(false)

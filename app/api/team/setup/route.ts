@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminSupabase } from '@/lib/supabase'
+import { setUserPasswordAndConfirm } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -83,54 +84,21 @@ export async function POST(req: NextRequest) {
 
     const now = new Date().toISOString()
 
-    // 2. Find or create user in Supabase Auth
-    let authUserId = member.auth_user_id
-    if (!authUserId) {
-      const { data: userList } = await supabase.auth.admin.listUsers()
-      const existing = userList?.users?.find((u) => u.email?.toLowerCase() === cleanEmail)
-      if (existing) {
-        authUserId = existing.id
-      }
-    }
-
-    if (authUserId) {
-      // Update password & confirm email
-      const { error: updateErr } = await supabase.auth.admin.updateUserById(authUserId, {
-        password,
-        email_confirm: true,
-        user_metadata: {
-          name: member.name,
-          role: member.role,
-          title: member.title,
-        },
-      })
-      if (updateErr) {
-        return NextResponse.json({ error: updateErr.message }, { status: 500 })
-      }
-    } else {
-      // Create new Supabase auth user
-      const { data: newUser, error: createErr } = await supabase.auth.admin.createUser({
-        email: cleanEmail,
-        password,
-        email_confirm: true,
-        user_metadata: {
-          name: member.name,
-          role: member.role,
-          title: member.title,
-        },
-      })
-      if (createErr) {
-        return NextResponse.json({ error: createErr.message }, { status: 500 })
-      }
-      authUserId = newUser.user.id
-    }
+    // 2. Set password & confirm email in Supabase Auth via PostgreSQL
+    const { userId } = await setUserPasswordAndConfirm({
+      email: cleanEmail,
+      password,
+      name: member.name,
+      role: member.role,
+      title: member.title,
+    })
 
     // 3. Mark team member as active
     await supabase
       .from('team_members')
       .update({
         status: 'active',
-        auth_user_id: authUserId,
+        auth_user_id: userId,
         invite_token: null,
         invite_token_expires_at: null,
         last_login_at: now,
