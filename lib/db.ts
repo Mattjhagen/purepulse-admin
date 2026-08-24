@@ -3,7 +3,7 @@ import { Client } from 'pg'
 export function getDbClient() {
   return new Client({
     user: 'postgres.kofjljwctqqllnjiejxd',
-    password: process.env.SUPABASE_DB_PASS,
+    password: process.env.SUPABASE_DB_PASS || process.env.DATABASE_PASSWORD || process.env.POSTGRES_PASSWORD || 'uAyNuDiLdoE1wNjV',
     host: 'aws-0-us-east-1.pooler.supabase.com',
     port: 6543,
     database: 'postgres',
