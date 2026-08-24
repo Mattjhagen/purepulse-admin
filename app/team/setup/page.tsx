@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import {
@@ -66,7 +66,7 @@ const ROLE_INFO: Record<string, { label: string; color: string; icon: React.Comp
   },
 }
 
-export default function TeamSetupPage() {
+function TeamSetupContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
@@ -350,5 +350,19 @@ export default function TeamSetupPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function TeamSetupPage() {
+  return (
+    <Suspense
+      fallback={
+        <div style={{ minHeight: '100vh', background: '#07070D', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#A066FF' }}>
+          <Loader2 size={36} className="animate-spin" />
+        </div>
+      }
+    >
+      <TeamSetupContent />
+    </Suspense>
   )
 }
