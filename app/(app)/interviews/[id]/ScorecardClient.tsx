@@ -116,6 +116,7 @@ const SCORECARD_QUESTIONS: QuestionDef[] = [
 ]
 
 export default function ScorecardClient({ interview }: { interview: InterviewData }) {
+  const [currentStatus, setCurrentStatus] = useState<string>(interview.status || 'submitted')
   const [activeQuestionId, setActiveQuestionId] = useState<string>('q1')
   const [scores, setScores] = useState<Record<string, number | null>>(interview.scores || {})
   const [matrix, setMatrix] = useState<Record<string, 'green' | 'red' | null>>(interview.evaluation_matrix || {})
@@ -123,6 +124,26 @@ export default function ScorecardClient({ interview }: { interview: InterviewDat
   const [notes, setNotes] = useState<string>(interview.admin_notes || '')
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
+
+  // Action Modals State
+  const [actionModal, setActionModal] = useState<'schedule' | 'hold' | 'decline' | null>(null)
+  const [actionLoading, setActionLoading] = useState(false)
+  const [actionSuccessMsg, setActionSuccessMsg] = useState('')
+
+  // Schedule In-Person Form
+  const [scheduleDate, setScheduleDate] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() + 2)
+    d.setHours(14, 0, 0, 0)
+    return d.toISOString().slice(0, 16)
+  })
+  const [scheduleLocation, setScheduleLocation] = useState('PurePulse Design Studio / Google Meet')
+  const [scheduleNotes, setScheduleNotes] = useState('')
+  const [scheduleSendEmail, setScheduleSendEmail] = useState(true)
+
+  // Hold / Decline Form
+  const [modalNotes, setModalNotes] = useState('')
+  const [modalSendEmail, setModalSendEmail] = useState(true)
 
   // Onboarding action state
   const [isOnboarding, setIsOnboarding] = useState(false)
@@ -175,6 +196,53 @@ export default function ScorecardClient({ interview }: { interview: InterviewDat
     }
   }
 
+  const executeCandidateAction = async (action: 'schedule_interview' | 'hold' | 'decline') => {
+    setActionLoading(true)
+    try {
+      const payload: Record<string, unknown> = { action }
+      if (action === 'schedule_interview') {
+        payload.interview_date = scheduleDate
+        payload.location_or_link = scheduleLocation
+        payload.notes = scheduleNotes
+        payload.send_email = scheduleSendEmail
+      } else {
+        payload.notes = modalNotes
+        payload.send_email = modalSendEmail
+      }
+
+      const res = await fetch(`/api/interviews/${interview.id}/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      const data = await res.json()
+      if (res.ok && data.ok) {
+        if (action === 'schedule_interview') {
+          setCurrentStatus('interview_scheduled')
+          setActionSuccessMsg(`In-person interview scheduled for ${new Date(scheduleDate).toLocaleDateString()}! Email notification dispatched.`)
+        } else if (action === 'hold') {
+          setCurrentStatus('keep_on_file')
+          setRecommendation('keep_on_file')
+          setActionSuccessMsg('Candidate marked as on hold / kept on file.')
+        } else if (action === 'decline') {
+          setCurrentStatus('rejected')
+          setRecommendation('do_not_proceed')
+          setActionSuccessMsg('Application declined and notice sent.')
+        }
+        setActionModal(null)
+        setTimeout(() => setActionSuccessMsg(''), 5000)
+      } else {
+        alert(data.error || 'Failed to complete action.')
+      }
+    } catch (err) {
+      console.error('[executeCandidateAction] error:', err)
+      alert('Action error. Please try again.')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   const onboardAffiliate = async () => {
     if (!confirm(`Are you sure you want to approve ${interview.candidate_name} and onboard them into the PurePulse Affiliate Program? This will generate their referral code and send an onboarding email.`)) {
       return
@@ -188,6 +256,7 @@ export default function ScorecardClient({ interview }: { interview: InterviewDat
       const data = await res.json()
       if (res.ok && data.ok) {
         setOnboardResult(data)
+        setCurrentStatus('strong_hire')
         setRecommendation('strong_hire')
       } else {
         alert(data.error || 'Failed to onboard candidate.')
@@ -211,27 +280,77 @@ export default function ScorecardClient({ interview }: { interview: InterviewDat
           <ArrowLeft size={16} /> Back to Candidate List
         </Link>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+          {/* Action: Schedule In-Person Interview */}
+          <button
+            onClick={() => {
+              setModalNotes('')
+              setActionModal('schedule')
+            }}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+              background: '#1F1F2E', border: '1px solid #3B82F6', color: '#60A5FA',
+              fontSize: '0.8125rem', fontWeight: 600,
+              padding: '0.625rem 1rem', borderRadius: '8px', cursor: 'pointer',
+            }}
+          >
+            <Calendar size={14} /> Schedule In-Person
+          </button>
+
+          {/* Action: Put on Hold / Keep on File */}
+          <button
+            onClick={() => {
+              setModalNotes('')
+              setActionModal('hold')
+            }}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+              background: '#14141F', border: '1px solid #4B5563', color: '#9CA3AF',
+              fontSize: '0.8125rem', fontWeight: 600,
+              padding: '0.625rem 1rem', borderRadius: '8px', cursor: 'pointer',
+            }}
+          >
+            <Clock size={14} /> Put on Hold
+          </button>
+
+          {/* Action: Decline */}
+          <button
+            onClick={() => {
+              setModalNotes('')
+              setActionModal('decline')
+            }}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+              background: '#14141F', border: '1px solid #7F1D1D', color: '#F87171',
+              fontSize: '0.8125rem', fontWeight: 600,
+              padding: '0.625rem 1rem', borderRadius: '8px', cursor: 'pointer',
+            }}
+          >
+            <X size={14} /> Decline
+          </button>
+
+          {/* Action: Save Scorecard */}
           <button
             onClick={saveScorecard}
             disabled={isSaving}
             style={{
-              display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+              display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
               background: saveSuccess ? '#10B981' : '#14141F',
               border: '1px solid #2D2D42', color: '#fff',
               fontSize: '0.8125rem', fontWeight: 600,
-              padding: '0.625rem 1.25rem', borderRadius: '8px', cursor: 'pointer',
+              padding: '0.625rem 1rem', borderRadius: '8px', cursor: 'pointer',
             }}
           >
             {isSaving ? <Loader2 size={14} className="animate-spin" /> : saveSuccess ? <CheckCircle2 size={14} /> : <Save size={14} />}
-            {saveSuccess ? 'Scorecard Saved!' : 'Save Scorecard'}
+            {saveSuccess ? 'Saved!' : 'Save Scorecard'}
           </button>
 
+          {/* Action: Approve & Onboard */}
           <button
             onClick={onboardAffiliate}
             disabled={isOnboarding}
             style={{
-              display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+              display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
               background: 'linear-gradient(135deg, #10B981, #059669)',
               color: '#fff', fontSize: '0.8125rem', fontWeight: 700,
               padding: '0.625rem 1.25rem', borderRadius: '8px',
@@ -240,10 +359,202 @@ export default function ScorecardClient({ interview }: { interview: InterviewDat
             }}
           >
             {isOnboarding ? <Loader2 size={14} className="animate-spin" /> : <UserCheck size={14} />}
-            Approve &amp; Onboard as Affiliate
+            Approve &amp; Onboard
           </button>
         </div>
       </div>
+
+      {/* Action Notification Alert */}
+      {actionSuccessMsg && (
+        <div style={{ background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '12px', padding: '1rem 1.25rem', marginBottom: '1.5rem', color: '#BFDBFE', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', fontWeight: 600 }}>
+          <CheckCircle2 size={16} color="#60A5FA" /> {actionSuccessMsg}
+        </div>
+      )}
+
+      {/* Action Modals */}
+      {actionModal === 'schedule' && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
+          <div style={{ background: '#100f1c', border: '1px solid rgba(123,47,255,0.4)', borderRadius: '16px', maxWidth: '520px', width: '100%', padding: '1.75rem', color: '#F4F4FF' }}>
+            <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.25rem', fontWeight: 800 }}>
+              📅 Schedule In-Person / Next-Step Interview
+            </h3>
+            <p style={{ margin: '0 0 1.25rem', fontSize: '0.8125rem', color: '#9CA3AF' }}>
+              Set interview date, meeting link or address, and dispatch an invitation email directly to {interview.candidate_name}.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#A066FF', marginBottom: '0.35rem', textTransform: 'uppercase' }}>
+                  Interview Date &amp; Time *
+                </label>
+                <input
+                  type="datetime-local"
+                  value={scheduleDate}
+                  onChange={e => setScheduleDate(e.target.value)}
+                  style={{ width: '100%', background: '#181726', border: '1px solid #2E2D44', borderRadius: '8px', padding: '0.625rem 0.75rem', color: '#fff', fontSize: '0.875rem' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#A066FF', marginBottom: '0.35rem', textTransform: 'uppercase' }}>
+                  Location or Google Meet Link *
+                </label>
+                <input
+                  type="text"
+                  value={scheduleLocation}
+                  onChange={e => setScheduleLocation(e.target.value)}
+                  placeholder="e.g. 123 Main St / Google Meet Link"
+                  style={{ width: '100%', background: '#181726', border: '1px solid #2E2D44', borderRadius: '8px', padding: '0.625rem 0.75rem', color: '#fff', fontSize: '0.875rem' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#A066FF', marginBottom: '0.35rem', textTransform: 'uppercase' }}>
+                  Preparation Notes / Agenda
+                </label>
+                <textarea
+                  rows={2}
+                  value={scheduleNotes}
+                  onChange={e => setScheduleNotes(e.target.value)}
+                  placeholder="e.g. Bring your target prospecting territory list and portfolio questions."
+                  style={{ width: '100%', background: '#181726', border: '1px solid #2E2D44', borderRadius: '8px', padding: '0.625rem 0.75rem', color: '#fff', fontSize: '0.875rem' }}
+                />
+              </div>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', color: '#D1D5DB', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={scheduleSendEmail}
+                  onChange={e => setScheduleSendEmail(e.target.checked)}
+                />
+                Send official interview invitation email to {interview.candidate_email}
+              </label>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <button
+                onClick={() => setActionModal(null)}
+                style={{ background: 'transparent', border: '1px solid #2E2D44', color: '#9CA3AF', padding: '0.5rem 1rem', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8125rem' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => executeCandidateAction('schedule_interview')}
+                disabled={actionLoading}
+                style={{ background: '#3B82F6', color: '#fff', border: 'none', padding: '0.5rem 1.25rem', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.8125rem' }}
+              >
+                {actionLoading ? 'Scheduling...' : 'Confirm & Send Invitation'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {actionModal === 'hold' && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
+          <div style={{ background: '#100f1c', border: '1px solid #4B5563', borderRadius: '16px', maxWidth: '480px', width: '100%', padding: '1.75rem', color: '#F4F4FF' }}>
+            <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.25rem', fontWeight: 800 }}>
+              ⏸️ Put Candidate on Hold / Keep on File
+            </h3>
+            <p style={{ margin: '0 0 1.25rem', fontSize: '0.8125rem', color: '#9CA3AF' }}>
+              Save {interview.candidate_name}'s application for future hiring batches.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#9CA3AF', marginBottom: '0.35rem', textTransform: 'uppercase' }}>
+                  Internal Notes
+                </label>
+                <textarea
+                  rows={3}
+                  value={modalNotes}
+                  onChange={e => setModalNotes(e.target.value)}
+                  placeholder="Reason for holding (e.g. territory currently full, re-evaluate next month)..."
+                  style={{ width: '100%', background: '#181726', border: '1px solid #2E2D44', borderRadius: '8px', padding: '0.625rem 0.75rem', color: '#fff', fontSize: '0.875rem' }}
+                />
+              </div>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', color: '#D1D5DB', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={modalSendEmail}
+                  onChange={e => setModalSendEmail(e.target.checked)}
+                />
+                Send polite update email to candidate
+              </label>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <button
+                onClick={() => setActionModal(null)}
+                style={{ background: 'transparent', border: '1px solid #2E2D44', color: '#9CA3AF', padding: '0.5rem 1rem', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8125rem' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => executeCandidateAction('hold')}
+                disabled={actionLoading}
+                style={{ background: '#4B5563', color: '#fff', border: 'none', padding: '0.5rem 1.25rem', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.8125rem' }}
+              >
+                {actionLoading ? 'Updating...' : 'Put on Hold'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {actionModal === 'decline' && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
+          <div style={{ background: '#100f1c', border: '1px solid #7F1D1D', borderRadius: '16px', maxWidth: '480px', width: '100%', padding: '1.75rem', color: '#F4F4FF' }}>
+            <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.25rem', fontWeight: 800, color: '#F87171' }}>
+              ❌ Decline Candidate Application
+            </h3>
+            <p style={{ margin: '0 0 1.25rem', fontSize: '0.8125rem', color: '#9CA3AF' }}>
+              Mark {interview.candidate_name}'s application as rejected.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#F87171', marginBottom: '0.35rem', textTransform: 'uppercase' }}>
+                  Internal Feedback / Reason
+                </label>
+                <textarea
+                  rows={3}
+                  value={modalNotes}
+                  onChange={e => setModalNotes(e.target.value)}
+                  placeholder="Reason for declining (e.g. communication style, roleplay score)..."
+                  style={{ width: '100%', background: '#181726', border: '1px solid #2E2D44', borderRadius: '8px', padding: '0.625rem 0.75rem', color: '#fff', fontSize: '0.875rem' }}
+                />
+              </div>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', color: '#D1D5DB', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={modalSendEmail}
+                  onChange={e => setModalSendEmail(e.target.checked)}
+                />
+                Send polite decline notice email to candidate
+              </label>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <button
+                onClick={() => setActionModal(null)}
+                style={{ background: 'transparent', border: '1px solid #2E2D44', color: '#9CA3AF', padding: '0.5rem 1rem', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8125rem' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => executeCandidateAction('decline')}
+                disabled={actionLoading}
+                style={{ background: '#DC2626', color: '#fff', border: 'none', padding: '0.5rem 1.25rem', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.8125rem' }}
+              >
+                {actionLoading ? 'Declining...' : 'Decline Application'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Candidate Profile Header Card */}
       <div style={{ background: '#0D0D14', border: '1px solid #1F1F2E', borderRadius: '16px', padding: '1.75rem', marginBottom: '1.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1.5rem' }}>

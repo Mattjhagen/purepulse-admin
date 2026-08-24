@@ -48,7 +48,7 @@ export default function InterviewsClientList({
   const [interviews, setInterviews] = useState<InterviewItem[]>(initialInterviews)
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
-  const [activeTab, setActiveTab] = useState<'all' | 'submitted' | 'strong_hire' | 'hire_with_training' | 'keep_on_file' | 'rejected'>('all')
+  const [activeTab, setActiveTab] = useState<'all' | 'submitted' | 'interview_scheduled' | 'strong_hire' | 'hire_with_training' | 'keep_on_file' | 'rejected'>('all')
   const [showIndeedModal, setShowIndeedModal] = useState(false)
   const [copiedIndeed, setCopiedIndeed] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
@@ -174,6 +174,7 @@ hiring@purepulse.one`
 
     if (activeTab === 'all') return true
     if (activeTab === 'submitted') return item.status === 'submitted' || item.status === 'under_review'
+    if (activeTab === 'interview_scheduled') return item.status === 'interview_scheduled'
     if (activeTab === 'strong_hire') return item.status === 'strong_hire' || item.recommendation === 'strong_hire'
     if (activeTab === 'hire_with_training') return item.status === 'hire_with_training' || item.recommendation === 'hire_with_training'
     if (activeTab === 'keep_on_file') return item.status === 'keep_on_file' || item.recommendation === 'keep_on_file'
@@ -326,10 +327,11 @@ hiring@purepulse.one`
         {[
           { id: 'all', label: `All Candidates (${interviews.length})` },
           { id: 'submitted', label: `Needs Review (${interviews.filter((i) => i.status === 'submitted' || i.status === 'under_review').length})` },
+          { id: 'interview_scheduled', label: `Scheduled In-Person (${interviews.filter((i) => i.status === 'interview_scheduled').length})` },
           { id: 'strong_hire', label: `Strong Hire (${interviews.filter((i) => i.status === 'strong_hire' || i.recommendation === 'strong_hire').length})` },
           { id: 'hire_with_training', label: `Hire w/ Training (${interviews.filter((i) => i.status === 'hire_with_training' || i.recommendation === 'hire_with_training').length})` },
           { id: 'keep_on_file', label: `Keep on File (${interviews.filter((i) => i.status === 'keep_on_file' || i.recommendation === 'keep_on_file').length})` },
-          { id: 'rejected', label: `Do Not Proceed (${interviews.filter((i) => i.status === 'rejected' || i.recommendation === 'do_not_proceed').length})` },
+          { id: 'rejected', label: `Declined (${interviews.filter((i) => i.status === 'rejected' || i.recommendation === 'do_not_proceed').length})` },
         ].map((tab) => {
           const active = activeTab === tab.id
           return (
@@ -391,7 +393,11 @@ hiring@purepulse.one`
                 let badgeBg = 'rgba(245,158,11,0.12)'
                 let badgeText = 'Needs Review'
 
-                if (item.recommendation === 'strong_hire' || item.status === 'strong_hire') {
+                if (item.status === 'interview_scheduled') {
+                  badgeColor = '#60A5FA'
+                  badgeBg = 'rgba(59,130,246,0.15)'
+                  badgeText = 'Scheduled In-Person'
+                } else if (item.recommendation === 'strong_hire' || item.status === 'strong_hire') {
                   badgeColor = '#10B981'
                   badgeBg = 'rgba(16,185,129,0.12)'
                   badgeText = 'Strong Hire'
@@ -406,7 +412,7 @@ hiring@purepulse.one`
                 } else if (item.recommendation === 'do_not_proceed' || item.status === 'rejected') {
                   badgeColor = '#EF4444'
                   badgeBg = 'rgba(239,68,68,0.12)'
-                  badgeText = 'Do Not Proceed'
+                  badgeText = 'Declined'
                 }
 
                 return (

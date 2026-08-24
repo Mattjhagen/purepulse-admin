@@ -4,6 +4,37 @@ import { getResend } from '@/lib/resend'
 
 export const dynamic = 'force-dynamic'
 
+async function sendEmailSafely(options: {
+  to: string
+  subject: string
+  html: string
+}) {
+  const resend = getResend()
+  const fromAddresses = [
+    'Matty at PurePulse <matty@purepulse.one>',
+    'PurePulse Hiring <hiring@login.purepulse.one>',
+    'PurePulse <onboarding@resend.dev>',
+  ]
+
+  for (const from of fromAddresses) {
+    try {
+      const { data, error } = await resend.emails.send({
+        from,
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+      })
+      if (!error && data) {
+        return { success: true, data }
+      }
+      console.warn(`[interviews/submit sendEmailSafely] from ${from} error:`, error?.message)
+    } catch (err: unknown) {
+      console.warn(`[interviews/submit sendEmailSafely] exception with ${from}:`, err instanceof Error ? err.message : String(err))
+    }
+  }
+  return { success: false }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
@@ -70,9 +101,7 @@ export async function POST(req: NextRequest) {
 
     // Send admin alert email (non-blocking)
     try {
-      const resend = getResend()
-      await resend.emails.send({
-        from: 'PurePulse Hiring <hiring@login.purepulse.one>',
+      await sendEmailSafely({
         to: 'matty@purepulse.one',
         subject: `🎥 New Video Interview: ${candidate_name.trim()} (${job_title})`,
         html: `
@@ -119,9 +148,7 @@ export async function POST(req: NextRequest) {
 
     // Send candidate confirmation email
     try {
-      const resend = getResend()
-      await resend.emails.send({
-        from: 'PurePulse Hiring <hiring@login.purepulse.one>',
+      await sendEmailSafely({
         to: candidate_email.trim(),
         subject: `We've received your PurePulse Video Interview!`,
         html: `
@@ -149,10 +176,8 @@ export async function POST(req: NextRequest) {
               <a href="https://mattjhagen.github.io/PurePulseMeet/" style="display:inline-block;background:#7B2FFF;color:#ffffff;font-size:12px;font-weight:700;padding:8px 16px;border-radius:6px;text-decoration:none;">📱 Download Mobile Partner App →</a>
             </div>
 
-
             <p style="color:#888;font-size:13px;">If you have any questions, feel free to reply directly to this email.</p>
           </div>
-
         `,
       })
     } catch (candEmailErr) {
