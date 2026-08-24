@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { adminSupabase } from '@/lib/supabase'
-import { setUserPasswordAndConfirm } from '@/lib/db'
+import { getDbClient, setUserPasswordAndConfirm } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
+  const client = getDbClient()
   try {
     const { searchParams } = new URL(req.url)
     const token = searchParams.get('token')
@@ -15,15 +15,16 @@ export async function GET(req: NextRequest) {
     }
 
     const cleanEmail = email.toLowerCase().trim()
-    const supabase = adminSupabase()
+    await client.connect()
 
-    const { data: member, error } = await supabase
-      .from('team_members')
-      .select('id, name, email, role, title, status, invite_token, invite_token_expires_at')
-      .eq('email', cleanEmail)
-      .maybeSingle()
+    const res = await client.query(
+      'SELECT id, name, email, role, title, status, invite_token, invite_token_expires_at FROM team_members WHERE LOWER(email) = LOWER($1)',
+      [cleanEmail]
+    )
 
-    if (error || !member) {
+    const member = res.rows[0]
+
+    if (!member) {
       return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
     }
 
@@ -49,10 +50,13 @@ export async function GET(req: NextRequest) {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Error validating invite'
     return NextResponse.json({ error: msg }, { status: 500 })
+  } finally {
+    await client.end()
   }
 }
 
 export async function POST(req: NextRequest) {
+  const client = getDbClient()
   try {
     const { token, email, password } = await req.json()
 
@@ -65,24 +69,22 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanEmail = email.toLowerCase().trim()
-    const supabase = adminSupabase()
+    await client.connect()
 
     // 1. Verify invitation token
-    const { data: member, error: memberErr } = await supabase
-      .from('team_members')
-      .select('*')
-      .eq('email', cleanEmail)
-      .maybeSingle()
+    const res = await client.query(
+      'SELECT * FROM team_members WHERE LOWER(email) = LOWER($1)',
+      [cleanEmail]
+    )
+    const member = res.rows[0]
 
-    if (memberErr || !member) {
+    if (!member) {
       return NextResponse.json({ error: 'Team member not found' }, { status: 404 })
     }
 
     if (member.invite_token !== token) {
       return NextResponse.json({ error: 'Invalid invitation token' }, { status: 403 })
     }
-
-    const now = new Date().toISOString()
 
     // 2. Set password & confirm email in Supabase Auth via PostgreSQL
     const { userId } = await setUserPasswordAndConfirm({
@@ -93,18 +95,18 @@ export async function POST(req: NextRequest) {
       title: member.title,
     })
 
-    // 3. Mark team member as active
-    await supabase
-      .from('team_members')
-      .update({
-        status: 'active',
-        auth_user_id: userId,
-        invite_token: null,
-        invite_token_expires_at: null,
-        last_login_at: now,
-        updated_at: now,
-      })
-      .eq('id', member.id)
+    // 3. Mark team member as active in team_members
+    await client.query(
+      `UPDATE team_members SET
+        status = 'active',
+        auth_user_id = $1,
+        invite_token = NULL,
+        invite_token_expires_at = NULL,
+        last_login_at = NOW(),
+        updated_at = NOW()
+      WHERE id = $2`,
+      [userId, member.id]
+    )
 
     return NextResponse.json({
       ok: true,
@@ -116,5 +118,7 @@ export async function POST(req: NextRequest) {
     const msg = err instanceof Error ? err.message : 'Error setting up account'
     console.error('[POST /api/team/setup] Exception:', err)
     return NextResponse.json({ error: msg }, { status: 500 })
+  } finally {
+    await client.end()
   }
 }
