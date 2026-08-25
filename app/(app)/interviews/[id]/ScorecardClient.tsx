@@ -308,6 +308,44 @@ export default function ScorecardClient({ interview }: { interview: InterviewDat
     }
   }
 
+    const send1on1SchedulingLink = async () => {
+    if (!confirm(`Send 1-on-1 Interview Scheduling Link to ${interview.candidate_name} (${interview.candidate_email})?`)) return
+    try {
+      const link = `https://login.purepulse.one/schedule/${interview.id}`
+      const res = await fetch('/api/referrals/bulk-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          referral_ids: [interview.id],
+          custom_subject: `🗓️ Schedule Your 1-on-1 Interview with PurePulse`,
+          custom_body: `
+            <div style="font-family:system-ui,-apple-system,sans-serif;max-width:600px;margin:0 auto;background:#0d0d0d;color:#fff;border-radius:12px;border:1px solid #262626;padding:32px;">
+              <div style="margin-bottom:20px;"><span style="font-size:20px;font-weight:800;color:#fff;">Pure<span style="color:#A066FF;">Pulse</span></span></div>
+              <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#A066FF;">1-on-1 Interview Invitation</p>
+              <h1 style="margin:0 0 16px;font-size:22px;font-weight:800;color:#FFFFFF;">Hi ${interview.candidate_name}, let's schedule your 1-on-1 interview!</h1>
+              <p style="margin:0 0 16px;font-size:15px;color:rgba(244,244,255,0.85);line-height:1.7;">Our hiring team reviewed your pre-screen video responses and we would love to invite you to a 30-minute 1-on-1 virtual interview.</p>
+              <p style="margin:0 0 16px;font-size:15px;color:rgba(244,244,255,0.85);line-height:1.7;">Please select an open time slot on our calendar (Monday–Friday, 12:00 PM – 7:00 PM CT):</p>
+              <div style="margin:24px 0;text-align:center;">
+                <a href="${link}" style="display:inline-block;background:linear-gradient(135deg, #7B2FFF, #00D4FF);color:#FFFFFF;font-weight:800;font-size:15px;padding:14px 28px;border-radius:8px;text-decoration:none;box-shadow:0 4px 16px rgba(123,47,255,0.4);">
+                  Schedule 1-on-1 Interview Now →
+                </a>
+              </div>
+              <p style="margin:16px 0 0;font-size:13px;color:rgba(244,244,255,0.6);">If you have any questions, reply directly to this email.</p>
+            </div>
+          `,
+        }),
+      })
+      if (res.ok) {
+        setActionSuccessMsg(`✅ 1-on-1 Scheduling Link sent to ${interview.candidate_email}!`)
+        setTimeout(() => setActionSuccessMsg(''), 5000)
+      } else {
+        alert('Failed sending scheduling link')
+      }
+    } catch (e: any) {
+      alert(e.message)
+    }
+  }
+
   const onboardAffiliate = async () => {
     if (!confirm(`Are you sure you want to approve ${interview.candidate_name} and onboard them into the PurePulse Affiliate Program? This will generate their referral code and send an onboarding email.`)) {
       return
@@ -412,7 +450,9 @@ export default function ScorecardClient({ interview }: { interview: InterviewDat
 
           {/* Action: Approve & Onboard */}
           <button
-            onClick={onboardAffiliate}
+            onClick={send1on1SchedulingLink}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(0, 212, 255, 0.12)', border: '1px solid rgba(0, 212, 255, 0.3)', color: '#00D4FF', fontSize: '0.8125rem', fontWeight: 700, padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer', marginRight: '8px' }}>📅 Send 1-on-1 Scheduling Link</button>
+          <button onClick={onboardAffiliate}
             disabled={isOnboarding}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: '0.4rem',

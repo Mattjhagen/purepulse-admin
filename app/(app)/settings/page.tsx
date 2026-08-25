@@ -58,6 +58,42 @@ export default function SettingsPage() {
   }
 
   const set = (k: string, v: unknown) => setSettings(s => ({ ...s, [k]: v }))
+  const [appleId, setAppleId] = useState('matty@purepulse.one')
+  const [appPassword, setAppPassword] = useState('')
+  const [calMsg, setCalMsg] = useState('')
+  const [savingCal, setSavingCal] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/settings/calendar')
+      .then(res => res.json())
+      .then(data => {
+        if (data.appleId) setAppleId(data.appleId)
+        if (data.appPassword) setAppPassword(data.appPassword)
+      })
+      .catch(() => {})
+  }, [])
+
+  const saveAppleCalendar = async () => {
+    setSavingCal(true)
+    setCalMsg('')
+    try {
+      const res = await fetch('/api/settings/calendar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appleId, appPassword }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setCalMsg('✅ Apple iCloud Calendar credentials saved successfully!')
+      } else {
+        setCalMsg(`❌ Error: ${data.error || 'Failed saving credentials'}`)
+      }
+    } catch (e: any) {
+      setCalMsg(`❌ Exception: ${e.message}`)
+    } finally {
+      setSavingCal(false)
+    }
+  }
 
   if (loading) return <div style={{ textAlign: 'center', padding: '4rem' }}><span className="spinner" style={{ margin: '0 auto' }} /></div>
 
@@ -127,6 +163,70 @@ export default function SettingsPage() {
           </button>
         </div>
       </form>
+
+      {/* ── Apple iCloud Calendar Integration Card ── */}
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '1.5rem', marginTop: '1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+          <div style={{ background: 'rgba(123,47,255,0.15)', border: '1px solid rgba(123,47,255,0.3)', padding: '6px', borderRadius: '8px', color: '#A066FF' }}>
+            📅
+          </div>
+          <div>
+            <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0, color: '#fff' }}>Apple iCloud 1-on-1 Calendar Integration</h3>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', margin: 0 }}>
+              Connect your Apple iCloud Calendar to sync 1-on-1 candidate booking slots between <strong>12:00 PM – 7:00 PM CT (Mon–Fri)</strong>.
+            </p>
+          </div>
+        </div>
+
+        {calMsg && (
+          <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: calMsg.startsWith('✅') ? '#10B981' : '#F87171', marginBottom: '1rem' }}>{calMsg}</p>
+        )}
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.375rem' }}>
+              Apple ID Email
+            </label>
+            <input
+              type="email"
+              value={appleId}
+              onChange={e => setAppleId(e.target.value)}
+              placeholder="matty@purepulse.one"
+              style={{ width: '100%', padding: '0.625rem 0.875rem', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', color: '#fff', fontSize: '0.875rem' }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '0.375rem' }}>
+              Apple App-Specific Password
+            </label>
+            <input
+              type="password"
+              value={appPassword}
+              onChange={e => setAppPassword(e.target.value)}
+              placeholder="xxxx-xxxx-xxxx-xxxx (from appleid.apple.com)"
+              style={{ width: '100%', padding: '0.625rem 0.875rem', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', color: '#fff', fontSize: '0.875rem' }}
+            />
+          </div>
+        </div>
+
+        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.875rem 1rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div>
+            <p style={{ fontSize: '0.8125rem', fontWeight: 700, margin: '0 0 2px', color: '#fff' }}>Central Time Working Hours Window</p>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>Monday – Friday, 12:00 PM – 7:00 PM CT (Conflicts on your Apple Calendar are automatically hidden)</p>
+          </div>
+          <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#10B981', background: 'rgba(16,185,129,0.12)', padding: '2px 8px', borderRadius: 4, border: '1px solid rgba(16,185,129,0.3)' }}>ACTIVE</span>
+        </div>
+
+        <button
+          type="button"
+          onClick={saveAppleCalendar}
+          disabled={savingCal}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'linear-gradient(135deg, #7B2FFF, #00D4FF)', border: 'none', color: '#fff', padding: '0.625rem 1.25rem', borderRadius: '6px', fontSize: '0.875rem', fontWeight: 700, cursor: savingCal ? 'wait' : 'pointer' }}
+        >
+          {savingCal ? 'Testing & Saving...' : 'Save & Test Apple iCloud Calendar'}
+        </button>
+      </div>
     </>
   )
 }

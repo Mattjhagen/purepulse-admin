@@ -1106,46 +1106,8 @@ export default function InterviewClient({ token }: { token?: string }) {
         </ul>
       </div>
 
-      {/* Microsoft Teams Partner Community Card */}
-      <div style={{ background: '#14141F', border: '1.5px solid #2D2D42', borderRadius: '16px', padding: '1.5rem 1.75rem', textAlign: 'center', marginBottom: '2rem' }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(91,95,199,0.15)', border: '1px solid rgba(91,95,199,0.3)', padding: '0.25rem 0.75rem', borderRadius: '100px', fontSize: '0.75rem', fontWeight: 700, color: '#7B83EB', marginBottom: '0.625rem' }}>
-          📱 Partner App
-        </div>
-        <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.125rem', fontWeight: 800, color: '#fff' }}>
-          Download PurePulse Partner Mobile App
-        </h3>
-        <p style={{ color: '#9CA3AF', fontSize: '0.8125rem', lineHeight: 1.5, maxWidth: '440px', margin: '0 auto 1.25rem' }}>
-          Connect with founders during live coaching huddles, track your MRR, and get instant payouts directly on iOS and Android.
-        </p>
-        <a
-          href="https://mattjhagen.github.io/PurePulseMeet/"
-          target="_blank"
-          rel="noreferrer"
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-            background: 'linear-gradient(135deg, #7B2FFF, #6366F1)', color: '#fff', fontSize: '0.875rem', fontWeight: 700,
-            padding: '0.7rem 1.5rem', borderRadius: '8px', textDecoration: 'none',
-            boxShadow: '0 4px 14px rgba(123,47,255,0.4)',
-          }}
-        >
-          📱 Download Partner App Website →
-        </a>
-      </div>
-
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
-        <a
-          href={`/affiliates/apply?name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`}
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-            background: 'linear-gradient(135deg, #7B2FFF, #9747FF)',
-            color: '#fff', fontWeight: 700, fontSize: '1rem',
-            padding: '0.875rem 2.25rem', borderRadius: '100px', textDecoration: 'none',
-            boxShadow: '0 4px 16px rgba(123,47,255,0.4)',
-          }}
-        >
-          Sign Partner Agreement &amp; Open Portal →
-        </a>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center', marginTop: '1rem' }}>
+        <p style={{ color: '#6B7280', fontSize: '0.875rem' }}>You may close this tab now.</p>
 
         <a
           href="https://purepulse.one"

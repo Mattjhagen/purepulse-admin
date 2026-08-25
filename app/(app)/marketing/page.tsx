@@ -186,6 +186,26 @@ const TEMPLATES: MarketingTemplate[] = [
 
   // --- AFFILIATE PARTNER TEMPLATES ---
   {
+    id: 'affiliate-prescreen-technical-apology',
+    category: 'affiliates',
+    name: '⚠️ Technical Issue Apology & Pre-Screen Re-Submission',
+    subject: '⚠️ Quick Update: Technical Fix & Pre-Screen Re-submission Link for PurePulse',
+    preview: 'Our video pre-screen server encountered a temporary upload issue. Please submit your responses using the updated link.',
+    body: `
+      <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#A066FF;">System Update &amp; Re-submission</p>
+      <h1 style="margin:0 0 16px;font-size:22px;font-weight:800;color:#FFFFFF;">Hi {{name}}, apology for the technical glitch!</h1>
+      <p style="margin:0 0 16px;font-size:15px;color:rgba(244,244,255,0.85);line-height:1.7;">We noticed you attempted to complete your PurePulse video pre-screen interview recently. Due to a temporary video compression issue on our upload server, a few video responses were not fully saved to your profile.</p>
+      <p style="margin:0 0 16px;font-size:15px;color:rgba(244,244,255,0.85);line-height:1.7;">We have upgraded our video processing engine. Please visit the updated link below to submit your responses one last time so our team can review and certify your application:</p>
+      <div style="margin:24px 0;text-align:center;">
+        <a href="https://login.purepulse.one/interview" style="display:inline-block;background:linear-gradient(135deg, #7B2FFF, #00D4FF);color:#FFFFFF;font-weight:800;font-size:15px;padding:14px 28px;border-radius:8px;text-decoration:none;box-shadow:0 4px 16px rgba(123,47,255,0.4);">
+          Record Pre-Screen Interview Now →
+        </a>
+      </div>
+      <p style="margin:16px 0 0;font-size:13px;color:rgba(244,244,255,0.6);">If you have any questions, reply directly to this email and our team will assist you immediately.</p>
+      <p style="margin:24px 0 0;font-size:14px;color:rgba(244,244,255,0.6);">Best regards,<br><strong style="color:#FFF;">PurePulse Hiring Team</strong><br><a href="mailto:hiring@purepulse.one" style="color:#00D4FF;text-decoration:none;">hiring@purepulse.one</a></p>
+    `,
+  },
+  {
     id: 'affiliate-portal-setup',
     category: 'affiliates',
     name: '🎥 Complete Video Pre-Screen',

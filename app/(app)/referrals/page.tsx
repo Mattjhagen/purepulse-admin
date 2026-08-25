@@ -118,6 +118,48 @@ export default function ReferralsPage() {
   const [loading, setLoading] = useState(true)
   const [showNew, setShowNew] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [sendingBulk, setSendingBulk] = useState(false)
+  const [bulkMsg, setBulkMsg] = useState('')
+
+  const toggleSelectAll = (filteredItems: Referral[]) => {
+    if (selectedIds.length === filteredItems.length && filteredItems.length > 0) {
+      setSelectedIds([])
+    } else {
+      setSelectedIds(filteredItems.map(i => i.id))
+    }
+  }
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
+  }
+
+  const handleSendApologyEmail = async () => {
+    if (selectedIds.length === 0) return
+    setSendingBulk(true)
+    setBulkMsg('')
+    try {
+      const res = await fetch('/api/referrals/bulk-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          referral_ids: selectedIds,
+          template_type: 'apology',
+        }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setBulkMsg(`✅ Sent apology & re-screen emails to ${data.sent_count} candidate(s)!`)
+        setSelectedIds([])
+      } else {
+        setBulkMsg(`❌ Error: ${data.error || 'Failed to send bulk email'}`)
+      }
+    } catch (e: any) {
+      setBulkMsg(`❌ Exception: ${e.message}`)
+    } finally {
+      setSendingBulk(false)
+    }
+  }
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all')
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
@@ -266,10 +308,42 @@ export default function ReferralsPage() {
           <p>No affiliates yet. Add someone who&apos;s promoting PurePulse.</p>
         </div>
       ) : (
+        {selectedIds.length > 0 && (
+          <div style={{ marginBottom: '1rem', padding: '0.875rem 1.25rem', background: 'rgba(123,47,255,0.12)', border: '1px solid rgba(123,47,255,0.3)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#A066FF' }}>{selectedIds.length} Candidate(s) Selected</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <button
+                type="button"
+                onClick={handleSendApologyEmail}
+                disabled={sendingBulk}
+                style={{ background: 'linear-gradient(135deg, #7B2FFF, #00D4FF)', border: 'none', color: '#fff', padding: '0.45rem 1rem', borderRadius: '6px', fontSize: '0.8125rem', fontWeight: 700, cursor: sendingBulk ? 'wait' : 'pointer' }}
+              >
+                {sendingBulk ? 'Sending Emails...' : '⚠️ Send Pre-Screen Apology & Re-Submission Email'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedIds([])}
+                style={{ background: 'rgba(255,255,255,0.08)', border: 'none', color: '#9CA3AF', padding: '0.45rem 0.75rem', borderRadius: '6px', fontSize: '0.8125rem', cursor: 'pointer' }}
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        )}
+        {bulkMsg && (
+          <p style={{ fontSize: '0.875rem', marginBottom: '1rem', color: bulkMsg.startsWith('✅') ? '#10B981' : '#F87171', fontWeight: 600 }}>{bulkMsg}</p>
+        )}
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
+                <th style={{ width: '36px' }}>
+                  <input
+                    type="checkbox"
+                    checked={filtered.length > 0 && selectedIds.length === filtered.length}
+                    onChange={() => toggleSelectAll(filtered)}
+                  />
+                </th>
                 <th>Affiliate Partner</th>
                 <th>Partner Code</th>
                 <th>Clicks</th>
@@ -286,6 +360,13 @@ export default function ReferralsPage() {
                 const owed = r.total_earned - r.total_paid
                 return (
                   <tr key={r.id} style={{ opacity: r.active ? 1 : 0.5 }}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(r.id)}
+                        onChange={() => toggleSelect(r.id)}
+                      />
+                    </td>
                     <td>
                       <div style={{ fontWeight: 600 }}>{r.name}</div>
                       {r.email && <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>{r.email}</div>}
