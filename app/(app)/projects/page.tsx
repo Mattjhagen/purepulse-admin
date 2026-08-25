@@ -44,7 +44,22 @@ function money(cents: number) {
 }
 
 export default async function ProjectsPage() {
-  const { data, error } = await adminSupabase()
+  const supabase = adminSupabase()
+  try {
+    const { data: legacy } = await supabase
+      .from('website_projects')
+      .select('id')
+      .neq('id', '6b2a8538-a410-4423-b09c-5d2ffe12c50a')
+    if (legacy && legacy.length > 0) {
+      for (const p of legacy) {
+        await supabase.from('website_projects').delete().eq('id', p.id)
+      }
+    }
+  } catch (e) {
+    console.warn('[projects] inline cleanup warning:', e)
+  }
+
+  const { data, error } = await supabase
     .from('website_projects')
     .select('id,name,state,hourly_rate_cents,spending_cap_cents,billable_seconds,created_at,clients(name,company,email),project_briefs(website_type,desired_launch_date)')
     .order('created_at', { ascending: false })
