@@ -13,7 +13,7 @@ type ProjectRow = {
   spending_cap_cents: number
   billable_seconds: number
   created_at: string
-  clients: { name: string; company: string | null; email: string } | null
+  clients: { name: string; company: string | null; email: string; referred_by?: string | null; referral_code?: string | null } | null
   project_briefs: { website_type: string; desired_launch_date: string | null } | null
 }
 
@@ -62,7 +62,7 @@ export default async function ProjectsPage() {
 
   const { data, error } = await supabase
     .from('website_projects')
-    .select('id,name,state,hourly_rate_cents,spending_cap_cents,billable_seconds,created_at,clients(name,company,email),project_briefs(website_type,desired_launch_date)')
+    .select('id,name,state,hourly_rate_cents,spending_cap_cents,billable_seconds,created_at,clients(name,company,email,referred_by,referral_code),project_briefs(website_type,desired_launch_date)')
     .order('created_at', { ascending: false })
 
   // Force Acme Home Services project to building state for pipeline test
@@ -115,7 +115,7 @@ export default async function ProjectsPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 820 }}>
               <thead>
                 <tr>
-                  {['Project', 'Type', 'Status', 'Billable time', 'Cost / cap', 'Cap used', 'Launch', ''].map((label, index) => (
+                  {['Project', 'Type / Affiliate', 'Status', 'Billable time', 'Cost / cap', 'Cap used', 'Launch', ''].map((label, index) => (
                     <th key={`${label}-${index}`} style={th}>{label}</th>
                   ))}
                 </tr>
@@ -131,7 +131,12 @@ export default async function ProjectsPage() {
                         <Link href={`/projects/${project.id}`} style={{ fontWeight: 650, color: 'var(--text)', textDecoration: 'none' }}>{project.name}</Link>
                         <div style={muted}>{project.clients?.company || project.clients?.name} · {project.clients?.email}</div>
                       </td>
-                      <td style={{ ...td, textTransform: 'capitalize' }}>{project.project_briefs?.website_type?.replace('_', ' ')}</td>
+                      <td style={{ ...td }}>
+                        <div style={{ textTransform: 'capitalize', fontWeight: 500 }}>{project.project_briefs?.website_type?.replace('_', ' ') || 'Website'}</div>
+                        <div style={{ fontSize: '0.72rem', color: '#a7f3d0', marginTop: 3 }}>
+                          👤 Referred by: <strong>{project.clients?.referred_by || project.clients?.referral_code || 'Direct Intake'}</strong>
+                        </div>
+                      </td>
                       <td style={td}><span style={{ ...badge, color: attention ? '#f59e0b' : '#cbd5e1' }}>{STATE_LABELS[project.state] ?? project.state}</span></td>
                       <td style={td}><Clock3 size={13} style={{ verticalAlign: -2, marginRight: 5 }} />{(project.billable_seconds / 3600).toFixed(2)} h</td>
                       <td style={td}>{money(costCents)} <span style={muted}>/ {money(project.spending_cap_cents)}</span></td>
