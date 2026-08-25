@@ -146,7 +146,7 @@ async function sendRoleInviteEmail(params: {
 }
 
 export async function GET() {
-  const client = getDbClient()
+  const client = await getDbClient()
   try {
     await client.connect()
     const res = await client.query('SELECT * FROM team_members ORDER BY name')
@@ -161,7 +161,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const client = getDbClient()
+  const client = await getDbClient()
   try {
     const { name, email, role, title, phone, hourly_rate, notes } = await req.json()
     if (!name || !email) {
@@ -247,7 +247,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const client = getDbClient()
+  const client = await getDbClient()
   try {
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
@@ -265,7 +265,7 @@ export async function DELETE(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const client = getDbClient()
+  const client = await getDbClient()
   try {
     const body = await req.json()
     const { id, name, title, role, phone, hourly_rate, notes, status } = body

@@ -5,7 +5,7 @@ import { adminSupabase } from '@/lib/supabase'
 
 export async function POST(req: NextRequest) {
   const adminErr = await requireAdmin()
-  if (adminErr) {
+  if (adminErr instanceof NextResponse) {
     return adminErr
   }
 

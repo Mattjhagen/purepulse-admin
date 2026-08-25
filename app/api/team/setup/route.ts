@@ -5,7 +5,7 @@ import { signSession } from '@/lib/session'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const client = getDbClient()
+  const client = await getDbClient()
   try {
     const { searchParams } = new URL(req.url)
     const token = searchParams.get('token')
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const client = getDbClient()
+  const client = await getDbClient()
   try {
     const { token, email, password } = await req.json()
 

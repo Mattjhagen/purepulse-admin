@@ -30,7 +30,7 @@ export async function GET() {
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       const email = user.email?.toLowerCase().trim() || ''
-      const client = getDbClient()
+      const client = await getDbClient()
       let memberName = ''
       let memberRole = 'admin'
       let memberTitle: string | null = null

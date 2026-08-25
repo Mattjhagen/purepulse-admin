@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const client = getDbClient()
+  const client = await getDbClient()
   try {
     const { searchParams } = new URL(req.url)
     const requestedUserId = searchParams.get('user_id')
@@ -98,14 +98,14 @@ export async function GET(req: NextRequest) {
     query += ` ORDER BY te.clock_in DESC LIMIT 100`
 
     const res = await client.query(query, params)
-    const entries = res.rows.map((row) => ({
+    const entries = res.rows.map((row: any) => ({
       ...row,
       clients: { name: row.client_name },
     }))
 
     // 3. Find open entry for active user (or targeted user)
     const activeTargetId = (caller.isSuper && requestedUserId && requestedUserId !== 'all') ? requestedUserId : caller.id
-    const openEntry = entries.find((e) => e.status === 'open' && e.user_id === activeTargetId) || null
+    const openEntry = entries.find((e: any) => e.status === 'open' && e.user_id === activeTargetId) || null
 
     return NextResponse.json({
       entries,
@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const client = getDbClient()
+  const client = await getDbClient()
   try {
     const body = await req.json()
     const { action, client_id, description, hourly_rate, clock_in, clock_out, target_user_id } = body
@@ -211,7 +211,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const client = getDbClient()
+  const client = await getDbClient()
   try {
     const body = await req.json()
     const { id, client_id, description, hourly_rate, clock_in, clock_out, status } = body
@@ -269,7 +269,7 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const client = getDbClient()
+  const client = await getDbClient()
   try {
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')

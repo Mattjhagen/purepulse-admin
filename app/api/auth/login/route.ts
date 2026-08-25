@@ -5,7 +5,7 @@ import { signSession } from '@/lib/session'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
-  const client = getDbClient()
+  const client = await getDbClient()
   try {
     const { email, password } = await req.json()
     if (!email || !password) {
