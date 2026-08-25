@@ -123,6 +123,7 @@ export default function ChatWidget() {
 
   return (
     <div
+      className="chat-widget-wrapper"
       style={{
         position: 'fixed',
         bottom: '24px',
@@ -131,6 +132,14 @@ export default function ChatWidget() {
         fontFamily: 'system-ui, -apple-system, sans-serif',
       }}
     >
+      <style>{`
+        @media (max-width: 1024px) {
+          .chat-widget-wrapper {
+            bottom: 84px !important;
+            right: 16px !important;
+          }
+        }
+      `}</style>
       {/* Expanded Chat Box */}
       {isOpen && (
         <div
