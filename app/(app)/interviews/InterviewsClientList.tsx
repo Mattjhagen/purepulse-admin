@@ -366,8 +366,8 @@ hiring@purepulse.one`
           </button>
         </div>
       ) : (
-        <div style={{ background: '#0D0D14', border: '1px solid #1F1F2E', borderRadius: '12px', overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+        <div style={{ background: '#0D0D14', border: '1px solid #1F1F2E', borderRadius: '12px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ minWidth: '850px', width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid #1F1F2E', color: '#9CA3AF', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 <th style={{ padding: '0.875rem 1.25rem' }}>Candidate</th>
