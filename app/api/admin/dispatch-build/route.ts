@@ -4,9 +4,9 @@ import { requireAdmin } from '@/lib/require-admin'
 import { adminSupabase } from '@/lib/supabase'
 
 export async function POST(req: NextRequest) {
-  const adminErr = await requireAdmin()
-  if (adminErr instanceof NextResponse) {
-    return adminErr
+  const isAdmin = await requireAdmin()
+  if (!isAdmin) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
