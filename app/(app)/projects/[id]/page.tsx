@@ -56,20 +56,13 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
     supabase.from('project_audit_events').select('*').eq('project_id', id).order('created_at', { ascending: false }).limit(25),
   ])
 
-  // Auto-calculate live active billing time for running projects
-  let activeBillableSeconds = Number(project.billable_seconds || 0)
-  if (['building', 'testing', 'queued', 'planning'].includes(project.state)) {
-    const createdMs = new Date(project.created_at || Date.now()).getTime()
-    const elapsedSeconds = Math.max(0, Math.floor((Date.now() - createdMs) / 1000))
-    if (elapsedSeconds > 60 && activeBillableSeconds < elapsedSeconds) {
-      activeBillableSeconds = elapsedSeconds
-      // Async update database to persist live calculated billable seconds
-      supabase.from('website_projects').update({ billable_seconds: activeBillableSeconds }).eq('id', id).then(undefined, () => {})
-    }
+  // Compute cost from recorded billable seconds and usage events
+  const totalUsageSeconds = (usage || []).reduce((acc: number, event: any) => acc + Number(event.seconds || 0), 0)
+  if (totalUsageSeconds > project.billable_seconds) {
+    project.billable_seconds = totalUsageSeconds
   }
-  project.billable_seconds = activeBillableSeconds
 
-  const costCents = Math.round(Number(project.billable_seconds) * Number(project.hourly_rate_cents || 2500) / 3600)
+  const costCents = Math.round(Number(project.billable_seconds || 0) * Number(project.hourly_rate_cents || 2500) / 3600)
   const capPercent = Math.min(100, project.spending_cap_cents ? costCents / project.spending_cap_cents * 100 : 0)
   const attention = ['paused_cap_reached', 'payment_failed', 'failed', 'suspended'].includes(project.state)
 
