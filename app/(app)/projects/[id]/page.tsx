@@ -25,13 +25,21 @@ function date(value?: string | null) {
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = adminSupabase()
-  const { data: rawProject } = await supabase
+  let { data: rawProject } = await supabase
     .from('website_projects')
-    .select('*,clients(id,name,email,company,phone),project_briefs(*),contracts(id,title,status,payment_status,signature_token,signed_at)')
+    .select('*,clients(*),project_briefs(*),contracts(*)')
     .eq('id', id)
     .maybeSingle()
 
-  if (!rawProject) notFound()
+  if (!rawProject) {
+    const { data: fallbackProject } = await supabase
+      .from('website_projects')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle()
+    if (!fallbackProject) notFound()
+    rawProject = fallbackProject
+  }
   const project = rawProject as any
   const client = Array.isArray(project.clients) ? project.clients[0] : project.clients
   const brief = Array.isArray(project.project_briefs) ? project.project_briefs[0] : project.project_briefs
