@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { LogOut, ShieldCheck, User } from 'lucide-react'
+import { LogOut, ShieldCheck, User, Menu } from 'lucide-react'
 import { signOut, isSuperuser } from '@/lib/auth'
 import { useRouter } from 'next/navigation'
 
@@ -65,13 +65,34 @@ export default function TopHeader({ initialEmail }: { initialEmail?: string }) {
       style={{
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'flex-end',
+        justifyContent: 'space-between',
         gap: '1rem',
         padding: '0.75rem 0',
         marginBottom: '1.25rem',
         borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
       }}
     >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <button
+          onClick={() => window.dispatchEvent(new Event('open-nav-drawer'))}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            background: 'rgba(123,47,255,0.12)',
+            border: '1px solid rgba(123,47,255,0.3)',
+            color: '#A066FF',
+            padding: '0.4rem 0.75rem',
+            borderRadius: '6px',
+            fontSize: '0.8125rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+          }}
+          className="top-menu-btn"
+        >
+          <Menu size={16} /> ☰ Menu
+        </button>
+      </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
         <div
           style={{
@@ -135,6 +156,9 @@ export default function TopHeader({ initialEmail }: { initialEmail?: string }) {
         <LogOut size={13} strokeWidth={2} />
         Log Out
       </button>
+      <style>{`
+        @media (min-width: 1025px) { .top-menu-btn { display: none !important; } }
+      `}</style>
     </header>
   )
 }

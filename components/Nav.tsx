@@ -39,6 +39,12 @@ const nav = [
 
 export default function Nav({ email }: { email?: string }) {
   const [drawerOpen, setDrawerOpen] = useState(false)
+
+  useEffect(() => {
+    const handleOpen = () => setDrawerOpen(true)
+    window.addEventListener('open-nav-drawer', handleOpen)
+    return () => window.removeEventListener('open-nav-drawer', handleOpen)
+  }, [])
   const pathname = usePathname()
   const router = useRouter()
   const isSuper = isSuperuser(email)
@@ -367,8 +373,8 @@ export default function Nav({ email }: { email?: string }) {
           background: rgba(255, 255, 255, 0.15);
           border-radius: 4px;
         }
-        @media (min-width: 769px) { .mobile-nav { display: none !important; } }
-        @media (max-width: 768px) { .desktop-nav { display: none !important; } }
+        @media (min-width: 1025px) { .mobile-nav { display: none !important; } }
+        @media (max-width: 1024px) { .desktop-nav { display: none !important; } }
       `}</style>
     </>
   )

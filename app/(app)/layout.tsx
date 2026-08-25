@@ -41,7 +41,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {children}
         </main>
         <style>{`
-          @media (max-width: 768px) {
+          @media (max-width: 1024px) {
             .app-main { margin-left: 0 !important; padding: 1rem 1rem 5rem !important; }
           }
         `}</style>
