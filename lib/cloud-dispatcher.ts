@@ -1,3 +1,12 @@
+
+/**
+ * MANDATORY WORKER DIRECTIVE FOR ALL INTAKE PROJECTS:
+ * 1. Provision dedicated repo: Mattjhagen/<project-slug>
+ * 2. Build 5 distinct pages: index.html, services.html, about.html, pricing.html, contact.html
+ * 3. Always-visible navigation header across all screen sizes
+ * 4. Auto-enable GitHub Pages: gh api -X POST /repos/Mattjhagen/<project-slug>/pages
+ * 5. Inject favicon.svg & enforce HTTPS (https_enforced=true)
+ */
 export interface CloudNode {
   id: string
   name: string
