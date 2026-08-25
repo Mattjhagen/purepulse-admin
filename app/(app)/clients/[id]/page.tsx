@@ -197,8 +197,34 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
     const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString()
 
+    let fetchedClient: any = null
+    const { data: directClient } = await supabase.from('clients').select('*').eq('id', id).maybeSingle()
+    if (directClient) {
+      fetchedClient = directClient
+    } else {
+      try {
+        const res = await fetch(`/api/clients/${id}`)
+        if (res.ok) {
+          fetchedClient = await res.json()
+        }
+      } catch (e) {
+        console.warn('[clients/id] API fallback fetch error:', e)
+      }
+    }
+
+    if (!fetchedClient) {
+      try {
+        const { data: projData } = await supabase.from('website_projects').select('*,clients(*)').eq('client_id', id).maybeSingle()
+        if (projData && projData.clients) {
+          fetchedClient = Array.isArray(projData.clients) ? projData.clients[0] : projData.clients
+        }
+      } catch (e) {
+        console.warn('[clients/id] Project fallback fetch error:', e)
+      }
+    }
+
     const [clientRes, invRes, paidRes, contractRes, ticketRes, timeRes, portalRes] = await Promise.all([
-      supabase.from('clients').select('*').eq('id', id).single(),
+      Promise.resolve({ data: fetchedClient }),
       supabase.from('invoices').select('*').eq('client_id', id).order('created_at', { ascending: false }).limit(5),
       supabase.from('invoices').select('total, paid_at').eq('client_id', id).eq('status', 'paid'),
       supabase.from('contracts').select('*').eq('client_id', id).order('created_at', { ascending: false }).limit(5),
