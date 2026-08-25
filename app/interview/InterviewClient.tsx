@@ -174,6 +174,7 @@ export default function InterviewClient({ token }: { token?: string }) {
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [submissionError, setSubmissionError] = useState('')
+  const [submittedInterviewId, setSubmittedInterviewId] = useState<string | null>(null)
   const [validationError, setValidationError] = useState('')
 
   // Refs
@@ -454,6 +455,7 @@ export default function InterviewClient({ token }: { token?: string }) {
 
         const submitData = await submitRes.json()
         if (!submitRes.ok) throw new Error(submitData.error || 'Interview submission failed.')
+        if (submitData.interview_id) setSubmittedInterviewId(submitData.interview_id)
         console.log('[submitInterview] Submitted successfully:', submitData)
       } catch (submitErr) {
         throw submitErr
@@ -1104,6 +1106,30 @@ export default function InterviewClient({ token }: { token?: string }) {
           <li>A confirmation email has been dispatched to <strong style={{ color: '#fff' }}>{email}</strong>.</li>
           <li>Selected candidates receive an official partner invite with their referral code, marketing materials, and portal access.</li>
         </ul>
+      </div>
+
+            {/* 1-on-1 Interview Scheduling Card */}
+      <div style={{ background: 'linear-gradient(135deg, rgba(123,47,255,0.15), rgba(0,212,255,0.12))', border: '1px solid rgba(123,47,255,0.4)', borderRadius: '16px', padding: '1.5rem 1.75rem', textAlign: 'center', marginBottom: '1.75rem' }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(123,47,255,0.2)', border: '1px solid rgba(123,47,255,0.4)', padding: '0.25rem 0.75rem', borderRadius: '100px', fontSize: '0.75rem', fontWeight: 700, color: '#A066FF', marginBottom: '0.625rem' }}>
+          🗓️ Next Step: 1-on-1 Booking
+        </div>
+        <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.125rem', fontWeight: 800, color: '#fff' }}>
+          Schedule Your 1-on-1 Virtual Interview
+        </h3>
+        <p style={{ color: '#9CA3AF', fontSize: '0.8125rem', lineHeight: 1.5, maxWidth: '440px', margin: '0 auto 1.25rem' }}>
+          Select an open 30-minute time slot between <strong>12:00 PM – 7:00 PM Central Time (Mon–Fri)</strong> to connect directly with founder Matty Hagen.
+        </p>
+        <a
+          href={`/schedule/${submittedInterviewId || encodeURIComponent(email)}`}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+            background: 'linear-gradient(135deg, #7B2FFF, #00D4FF)', color: '#fff', fontSize: '0.875rem', fontWeight: 800,
+            padding: '0.75rem 1.75rem', borderRadius: '8px', textDecoration: 'none',
+            boxShadow: '0 4px 16px rgba(123,47,255,0.4)',
+          }}
+        >
+          🗓️ Schedule 1-on-1 Interview Now →
+        </a>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center', marginTop: '1rem' }}>
