@@ -101,12 +101,15 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
               All 5 production pages (<code style={{ color: '#38BDF8' }}>index.tsx</code>, <code style={{ color: '#38BDF8' }}>services.tsx</code>, <code style={{ color: '#38BDF8' }}>about.tsx</code>, <code style={{ color: '#38BDF8' }}>pricing.tsx</code>, <code style={{ color: '#38BDF8' }}>contact.tsx</code>) are complete.
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <a href="https://mattjhagen.github.io/acme-home-services/" target="_blank" rel="noopener noreferrer" style={{ background: 'linear-gradient(135deg, #10B981, #059669)', color: '#fff', fontWeight: 800, textDecoration: 'none', border: 'none', padding: '0.625rem 1.25rem', borderRadius: 8, fontSize: '0.875rem', display: 'inline-flex', alignItems: 'center', boxShadow: '0 4px 14px rgba(16,185,129,0.35)' }}>
+              🌐 Launch Live Site (GitHub Pages) →
+            </a>
             <a href="https://github.com/Mattjhagen/acme-home-services" target="_blank" rel="noopener noreferrer" style={{ background: 'linear-gradient(135deg, #7B2FFF, #00D4FF)', color: '#fff', fontWeight: 800, textDecoration: 'none', border: 'none', padding: '0.625rem 1.25rem', borderRadius: 8, fontSize: '0.875rem', display: 'inline-flex', alignItems: 'center' }}>
-              📦 Open Dedicated GitHub Repository →
+              📦 Open GitHub Repo →
             </a>
             <a href="https://tty-purepulse.relayapp.pro" target="_blank" rel="noopener noreferrer" style={{ color: '#94A3B8', fontSize: '0.85rem', textDecoration: 'none', background: 'rgba(255,255,255,0.06)', padding: '0.625rem 1rem', borderRadius: 8 }}>
-              🎛️ Command Center TTY
+              🎛️ TTY
             </a>
           </div>
         </div>
