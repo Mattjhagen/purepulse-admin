@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
         .update({
           name: name.trim(),
           phone: phone?.trim() || null,
-          status: 'active',
+          status: 'pending_review',
           notes: notes?.trim() || null,
           terms_signed_at: new Date().toISOString(),
           terms_signature_data: signature_data,
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
           email: email.trim().toLowerCase(),
           phone: phone?.trim() || null,
           referral_code: referralCode,
-          status: 'active',
+          status: 'pending_review',
           notes: notes?.trim() || null,
           terms_signed_at: new Date().toISOString(),
           terms_signature_data: signature_data,
