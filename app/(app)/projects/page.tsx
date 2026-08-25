@@ -13,6 +13,7 @@ type ProjectRow = {
   spending_cap_cents: number
   billable_seconds: number
   created_at: string
+  referral_code?: string | null
   clients: { name: string; company: string | null; email: string; referred_by?: string | null; referral_code?: string | null } | null
   project_briefs: { website_type: string; desired_launch_date: string | null } | null
 }
