@@ -1,3 +1,4 @@
+import AutoRefresher from '@/components/AutoRefresher'
 import Link from 'next/link'
 import { adminSupabase } from '@/lib/supabase'
 import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, DollarSign, FolderKanban } from 'lucide-react'
@@ -81,6 +82,7 @@ export default async function ProjectsPage() {
 
   return (
     <>
+      <AutoRefresher intervalMs={3000} />
       <div className="page-header">
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'flex-start' }}>
           <div>

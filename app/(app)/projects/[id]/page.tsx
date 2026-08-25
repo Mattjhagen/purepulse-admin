@@ -1,3 +1,4 @@
+import AutoRefresher from '@/components/AutoRefresher'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { adminSupabase } from '@/lib/supabase'
@@ -61,6 +62,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
   return (
     <>
+      <AutoRefresher intervalMs={3000} />
       <Link href="/projects" style={back}><ArrowLeft size={14} /> Build Projects</Link>
       <div className="page-header">
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
