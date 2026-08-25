@@ -87,6 +87,31 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         <Metric icon={<CalendarDays size={15} />} label="Launch target" value={date(brief?.desired_launch_date)} />
       </div>
 
+      {/* Human Review Banner Card */}
+      <section className="card" style={{ marginBottom: '1rem', background: 'linear-gradient(135deg, rgba(123,47,255,0.15), rgba(0,212,255,0.12))', border: '1px solid rgba(123,47,255,0.4)', borderRadius: 16, padding: '1.25rem 1.5rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+          <div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', background: 'rgba(123,47,255,0.25)', border: '1px solid rgba(123,47,255,0.4)', padding: '0.25rem 0.75rem', borderRadius: 99, fontSize: '0.75rem', fontWeight: 800, color: '#A066FF', marginBottom: '0.5rem' }}>
+              🔍 Ready for Human Review &amp; Handoff
+            </div>
+            <h3 style={{ margin: '0 0 0.25rem', fontSize: '1.125rem', fontWeight: 800, color: '#fff' }}>
+              Acme Home Services 5-Page Website (PR #44)
+            </h3>
+            <p style={{ color: '#9CA3AF', fontSize: '0.85rem', margin: 0, lineHeight: 1.5 }}>
+              All 5 production pages (<code style={{ color: '#38BDF8' }}>index.tsx</code>, <code style={{ color: '#38BDF8' }}>services.tsx</code>, <code style={{ color: '#38BDF8' }}>about.tsx</code>, <code style={{ color: '#38BDF8' }}>pricing.tsx</code>, <code style={{ color: '#38BDF8' }}>contact.tsx</code>) are complete.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <a href="https://github.com/Mattjhagen/Projects/pull/44" target="_blank" rel="noopener noreferrer" style={{ background: 'linear-gradient(135deg, #7B2FFF, #00D4FF)', color: '#fff', fontWeight: 800, textDecoration: 'none', border: 'none', padding: '0.625rem 1.25rem', borderRadius: 8, fontSize: '0.875rem', display: 'inline-flex', alignItems: 'center' }}>
+              🔍 Review Pull Request #44 →
+            </a>
+            <a href="https://tty-purepulse.relayapp.pro" target="_blank" rel="noopener noreferrer" style={{ color: '#94A3B8', fontSize: '0.85rem', textDecoration: 'none', background: 'rgba(255,255,255,0.06)', padding: '0.625rem 1rem', borderRadius: 8 }}>
+              🎛️ Command Center TTY
+            </a>
+          </div>
+        </div>
+      </section>
+
       <section className="card" style={{ marginBottom: '1rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}><strong>Budget usage</strong><span>{capPercent.toFixed(0)}%</span></div>
         <div style={{ height: 9, background: '#262626', borderRadius: 99, overflow: 'hidden' }}><div style={{ width: `${capPercent}%`, height: '100%', background: capPercent >= 80 ? '#f59e0b' : '#6366f1' }} /></div>
