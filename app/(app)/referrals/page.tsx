@@ -300,6 +300,32 @@ export default function ReferralsPage() {
         ))}
       </div>
 
+      {selectedIds.length > 0 && (
+        <div style={{ marginBottom: '1rem', padding: '0.875rem 1.25rem', background: 'rgba(123,47,255,0.12)', border: '1px solid rgba(123,47,255,0.3)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#A066FF' }}>{selectedIds.length} Candidate(s) Selected</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <button
+              type="button"
+              onClick={handleSendApologyEmail}
+              disabled={sendingBulk}
+              style={{ background: 'linear-gradient(135deg, #7B2FFF, #00D4FF)', border: 'none', color: '#fff', padding: '0.45rem 1rem', borderRadius: '6px', fontSize: '0.8125rem', fontWeight: 700, cursor: sendingBulk ? 'wait' : 'pointer' }}
+            >
+              {sendingBulk ? 'Sending Emails...' : '⚠️ Send Pre-Screen Apology & Re-Submission Email'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedIds([])}
+              style={{ background: 'rgba(255,255,255,0.08)', border: 'none', color: '#9CA3AF', padding: '0.45rem 0.75rem', borderRadius: '6px', fontSize: '0.8125rem', cursor: 'pointer' }}
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+      {bulkMsg && (
+        <p style={{ fontSize: '0.875rem', marginBottom: '1rem', color: bulkMsg.startsWith('✅') ? '#10B981' : '#F87171', fontWeight: 600 }}>{bulkMsg}</p>
+      )}
+
       {loading ? (
         <div style={{ textAlign: 'center', padding: '3rem' }}><span className="spinner" style={{ margin: '0 auto' }} /></div>
       ) : filtered.length === 0 ? (
@@ -308,31 +334,6 @@ export default function ReferralsPage() {
           <p>No affiliates yet. Add someone who&apos;s promoting PurePulse.</p>
         </div>
       ) : (
-        {selectedIds.length > 0 && (
-          <div style={{ marginBottom: '1rem', padding: '0.875rem 1.25rem', background: 'rgba(123,47,255,0.12)', border: '1px solid rgba(123,47,255,0.3)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
-            <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#A066FF' }}>{selectedIds.length} Candidate(s) Selected</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <button
-                type="button"
-                onClick={handleSendApologyEmail}
-                disabled={sendingBulk}
-                style={{ background: 'linear-gradient(135deg, #7B2FFF, #00D4FF)', border: 'none', color: '#fff', padding: '0.45rem 1rem', borderRadius: '6px', fontSize: '0.8125rem', fontWeight: 700, cursor: sendingBulk ? 'wait' : 'pointer' }}
-              >
-                {sendingBulk ? 'Sending Emails...' : '⚠️ Send Pre-Screen Apology & Re-Submission Email'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedIds([])}
-                style={{ background: 'rgba(255,255,255,0.08)', border: 'none', color: '#9CA3AF', padding: '0.45rem 0.75rem', borderRadius: '6px', fontSize: '0.8125rem', cursor: 'pointer' }}
-              >
-                Clear
-              </button>
-            </div>
-          </div>
-        )}
-        {bulkMsg && (
-          <p style={{ fontSize: '0.875rem', marginBottom: '1rem', color: bulkMsg.startsWith('✅') ? '#10B981' : '#F87171', fontWeight: 600 }}>{bulkMsg}</p>
-        )}
         <div className="table-wrap">
           <table>
             <thead>
