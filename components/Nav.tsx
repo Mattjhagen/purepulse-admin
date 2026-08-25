@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
+  Menu, X as CloseIcon,
   Clock, Users, Ticket, FileText, FileCheck, Receipt, LayoutDashboard, Settings,
   LogOut, ChevronRight, Inbox, Mail, MessageCircle, Sparkles, CalendarDays,
   Share2, UsersRound, Gift, Megaphone, ShoppingBag, Video, Workflow, ServerCog, ShieldCheck
@@ -36,6 +37,7 @@ const nav = [
 ]
 
 export default function Nav({ email }: { email?: string }) {
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
   const isSuper = isSuperuser(email)
@@ -184,7 +186,93 @@ export default function Nav({ email }: { email?: string }) {
         </div>
       </aside>
 
-      {/* Mobile bottom bar */}
+      {/* Mobile Slideout Menu Drawer */}
+      {drawerOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex' }}>
+          {/* Backdrop overlay */}
+          <div
+            onClick={() => setDrawerOpen(false)}
+            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }}
+          />
+
+          {/* Drawer Panel */}
+          <aside
+            style={{
+              position: 'relative',
+              width: '280px',
+              maxWidth: '85vw',
+              height: '100%',
+              background: '#0d0d0d',
+              borderRight: '1px solid var(--border)',
+              display: 'flex',
+              flexDirection: 'column',
+              padding: '1.25rem 1rem',
+              zIndex: 101,
+              boxShadow: '0 0 40px rgba(0,0,0,0.8)',
+            }}
+          >
+            {/* Drawer Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border)' }}>
+              <div>
+                <span style={{ fontSize: '1.125rem', fontWeight: 800, color: '#fff' }}>PurePulse</span>
+                <span style={{ fontSize: '0.625rem', color: '#7B2FFF', fontWeight: 800, marginLeft: 6, textTransform: 'uppercase' }}>Menu</span>
+              </div>
+              <button
+                onClick={() => setDrawerOpen(false)}
+                style={{ background: 'rgba(255,255,255,0.08)', border: 'none', color: '#9CA3AF', width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                aria-label="Close menu"
+              >
+                <CloseIcon size={18} />
+              </button>
+            </div>
+
+            {/* Full Scrollable Nav List */}
+            <nav style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.25rem', paddingRight: '4px' }}>
+              {nav.map(({ label, href, icon: Icon, external }) => {
+                const active = !external && (pathname === href || (href !== '/dashboard' && pathname.startsWith(href)))
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={() => setDrawerOpen(false)}
+                    target={external ? '_blank' : undefined}
+                    rel={external ? 'noopener noreferrer' : undefined}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.75rem',
+                      padding: '0.6rem 0.75rem',
+                      borderRadius: '6px',
+                      fontSize: '0.875rem',
+                      fontWeight: active ? 700 : 400,
+                      color: active ? '#fff' : 'var(--text-muted)',
+                      background: active ? 'rgba(123,47,255,0.18)' : 'transparent',
+                      border: active ? '1px solid rgba(123,47,255,0.3)' : '1px solid transparent',
+                      textDecoration: 'none',
+                    }}
+                  >
+                    <Icon size={16} color={active ? '#A066FF' : undefined} strokeWidth={active ? 2.5 : 1.75} />
+                    {label}
+                  </Link>
+                )
+              })}
+            </nav>
+
+            {/* Drawer Footer */}
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.875rem', marginTop: '0.75rem' }}>
+              {email && <p style={{ fontSize: '0.75rem', color: '#9CA3AF', margin: '0 0 8px 4px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{email}</p>}
+              <button
+                onClick={() => { setDrawerOpen(false); handleSignOut() }}
+                style={{ width: '100%', padding: '0.625rem', borderRadius: '6px', color: '#F87171', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+              >
+                <LogOut size={16} /> Log Out
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
+
+      {/* Mobile bottom bar with Menu toggle button */}
       <nav
         style={{
           position: 'fixed',
@@ -201,7 +289,7 @@ export default function Nav({ email }: { email?: string }) {
         }}
         className="mobile-nav"
       >
-        {nav.slice(0, 4).map(({ label, href, icon: Icon }) => {
+        {nav.slice(0, 3).map(({ label, href, icon: Icon }) => {
           const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
           return (
             <Link
@@ -224,6 +312,28 @@ export default function Nav({ email }: { email?: string }) {
             </Link>
           )
         })}
+
+        {/* Menu Slideout Trigger Button */}
+        <button
+          onClick={() => setDrawerOpen(true)}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '0.25rem',
+            fontSize: '0.625rem',
+            fontWeight: 700,
+            background: 'transparent',
+            border: 'none',
+            color: drawerOpen ? '#A066FF' : 'var(--text)',
+            padding: '0.375rem 0.5rem',
+            cursor: 'pointer',
+          }}
+        >
+          <Menu size={18} strokeWidth={2.2} />
+          All Menu
+        </button>
+
         <button
           onClick={handleSignOut}
           style={{

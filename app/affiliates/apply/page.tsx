@@ -1017,121 +1017,31 @@ function ApplyContent() {
           </div>
         )}
 
-        {/* ── STEP 3: Success & Instant Portal Entry ── */}
+        {/* ── STEP 3: Under Admin Review Confirmation (24-72 Hours) ── */}
         {step === 3 && (
           <div style={s.card}>
-            <div style={s.successIcon}>✓</div>
-            <h1 style={{ ...s.h1, textAlign: 'center', marginBottom: 6 }}>You&apos;re officially a partner! 🎉</h1>
-            <p style={{ ...s.sub, textAlign: 'center', marginBottom: 28, maxWidth: 500, margin: '0 auto 28px' }}>
-              Your affiliate account is active. We sent a backup login link to <strong>{resultEmail}</strong>. You can enter your portal right now below.
+            <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(123,47,255,0.12)', color: '#7B2FFF', fontSize: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>⏳</div>
+            <h1 style={{ ...s.h1, textAlign: 'center', marginBottom: 6 }}>Application Submitted (24–72 Hours Review) ⏳</h1>
+            <p style={{ ...s.sub, textAlign: 'center', marginBottom: 28, maxWidth: 520, margin: '0 auto 28px' }}>
+              Thank you <strong>{signedBy || name}</strong>! Your 9 pre-screening video responses and signed partner contract have been received by PurePulse Management.
             </p>
 
-            {/* Referral code & Link box */}
-            <div style={s.codeBox}>
-              <p style={s.codeLabel}>Your Unique Partner Code</p>
-              <p style={s.code}>{referralCode}</p>
-              
-              <p style={{ ...s.codeLabel, marginTop: 16 }}>Your Referral Link</p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
-                <code style={{ background: '#fff', border: '1px solid #e5e7eb', padding: '8px 14px', borderRadius: 8, fontSize: '0.875rem', color: '#7B2FFF', wordBreak: 'break-all' }}>
-                  {referralUrl}
-                </code>
-                <CopyButton text={referralUrl} label="Copy Link" />
-              </div>
-            </div>
-
-            {/* Direct Portal CTA */}
-            <div style={{ background: 'linear-gradient(135deg, rgba(123,47,255,0.08), rgba(0,212,255,0.06))', border: '1.5px solid #e0d4fc', borderRadius: 12, padding: '24px 20px', marginBottom: 24, textAlign: 'center' }}>
-              <h3 style={{ margin: '0 0 6px', fontSize: '1.125rem', fontWeight: 800, color: '#111' }}>
-                Ready to explore your partner tools?
+            <div style={{ background: '#f9fafb', border: '1.5px solid #e5e7eb', borderRadius: 12, padding: '24px 20px', marginBottom: 24, textAlign: 'center' }}>
+              <h3 style={{ margin: '0 0 10px', fontSize: '1.0625rem', fontWeight: 800, color: '#111' }}>
+                What Happens Next?
               </h3>
-              <p style={{ margin: '0 0 16px', fontSize: '0.875rem', color: '#555', lineHeight: 1.5 }}>
-                Inside your portal: download high-res printable flyers, generate social media graphics and campaigns, track commissions live, and link your bank account for payouts.
-              </p>
-              <a
-                href={actionLink || '/affiliates/dashboard'}
-                style={{
-                  display: 'inline-block',
-                  background: '#111',
-                  color: '#fff',
-                  padding: '14px 32px',
-                  borderRadius: 8,
-                  fontWeight: 700,
-                  fontSize: '1rem',
-                  textDecoration: 'none',
-                  boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
-                }}
-              >
-                Enter Affiliate Portal Now →
-              </a>
-            </div>
-
-            {/* PurePulse Partner Mobile App Invite */}
-            <div style={{ background: '#111118', border: '1.5px solid #2D2D42', borderRadius: 12, padding: '20px 22px', marginBottom: 24, textAlign: 'center', color: '#fff' }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(91,95,199,0.15)', border: '1px solid rgba(91,95,199,0.3)', padding: '0.25rem 0.75rem', borderRadius: '100px', fontSize: '0.75rem', fontWeight: 700, color: '#7B83EB', marginBottom: '0.625rem' }}>
-                📱 Partner App
-              </div>
-              <h3 style={{ margin: '0 0 6px', fontSize: '1rem', fontWeight: 800, color: '#F3F4F6' }}>
-                Download PurePulse Partner Mobile App
-              </h3>
-              <p style={{ margin: '0 0 16px', fontSize: '0.8125rem', color: '#9CA3AF', lineHeight: 1.5, maxWidth: 460, marginLeft: 'auto', marginRight: 'auto' }}>
-                Join live coaching video huddles, access instant Stripe payouts, chat in channels, and track your MRR directly on your iOS or Android device.
-              </p>
-              <a
-                href="https://mattjhagen.github.io/PurePulseMeet/"
-                target="_blank"
-                rel="noreferrer"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  background: 'linear-gradient(135deg, #7B2FFF, #6366F1)',
-                  color: '#fff',
-                  padding: '10px 24px',
-                  borderRadius: 8,
-                  fontSize: '0.8125rem',
-                  fontWeight: 700,
-                  textDecoration: 'none',
-                  boxShadow: '0 4px 14px rgba(123, 47, 255, 0.4)',
-                }}
-              >
-                📱 Download Partner App Website →
-              </a>
-            </div>
-
-
-            {/* QR code */}
-            <div style={s.qrWrap}>
-
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={`/api/qr?data=${encodeURIComponent(referralUrl)}&size=360`}
-                alt="Referral QR code"
-                width={160}
-                height={160}
-                style={{ display: 'block', margin: '0 auto', borderRadius: 10, border: '1px solid #e5e7eb' }}
-              />
-              <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: 8 }}>
-                Scan with your phone to preview your partner landing page
-              </p>
-            </div>
-
-            <div style={s.nextSteps}>
-              <p style={s.nextStepsLabel}>What&apos;s available in your portal:</p>
-              <ul style={s.nextStepsList}>
-                <li><strong>Printable Assets:</strong> Full-page flyers, business cards, tear-off tab posters &amp; vector QR codes</li>
-                <li><strong>Social Media Studio:</strong> 1:1, 9:16, 16:9 graphic generator &amp; pre-written high-converting copy</li>
-                <li><strong>Commission Tracking:</strong> Live breakdown of active clients, MRR earnings, and payout dates</li>
-                <li><strong>Bank &amp; Payouts:</strong> Direct deposit setup via Stripe Connect for automatic monthly payouts</li>
+              <ul style={{ textAlign: 'left', margin: '0 auto', maxWidth: 460, paddingLeft: 20, color: '#374151', fontSize: '0.875rem', lineHeight: 1.75 }}>
+                <li>Our management team will review your pre-screening video recordings on our admin portal within <strong>24 to 72 hours</strong>.</li>
+                <li>Upon evaluation, you will receive an official status update sent to <strong>{resultEmail || email}</strong>.</li>
+                <li>Once approved, your email will include your official <strong>Partner Portal setup link</strong> and <strong>Unique Referral Code</strong> to start earning commissions immediately.</li>
               </ul>
             </div>
 
-            <a
-              href={actionLink || '/affiliates/dashboard'}
-              style={{ ...s.btn, background: '#7B2FFF', marginTop: 8 }}
-            >
-              Open Affiliate Portal →
-            </a>
+            <div style={{ textAlign: 'center' }}>
+              <Link href="/affiliates" className="btn btn-ghost btn-sm" style={{ color: '#7B2FFF', fontWeight: 600 }}>
+                ← Return to Affiliate Partner Network Home
+              </Link>
+            </div>
           </div>
         )}
       </main>
