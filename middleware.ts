@@ -8,8 +8,8 @@ const PUBLIC_PREFIXES = ['/login/', '/portal/', '/auth/', '/api/', '/_next/', '/
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Always allow public paths
-  if (PUBLIC_EXACT.includes(pathname) || PUBLIC_PREFIXES.some(p => pathname.startsWith(p))) {
+  // Always allow public scheduling, interview, and public pages
+  if (pathname.startsWith('/schedule') || pathname.startsWith('/interview') || PUBLIC_EXACT.includes(pathname) || PUBLIC_PREFIXES.some(p => pathname.startsWith(p))) {
     return NextResponse.next()
   }
 

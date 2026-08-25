@@ -177,12 +177,43 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
         </div>
       `
 
+      const uid = `purepulse-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
+      const dtstart = new Date(startISO).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+      const dtend = new Date(endISO).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+      const dtstamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+
+      const icsContent = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//PurePulse Inc//1-on-1 Interview Scheduler//EN',
+        'CALSCALE:GREGORIAN',
+        'METHOD:REQUEST',
+        'BEGIN:VEVENT',
+        `UID:${uid}`,
+        `DTSTAMP:${dtstamp}`,
+        `DTSTART:${dtstart}`,
+        `DTEND:${dtend}`,
+        `SUMMARY:PurePulse 1-on-1 Virtual Interview (${interview.candidate_name})`,
+        `DESCRIPTION:1-on-1 Partner Interview with Matty Hagen for ${interview.job_title || 'Affiliate Sales Partner'}.`,
+        'ORGANIZER;CN=Matty Hagen:mailto:matty@purepulse.one',
+        `ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=${interview.candidate_name}:mailto:${interview.candidate_email}`,
+        'STATUS:CONFIRMED',
+        'END:VEVENT',
+        'END:VCALENDAR',
+      ].join('\r\n')
+
       try {
         await resend.emails.send({
           from: 'PurePulse Hiring <hiring@purepulse.one>',
           to: [interview.candidate_email, 'matty@purepulse.one'],
           subject: `🗓️ Confirmed: 1-on-1 Interview with ${interview.candidate_name} (${formattedDate})`,
           html: htmlBody,
+          attachments: [
+            {
+              filename: 'interview-invite.ics',
+              content: Buffer.from(icsContent).toString('base64'),
+            },
+          ],
         })
       } catch (emailErr) {
         console.warn('[schedule/token] Confirmation email warning:', emailErr)
