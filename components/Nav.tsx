@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { signOut, isSuperuser } from '@/lib/auth'
 
-const handoffDashboardUrl = process.env.NEXT_PUBLIC_HANDOFF_DASHBOARD_URL || 'https://handoff.relayapp.pro'
+const handoffDashboardUrl = process.env.NEXT_PUBLIC_HANDOFF_DASHBOARD_URL || 'https://tty-purepulse.relayapp.pro'
 
 const nav = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -19,7 +19,7 @@ const nav = [
   { label: 'Clients', href: '/clients', icon: Users },
   { label: 'Build Projects', href: '/projects', icon: Workflow },
   { label: 'Server Handoff', href: '/handoff', icon: ServerCog },
-  { label: 'Handoff Dashboard', href: handoffDashboardUrl, icon: ServerCog, external: true },
+  { label: 'TTY Command Center', href: 'https://tty-purepulse.relayapp.pro', icon: ServerCog, external: true },
   { label: 'Team', href: '/team', icon: UsersRound },
   { label: 'Campaigns', href: '/campaigns', icon: Sparkles },
   { label: 'Marketing', href: '/marketing', icon: Megaphone },

@@ -597,6 +597,7 @@ export default function DashboardPage() {
           <Link href="/contracts" className="btn btn-ghost btn-sm"><Plus size={13} /> Contract</Link>
           <Link href="/tickets" className="btn btn-ghost btn-sm"><Plus size={13} /> Ticket</Link>
           <Link href="/referrals" className="btn btn-ghost btn-sm"><Gift size={13} /> Affiliates</Link>
+          <a href="https://tty-purepulse.relayapp.pro" target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm" style={{ color: '#38bdf8', borderColor: 'rgba(56,189,248,0.3)', background: 'rgba(56,189,248,0.08)' }}>⚡ Live TTY Command Center</a>
           <Link href="/clients" className="btn btn-primary btn-sm"><Plus size={13} /> Client</Link>
         </div>
       </div>
