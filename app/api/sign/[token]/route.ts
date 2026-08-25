@@ -86,7 +86,6 @@ export async function POST(
       const { data: projects, error: projectUpdateError } = await supabase
         .from('website_projects')
         .update({ state: 'building', updated_at: signedAt })
-        .eq('contract_id', contract.id)
         .eq('state', 'awaiting_contract')
         .select('id')
       if (projectUpdateError) throw projectUpdateError

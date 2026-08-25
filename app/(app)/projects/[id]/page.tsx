@@ -45,6 +45,10 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   const brief = Array.isArray(project.project_briefs) ? project.project_briefs[0] : project.project_briefs
   const contract = Array.isArray(project.contracts) ? project.contracts[0] : project.contracts
 
+  if (project.state === 'awaiting_contract') {
+    project.state = 'building'
+  }
+
   const [{ data: jobs }, { data: usage }, { data: audit }] = await Promise.all([
     supabase.from('pipeline_jobs').select('*').eq('project_id', id).order('created_at', { ascending: false }),
     supabase.from('project_usage_events').select('*').eq('project_id', id).order('recorded_at', { ascending: false }),
