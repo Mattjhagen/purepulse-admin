@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
-const PUBLIC_EXACT = ['/', '/login', '/portal', '/pricing', '/pricing/start', '/affiliates', '/affiliates/apply', '/affiliates/login', '/interview', '/team/setup']
-const PUBLIC_PREFIXES = ['/login/', '/portal/', '/auth/', '/api/', '/_next/', '/favicon', '/pricing/', '/sign/', '/checkout/', '/referrals/connect/', '/ref/', '/affiliates/', '/interview/', '/team/setup']
+const PUBLIC_EXACT = ['/', '/login', '/portal', '/pricing', '/pricing/start', '/affiliates', '/affiliates/apply', '/affiliates/login', '/interview', '/schedule', '/team/setup']
+const PUBLIC_PREFIXES = ['/login/', '/portal/', '/auth/', '/api/', '/_next/', '/favicon', '/pricing/', '/sign/', '/checkout/', '/referrals/connect/', '/ref/', '/affiliates/', '/interview/', '/schedule/', '/team/setup']
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
