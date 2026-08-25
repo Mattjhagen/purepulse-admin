@@ -68,7 +68,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
           <div>
             <h1>{project.name}</h1>
-            <p>{client?.company || client?.name} · {client?.email} · <span style={{ color: '#a7f3d0' }}>Referred by: {client?.referred_by || client?.referral_code || 'Direct Intake'}</span></p>
+            <p>{client?.company || client?.name} · {client?.email} · <span style={{ color: '#a7f3d0' }}>Referred by: {(client as any)?.referred_by || (client as any)?.referral_code || (project as any)?.referral_code || 'Direct Intake'}</span></p>
           </div>
           <span style={{ ...statusBadge, color: attention ? '#f59e0b' : '#cbd5e1' }}>{STATE_LABELS[project.state] ?? project.state}</span>
         </div>

@@ -62,7 +62,7 @@ export default async function ProjectsPage() {
 
   const { data, error } = await supabase
     .from('website_projects')
-    .select('id,name,state,hourly_rate_cents,spending_cap_cents,billable_seconds,created_at,clients(name,company,email,referred_by,referral_code),project_briefs(website_type,desired_launch_date)')
+    .select('id,name,state,hourly_rate_cents,spending_cap_cents,billable_seconds,created_at,clients(*),project_briefs(*)')
     .order('created_at', { ascending: false })
 
   // Force Acme Home Services project to building state for pipeline test
@@ -134,7 +134,7 @@ export default async function ProjectsPage() {
                       <td style={{ ...td }}>
                         <div style={{ textTransform: 'capitalize', fontWeight: 500 }}>{project.project_briefs?.website_type?.replace('_', ' ') || 'Website'}</div>
                         <div style={{ fontSize: '0.72rem', color: '#a7f3d0', marginTop: 3 }}>
-                          👤 Referred by: <strong>{project.clients?.referred_by || project.clients?.referral_code || 'Direct Intake'}</strong>
+                          👤 Referred by: <strong>{(project.clients as any)?.referred_by || (project.clients as any)?.referral_code || project.referral_code || 'Direct Intake'}</strong>
                         </div>
                       </td>
                       <td style={td}><span style={{ ...badge, color: attention ? '#f59e0b' : '#cbd5e1' }}>{STATE_LABELS[project.state] ?? project.state}</span></td>
