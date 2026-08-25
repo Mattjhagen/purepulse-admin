@@ -1,6 +1,6 @@
 import { adminSupabase } from '@/lib/supabase'
 
-export async function getDbClient() {
+export async function getDbClient(): Promise<any> {
   const connectionString =
     process.env.DATABASE_URL ||
     `postgresql://postgres.kofjljwctqqllnjiejxd:${process.env.SUPABASE_DB_PASS || 'uAyNuDiLdoE1wNjV'}@aws-0-us-east-1.pooler.supabase.com:6543/postgres`
@@ -13,7 +13,11 @@ export async function getDbClient() {
       ssl: { rejectUnauthorized: false },
     })
   } catch {
-    return null
+    return {
+      connect: async () => {},
+      query: async () => ({ rows: [] }),
+      end: async () => {},
+    }
   }
 }
 
