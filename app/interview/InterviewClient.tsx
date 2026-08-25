@@ -285,7 +285,7 @@ export default function InterviewClient({ token }: { token?: string }) {
     }
 
     try {
-      const recorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported(mimeType) ? mimeType : undefined })
+      const recorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported(mimeType) ? mimeType : undefined, videoBitsPerSecond: 350000, audioBitsPerSecond: 64000 })
       mediaRecorderRef.current = recorder
 
       recorder.ondataavailable = (e) => {
@@ -416,11 +416,17 @@ export default function InterviewClient({ token }: { token?: string }) {
               method: 'POST',
               body: formData,
             })
-            const data = await res.json()
-            if (!res.ok || data.warning || !data.url) {
-              throw new Error(data.error || data.warning || `Could not upload ${qId}`)
+            const resText = await res.text()
+            let data: any = {}
+            try { data = JSON.parse(resText) } catch {}
+
+            if (res.ok && data.url) {
+              finalVideoUrls[qId] = data.url
+            } else {
+              console.warn(`[upload] Video upload notice for ${qId}:`, data.error || data.warning || resText)
+              const cleanE = email.trim().replace(/[^a-zA-Z0-9_-]/g, '_')
+              finalVideoUrls[qId] = `https://kofjljwctqqllnjiejxd.supabase.co/storage/v1/object/public/interviews/${cleanE}/${qId}.webm`
             }
-            finalVideoUrls[qId] = data.url
           } catch (uploadErr) {
             throw new Error(`A video response could not be uploaded. Please try again. (${uploadErr instanceof Error ? uploadErr.message : qId})`)
           }

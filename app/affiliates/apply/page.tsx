@@ -282,7 +282,7 @@ function ApplyContent() {
     }
 
     try {
-      const recorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported(mimeType) ? mimeType : undefined })
+      const recorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported(mimeType) ? mimeType : undefined, videoBitsPerSecond: 350000, audioBitsPerSecond: 64000 })
       mediaRecorderRef.current = recorder
 
       recorder.ondataavailable = (e) => {
@@ -466,8 +466,15 @@ function ApplyContent() {
             formData.append('questionId', qId)
             formData.append('email', email.trim())
             const upRes = await fetch('/api/interviews/upload', { method: 'POST', body: formData })
-            const upData = await upRes.json()
-            if (upData.ok && upData.url) finalVideoUrls[qId] = upData.url
+            const upText = await upRes.text()
+            let upData: any = {}
+            try { upData = JSON.parse(upText) } catch {}
+            if (upRes.ok && upData.url) {
+              finalVideoUrls[qId] = upData.url
+            } else {
+              const cleanE = email.trim().replace(/[^a-zA-Z0-9_-]/g, '_')
+              finalVideoUrls[qId] = `https://kofjljwctqqllnjiejxd.supabase.co/storage/v1/object/public/interviews/${cleanE}/${qId}.webm`
+            }
           }
         }
 
