@@ -21,21 +21,27 @@ export default function SettingsPage() {
   const [settingsId, setSettingsId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const { data } = await supabase.from('contractor_settings').select('*').eq('user_id', user.id).single()
-    if (data) {
-      setSettingsId(data.id)
-      setSettings({
-        overtime_threshold_hours: data.overtime_threshold_hours,
-        overtime_multiplier: data.overtime_multiplier,
-        default_hourly_rate: data.default_hourly_rate,
-        timezone: data.timezone,
-        auto_clock_out: data.auto_clock_out,
-        auto_clock_out_hours: data.auto_clock_out_hours,
-      })
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data } = await supabase.from('contractor_settings').select('*').eq('user_id', user.id).single()
+        if (data) {
+          setSettingsId(data.id)
+          setSettings({
+            overtime_threshold_hours: data.overtime_threshold_hours,
+            overtime_multiplier: data.overtime_multiplier,
+            default_hourly_rate: data.default_hourly_rate,
+            timezone: data.timezone,
+            auto_clock_out: data.auto_clock_out,
+            auto_clock_out_hours: data.auto_clock_out_hours,
+          })
+        }
+      }
+    } catch (e) {
+      console.warn('[Settings] load error:', e)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }, [supabase])
 
   useEffect(() => { load() }, [load])
