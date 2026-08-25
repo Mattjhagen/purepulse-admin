@@ -186,25 +186,54 @@ async function discoverICloudCalendarPath(appleId: string, authHeader: string): 
 
 function parseICalBusyRanges(xmlText: string): { start: Date; end: Date }[] {
   const busy: { start: Date; end: Date }[] = []
-  const dtStartMatches = xmlText.matchAll(/DTSTART(?:;[^:]*)?:([0-9T]+Z?)/g)
-  const dtEndMatches = xmlText.matchAll(/DTEND(?:;[^:]*)?:([0-9T]+Z?)/g)
+  const veventBlocks = xmlText.split('BEGIN:VEVENT')
 
-  const starts = Array.from(dtStartMatches).map(m => parseICalDate(m[1]))
-  const ends = Array.from(dtEndMatches).map(m => parseICalDate(m[1]))
+  for (let i = 1; i < veventBlocks.length; i++) {
+    const block = veventBlocks[i].split('END:VEVENT')[0] || ''
 
-  for (let i = 0; i < Math.min(starts.length, ends.length); i++) {
-    if (starts[i] && ends[i]) {
-      busy.push({ start: starts[i]!, end: ends[i]! })
+    // Match DTSTART & DTEND with optional timezone or VALUE=DATE
+    const dtStartMatch = block.match(/DTSTART(?:;[^:]*)?:([0-9T]+Z?)/i)
+    const dtEndMatch = block.match(/DTEND(?:;[^:]*)?:([0-9T]+Z?)/i)
+
+    if (dtStartMatch && dtStartMatch[1]) {
+      const startDate = parseICalDate(dtStartMatch[1])
+      let endDate = dtEndMatch && dtEndMatch[1] ? parseICalDate(dtEndMatch[1]) : null
+
+      // Default duration to 30 mins if end date missing
+      if (startDate && !endDate) {
+        endDate = new Date(startDate.getTime() + 30 * 60 * 1000)
+      }
+
+      // Handle all-day events (e.g., 20260826 without T)
+      if (startDate && dtStartMatch[1].length === 8) {
+        const fullDayStart = new Date(Date.UTC(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 0, 0, 0))
+        const fullDayEnd = new Date(Date.UTC(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 23, 59, 59))
+        busy.push({ start: fullDayStart, end: fullDayEnd })
+      } else if (startDate && endDate) {
+        busy.push({ start: startDate, end: endDate })
+      }
     }
   }
+
   return busy
 }
 
 function parseICalDate(str: string): Date | null {
   if (!str) return null
-  const m = str.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z?$/)
-  if (!m) return null
-  return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]))
+
+  // All-day date (YYYYMMDD)
+  if (/^\d{8}$/.test(str)) {
+    const y = +str.slice(0, 4)
+    const m = +str.slice(4, 6) - 1
+    const d = +str.slice(6, 8)
+    return new Date(Date.UTC(y, m, d, 0, 0, 0))
+  }
+
+  // Full timestamp (YYYYMMDDTHHMMSSZ or YYYYMMDDTHHMMSS)
+  const match = str.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z?$/)
+  if (!match) return null
+
+  return new Date(Date.UTC(+match[1], +match[2] - 1, +match[3], +match[4], +match[5], +match[6]))
 }
 
 // 3. Generate candidate available 30-minute time slots (Mon-Fri, 12:00 PM - 7:00 PM Central Time)
