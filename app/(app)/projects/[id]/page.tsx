@@ -64,7 +64,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
     if (elapsedSeconds > 60 && activeBillableSeconds < elapsedSeconds) {
       activeBillableSeconds = elapsedSeconds
       // Async update database to persist live calculated billable seconds
-      supabase.from('website_projects').update({ billable_seconds: activeBillableSeconds }).eq('id', id).then(() => {}).catch(() => {})
+      supabase.from('website_projects').update({ billable_seconds: activeBillableSeconds }).eq('id', id).then(undefined, () => {})
     }
   }
   project.billable_seconds = activeBillableSeconds
