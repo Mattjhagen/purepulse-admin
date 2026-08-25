@@ -1,11 +1,16 @@
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { getAppSession } from '@/lib/session'
 
-// Verifies the request comes from an authenticated admin session, not just
-// "someone who found the URL" -- middleware.ts leaves all of /api public,
-// so routes that take real actions (especially ones that move money) need
-// their own check rather than relying on the admin UI alone to gate access.
+// Verifies the request comes from an authenticated admin session or team session cookie
 export async function requireAdmin(): Promise<boolean> {
-  const supabase = await createServerSupabaseClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  return !!session
+  const teamSession = await getAppSession()
+  if (teamSession?.email) return true
+
+  try {
+    const supabase = await createServerSupabaseClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    return !!session
+  } catch {
+    return false
+  }
 }

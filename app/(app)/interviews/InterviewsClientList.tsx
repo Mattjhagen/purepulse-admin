@@ -62,19 +62,7 @@ export default function InterviewsClientList({
   const loadInterviews = useCallback(async () => {
     setLoading(true)
     try {
-      // 1. Try direct supabase browser client
-      const { data, error } = await supabase
-        .from('interviews')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (!error && data && data.length > 0) {
-        setInterviews(data)
-        setLoading(false)
-        return
-      }
-
-      // 2. Fallback to API route
+      // 1. Primary: Server API route with adminSupabase
       const res = await fetch('/api/interviews')
       if (res.ok) {
         const list = await res.json()
@@ -85,7 +73,13 @@ export default function InterviewsClientList({
         }
       }
 
-      if (data) {
+      // 2. Fallback: Direct browser client
+      const { data, error } = await supabase
+        .from('interviews')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (!error && data && data.length > 0) {
         setInterviews(data)
       }
     } catch (err) {
