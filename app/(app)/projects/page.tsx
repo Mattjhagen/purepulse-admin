@@ -1,6 +1,8 @@
 import { requireAdmin } from '@/lib/require-admin'
 import { adminSupabase } from '@/lib/supabase'
 import Link from 'next/link'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { StatTile } from '@/components/ui/StatTile'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -59,138 +61,86 @@ export default async function ProjectsPage() {
   const projects = Array.from(projectMap.values())
 
   const totalRecordedWork = projects.reduce((acc, p) => acc + (Number(p.recorded_work) || 0), 0)
-  const activeBuildsCount = projects.filter(p => p.status === 'Building' || p.status === 'in_progress').length || projects.length
-  const liveSitesCount = projects.filter(p => p.status === 'Live Published' || p.live_url).length
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 p-6 md:p-8 text-white font-sans">
-      {/* Top Title Bar — Uniform with /marketing, /leads, /clients, /team */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight">Build Projects</h1>
-          <p className="text-sm text-zinc-400 mt-1">Control client scopes, pipeline stages, billable time, and hard spending caps.</p>
-        </div>
-        <Link
-          href="/intake"
-          className="bg-white text-zinc-950 font-bold px-6 py-2.5 rounded-full hover:bg-zinc-200 transition text-sm flex items-center gap-2 shadow-md"
-        >
-          + New client intake
-        </Link>
-      </div>
+    <div className="max-w-7xl mx-auto space-y-6 text-white font-sans min-w-0">
+      <PageHeader
+        title="Build Projects"
+        description="Control client scopes, pipeline stages, billable time, and hard spending caps."
+        action={
+          <Link href="/intake" className="btn btn-primary">
+            + New client intake
+          </Link>
+        }
+      />
 
-      {/* 4 KPI Cards — Uniform with /clients and /team */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-[#0d0d10] border border-zinc-800/80 p-6 rounded-2xl shadow-sm flex flex-col justify-between h-32">
-          <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-purple-400 text-sm font-bold">
-            📂
-          </div>
-          <div>
-            <p className="text-3xl font-black text-white tracking-tight">{projects.length}</p>
-            <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mt-1">ACTIVE BUILDS</p>
-          </div>
-        </div>
-
-        <div className="bg-[#0d0d10] border border-zinc-800/80 p-6 rounded-2xl shadow-sm flex flex-col justify-between h-32">
-          <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-amber-400 text-sm font-bold">
-            ⚠️
-          </div>
-          <div>
-            <p className="text-3xl font-black text-white tracking-tight">0</p>
-            <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mt-1">NEEDS ATTENTION</p>
-          </div>
-        </div>
-
-        <div className="bg-[#0d0d10] border border-zinc-800/80 p-6 rounded-2xl shadow-sm flex flex-col justify-between h-32">
-          <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-emerald-400 text-sm font-bold">
-            ✓
-          </div>
-          <div>
-            <p className="text-3xl font-black text-white tracking-tight">0</p>
-            <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mt-1">LIVE SITES</p>
-          </div>
-        </div>
-
-        <div className="bg-[#0d0d10] border border-zinc-800/80 p-6 rounded-2xl shadow-sm flex flex-col justify-between h-32">
-          <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-sky-400 text-sm font-bold">
-            $
-          </div>
-          <div>
-            <p className="text-3xl font-black text-white tracking-tight">${totalRecordedWork.toFixed(2)}</p>
-            <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mt-1">RECORDED WORK</p>
-          </div>
-        </div>
+        <StatTile label="Active Builds" value={projects.length} icon="📂" />
+        <StatTile label="Needs Attention" value={0} icon="⚠️" />
+        <StatTile label="Live Sites" value={0} icon="✓" />
+        <StatTile label="Recorded Work" value={`$${totalRecordedWork.toFixed(2)}`} icon="$" />
       </div>
 
-      {/* Table Container — Uniform with /clients and /team */}
-      <div className="bg-[#0d0d10] border border-zinc-800/80 rounded-2xl overflow-hidden shadow-2xl">
-        <div className="overflow-x-auto min-w-full">
-          <table className="w-full text-left text-sm border-collapse min-w-[950px]">
-            <thead>
-              <tr className="border-b border-zinc-800/80 text-[11px] uppercase tracking-wider text-zinc-400 bg-zinc-900/30">
-                <th className="py-4 px-6 font-extrabold">PROJECT</th>
-                <th className="py-4 px-6 font-extrabold">TYPE / AFFILIATE</th>
-                <th className="py-4 px-6 font-extrabold">STATUS</th>
-                <th className="py-4 px-6 font-extrabold">BILLABLE TIME</th>
-                <th className="py-4 px-6 font-extrabold">COST / CAP</th>
-                <th className="py-4 px-6 font-extrabold">CAP USED</th>
-                <th className="py-4 px-6 font-extrabold text-right">ACTION</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-800/60">
-              {projects.map((p) => {
-                const cap = Number(p.spending_cap) || 500
-                const work = Number(p.recorded_work) || 0
-                const capUsedPct = Math.min(100, Math.round((work / cap) * 100))
-                const detailUrl = `/projects/${p.id}`
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>PROJECT</th>
+              <th>TYPE / AFFILIATE</th>
+              <th>STATUS</th>
+              <th>BILLABLE TIME</th>
+              <th>COST / CAP</th>
+              <th>CAP USED</th>
+              <th style={{ textAlign: 'right' }}>ACTION</th>
+            </tr>
+          </thead>
+          <tbody>
+            {projects.map((p) => {
+              const cap = Number(p.spending_cap) || 500
+              const work = Number(p.recorded_work) || 0
+              const capUsedPct = Math.min(100, Math.round((work / cap) * 100))
+              const detailUrl = `/projects/${p.id}`
 
-                return (
-                  <tr key={p.id} className="hover:bg-zinc-900/40 transition group">
-                    <td className="py-5 px-6 min-w-[260px]">
-                      <Link href={detailUrl} className="block group-hover:text-purple-400 transition">
-                        <p className="font-extrabold text-white text-base leading-tight">{p.name}</p>
-                        <p className="text-xs text-zinc-500 mt-1">{p.slug} · {p.client_email}</p>
-                      </Link>
-                    </td>
-                    <td className="py-5 px-6">
-                      <p className="font-semibold text-zinc-200">{p.type || 'Brochure'}</p>
-                      <p className="text-xs text-purple-400 mt-0.5 font-medium flex items-center gap-1">
-                        👤 Referred by: <span className="font-bold">Direct Intake</span>
-                      </p>
-                    </td>
-                    <td className="py-5 px-6">
-                      <span className="inline-flex items-center px-3.5 py-1 rounded-full text-xs font-semibold bg-zinc-800/90 text-zinc-300 border border-zinc-700/60">
-                        {p.status}
-                      </span>
-                    </td>
-                    <td className="py-5 px-6 font-semibold text-zinc-300 whitespace-nowrap">
-                      ⏱ {Number(p.billable_time || 0).toFixed(2)} h
-                    </td>
-                    <td className="py-5 px-6 whitespace-nowrap">
-                      <p className="font-extrabold text-white text-base">${work.toFixed(2)}</p>
-                      <p className="text-xs text-zinc-500 mt-0.5">/ ${cap.toFixed(2)}</p>
-                    </td>
-                    <td className="py-5 px-6 w-40">
-                      <div className="flex items-center gap-3">
-                        <div className="flex-grow h-1.5 rounded-full bg-zinc-800 overflow-hidden">
-                          <div className="h-full bg-purple-600 rounded-full" style={{ width: `${capUsedPct}%` }} />
-                        </div>
-                        <span className="text-xs font-semibold text-zinc-400">{capUsedPct}%</span>
+              return (
+                <tr key={p.id}>
+                  <td style={{ minWidth: 240 }}>
+                    <Link href={detailUrl} className="block hover:text-purple-400 transition">
+                      <p style={{ fontWeight: 700, fontSize: '0.9375rem' }}>{p.name}</p>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>{p.slug} · {p.client_email}</p>
+                    </Link>
+                  </td>
+                  <td>
+                    <p style={{ fontWeight: 500 }}>{p.type || 'Brochure'}</p>
+                    <p style={{ fontSize: '0.75rem', color: '#c084fc', marginTop: 2 }}>Direct Intake</p>
+                  </td>
+                  <td>
+                    <span className="badge badge-purple">{p.status}</span>
+                  </td>
+                  <td style={{ whiteSpace: 'nowrap', fontWeight: 600 }}>
+                    ⏱ {Number(p.billable_time || 0).toFixed(2)} h
+                  </td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    <p style={{ fontWeight: 700 }}>${work.toFixed(2)}</p>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>/ ${cap.toFixed(2)}</p>
+                  </td>
+                  <td style={{ width: 140 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ flex: 1, height: 6, borderRadius: 999, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                        <div style={{ width: `${capUsedPct}%`, height: '100%', background: '#9333ea', borderRadius: 999 }} />
                       </div>
-                    </td>
-                    <td className="py-5 px-6 text-right whitespace-nowrap">
-                      <Link
-                        href={detailUrl}
-                        className="inline-flex items-center gap-1.5 bg-zinc-800/90 hover:bg-zinc-700 text-white font-bold px-4 py-2 rounded-xl border border-zinc-700/80 transition text-xs shadow-sm"
-                      >
-                        View & Take Action →
-                      </Link>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{capUsedPct}%</span>
+                    </div>
+                  </td>
+                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <Link href={detailUrl} className="btn btn-ghost btn-sm">
+                      View & Take Action →
+                    </Link>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   )
