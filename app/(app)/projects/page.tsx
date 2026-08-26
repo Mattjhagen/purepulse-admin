@@ -75,7 +75,7 @@ export default async function ProjectsPage() {
         </Link>
       </div>
 
-      {/* KPI Cards - Original Dark Black Design */}
+      {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-[#0d0d10] border border-zinc-800/80 p-6 rounded-2xl shadow-sm flex flex-col justify-between h-36">
           <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-800/80 flex items-center justify-center text-purple-400 text-lg">
@@ -118,10 +118,10 @@ export default async function ProjectsPage() {
         </div>
       </div>
 
-      {/* Projects Table Container - Original Dark Black Design */}
+      {/* Projects Table Container */}
       <div className="bg-[#0d0d10] border border-zinc-800/80 rounded-2xl overflow-hidden shadow-2xl">
         <div className="overflow-x-auto min-w-full">
-          <table className="w-full text-left text-sm border-collapse min-w-[850px]">
+          <table className="w-full text-left text-sm border-collapse min-w-[950px]">
             <thead>
               <tr className="border-b border-zinc-800 text-xs uppercase tracking-wider text-zinc-400 bg-zinc-900/30">
                 <th className="py-4 px-6 font-bold">PROJECT</th>
@@ -130,6 +130,7 @@ export default async function ProjectsPage() {
                 <th className="py-4 px-6 font-bold">BILLABLE TIME</th>
                 <th className="py-4 px-6 font-bold">COST / CAP</th>
                 <th className="py-4 px-6 font-bold">CAP USED</th>
+                <th className="py-4 px-6 font-bold text-right">ACTION</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/60">
@@ -141,15 +142,15 @@ export default async function ProjectsPage() {
 
                 return (
                   <tr key={p.id} className="hover:bg-zinc-900/40 transition group">
-                    <td className="py-5 px-6">
+                    <td className="py-5 px-6 min-w-[260px]">
                       <Link href={detailUrl} className="block group-hover:text-purple-400 transition">
-                        <p className="font-bold text-white text-base leading-tight">{p.name}</p>
+                        <p className="font-extrabold text-white text-base leading-tight">{p.name}</p>
                         <p className="text-xs text-zinc-500 mt-1">{p.slug} · {p.client_email}</p>
                       </Link>
                     </td>
                     <td className="py-5 px-6">
                       <p className="font-medium text-zinc-200">{p.type || 'Brochure'}</p>
-                      <p className="text-xs text-sky-400 mt-0.5 font-medium flex items-center gap-1">
+                      <p className="text-xs text-purple-400 mt-0.5 font-medium flex items-center gap-1">
                         👤 Referred by: <span className="font-bold">Direct Intake</span>
                       </p>
                     </td>
@@ -158,20 +159,28 @@ export default async function ProjectsPage() {
                         {p.status}
                       </span>
                     </td>
-                    <td className="py-5 px-6 font-medium text-zinc-300">
+                    <td className="py-5 px-6 font-medium text-zinc-300 whitespace-nowrap">
                       ⏱ {Number(p.billable_time || 0).toFixed(2)} h
                     </td>
-                    <td className="py-5 px-6">
+                    <td className="py-5 px-6 whitespace-nowrap">
                       <p className="font-bold text-white text-base">${work.toFixed(2)}</p>
                       <p className="text-xs text-zinc-500 mt-0.5">/ ${cap.toFixed(2)}</p>
                     </td>
-                    <td className="py-5 px-6 w-48">
+                    <td className="py-5 px-6 w-40">
                       <div className="flex items-center gap-3">
                         <div className="flex-grow h-1.5 rounded-full bg-zinc-800 overflow-hidden">
                           <div className="h-full bg-purple-600 rounded-full" style={{ width: `${capUsedPct}%` }} />
                         </div>
                         <span className="text-xs font-medium text-zinc-400">{capUsedPct}%</span>
                       </div>
+                    </td>
+                    <td className="py-5 px-6 text-right whitespace-nowrap">
+                      <Link
+                        href={detailUrl}
+                        className="inline-flex items-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 text-white font-bold px-4 py-2 rounded-xl border border-zinc-700/80 transition text-xs shadow-sm"
+                      >
+                        View & Take Action →
+                      </Link>
                     </td>
                   </tr>
                 )
