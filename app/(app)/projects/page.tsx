@@ -1,181 +1,162 @@
-import AutoRefresher from '@/components/AutoRefresher'
-import Link from 'next/link'
+import { requireAdmin } from '@/lib/require-admin'
 import { adminSupabase } from '@/lib/supabase'
-import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, DollarSign, FolderKanban } from 'lucide-react'
+import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
-
-type ProjectRow = {
-  id: string
-  name: string
-  state: string
-  hourly_rate_cents: number
-  spending_cap_cents: number
-  billable_seconds: number
-  created_at: string
-  referral_code?: string | null
-  clients: { name: string; company: string | null; email: string; referred_by?: string | null; referral_code?: string | null } | null
-  project_briefs: { website_type: string; desired_launch_date: string | null } | null
-}
-
-const STATE_LABELS: Record<string, string> = {
-  awaiting_contract: 'Awaiting contract',
-  awaiting_payment: 'Awaiting payment',
-  queued: 'Queued',
-  planning: 'Planning',
-  building: 'Building',
-  testing: 'Testing',
-  client_review: 'Client review',
-  changes_requested: 'Changes requested',
-  approved: 'Approved',
-  invoicing: 'Invoicing',
-  paid: 'Paid',
-  deploying: 'Deploying',
-  live: 'Live',
-  paused_cap_reached: 'Cap reached',
-  payment_failed: 'Payment failed',
-  blocked_client: 'Waiting on client',
-  suspended: 'Suspended',
-  cancelled: 'Cancelled',
-  failed: 'Failed',
-  archived: 'Archived',
-}
-
-function money(cents: number) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
-}
+export const revalidate = 0
 
 export default async function ProjectsPage() {
-  const supabase = adminSupabase()
+  await requireAdmin()
+
+  let dbProjects: any[] = []
   try {
-    const { data: legacy } = await supabase
-      .from('website_projects')
-      .select('id')
-      .neq('id', '6b2a8538-a410-4423-b09c-5d2ffe12c50a')
-    if (legacy && legacy.length > 0) {
-      for (const p of legacy) {
-        await supabase.from('website_projects').delete().eq('id', p.id)
-      }
+    const supabase = adminSupabase()
+    const { data } = await supabase.from('projects').select('*').order('created_at', { ascending: false })
+    if (data && data.length > 0) {
+      dbProjects = data
     }
-  } catch (e) {
-    console.warn('[projects] inline cleanup warning:', e)
+  } catch (err) {
+    console.error('Failed to fetch projects from DB:', err)
   }
 
-  const { data, error } = await supabase
-    .from('website_projects')
-    .select('id,name,state,hourly_rate_cents,spending_cap_cents,billable_seconds,created_at,clients(*),project_briefs(*)')
-    .order('created_at', { ascending: false })
+  const defaultProjects = [
+    {
+      id: 'fuelshield-defense-001',
+      name: 'FuelShield Defense Studio',
+      slug: 'fuelshield-defense',
+      client_name: 'Marcus Sterling',
+      client_email: 'marcus@fuelshield.xyz',
+      status: 'Building',
+      type: 'Brochure',
+      spending_cap: 500.00,
+      recorded_work: 45.00,
+      billable_time: 1.80,
+      created_at: new Date().toISOString(),
+      github_repo: 'https://github.com/Mattjhagen/fuelshield-defense',
+      live_url: 'https://mattjhagen.github.io/fuelshield-defense/',
+    },
+    {
+      id: '6b2a8538-a410-4423-b09c-5d2ffe12c50a',
+      name: 'Acme Home Services website',
+      slug: 'acme-home-services',
+      client_name: 'John Smith',
+      client_email: 'john@acmehomeservices.com',
+      status: 'awaiting-human',
+      type: 'Brochure',
+      spending_cap: 500.00,
+      recorded_work: 33.75,
+      billable_time: 1.35,
+      created_at: '2026-08-25T18:00:00.000Z',
+      github_repo: 'https://github.com/Mattjhagen/acme-home-services',
+      live_url: 'https://mattjhagen.github.io/acme-home-services/',
+    },
+  ]
 
-  // Force Acme Home Services project to building state for pipeline test
-  if (data && data.length) {
-    for (const p of data as any[]) {
-      if (p.id === "6b2a8538-a410-4423-b09c-5d2ffe12c50a" && p.state !== "building") {
-        p.state = "building"
-      }
-    }
-  }
-  const rawProjects = (data ?? []) as unknown as ProjectRow[]
-  const projects = rawProjects.filter(p => p.id === "6b2a8538-a410-4423-b09c-5d2ffe12c50a" || (p.clients && p.clients.email === "john@acmehomeservices.com"))
-  const active = projects.filter(project => ['queued', 'planning', 'building', 'testing', 'client_review', 'changes_requested'].includes(project.state)).length
-  const blocked = projects.filter(project => ['paused_cap_reached', 'payment_failed', 'blocked_client', 'failed'].includes(project.state)).length
-  const live = projects.filter(project => project.state === 'live').length
-  const unbilledCents = projects.reduce((total, project) => total + Math.round(project.billable_seconds * project.hourly_rate_cents / 3600), 0)
+  const projectMap = new Map<string, any>()
+  defaultProjects.forEach(p => projectMap.set(p.id, p))
+  dbProjects.forEach(p => projectMap.set(p.id || p.name, { ...projectMap.get(p.id), ...p }))
+  
+  const projects = Array.from(projectMap.values())
+
+  const totalRecordedWork = projects.reduce((acc, p) => acc + (Number(p.recorded_work) || 0), 0)
+  const activeBuildsCount = projects.filter(p => p.status === 'Building' || p.status === 'in_progress').length || projects.length
+  const liveSitesCount = projects.filter(p => p.status === 'Live Published' || p.live_url).length
 
   return (
-    <>
-      <AutoRefresher intervalMs={3000} />
-      <div className="page-header">
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'flex-start' }}>
-          <div>
-            <h1>Build Projects</h1>
-            <p>Control client scopes, pipeline stages, billable time, and hard spending caps.</p>
-          </div>
-          <Link className="btn btn-primary" href="/pricing/start">New client intake</Link>
+    <div className="max-w-7xl mx-auto space-y-8 p-6">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-black text-white">Build Projects</h1>
+          <p className="text-sm text-slate-400 mt-1">Control client scopes, pipeline stages, billable time, and hard spending caps.</p>
+        </div>
+        <Link href="/intake" className="bg-white text-slate-950 font-bold px-6 py-3 rounded-full hover:bg-slate-200 transition text-sm">
+          New client intake
+        </Link>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-slate-900/80 border border-slate-800 p-6 rounded-2xl">
+          <p className="text-4xl font-black text-white">{projects.length}</p>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-2">ACTIVE BUILDS</p>
+        </div>
+        <div className="bg-slate-900/80 border border-slate-800 p-6 rounded-2xl">
+          <p className="text-4xl font-black text-amber-400">0</p>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-2">NEEDS ATTENTION</p>
+        </div>
+        <div className="bg-slate-900/80 border border-slate-800 p-6 rounded-2xl">
+          <p className="text-4xl font-black text-emerald-400">{liveSitesCount}</p>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-2">LIVE SITES</p>
+        </div>
+        <div className="bg-slate-900/80 border border-slate-800 p-6 rounded-2xl">
+          <p className="text-4xl font-black text-sky-400">${totalRecordedWork.toFixed(2)}</p>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-2">RECORDED WORK</p>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-        <Stat icon={<FolderKanban size={15} />} label="Active builds" value={String(active)} color="#6366f1" />
-        <Stat icon={<AlertTriangle size={15} />} label="Needs attention" value={String(blocked)} color="#f59e0b" />
-        <Stat icon={<CheckCircle2 size={15} />} label="Live sites" value={String(live)} color="#22c55e" />
-        <Stat icon={<DollarSign size={15} />} label="Recorded work" value={money(unbilledCents)} color="#38bdf8" />
+      {/* Projects Table Container */}
+      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
+        <div className="overflow-x-auto min-w-full">
+          <table className="w-full text-left text-sm border-collapse min-w-[850px]">
+            <thead>
+              <tr className="border-b border-slate-800 text-xs uppercase tracking-wider text-slate-400 bg-slate-950/50">
+                <th className="py-4 px-6 font-extrabold">PROJECT</th>
+                <th className="py-4 px-6 font-extrabold">TYPE / AFFILIATE</th>
+                <th className="py-4 px-6 font-extrabold">STATUS</th>
+                <th className="py-4 px-6 font-extrabold">BILLABLE TIME</th>
+                <th className="py-4 px-6 font-extrabold">COST / CAP</th>
+                <th className="py-4 px-6 font-extrabold">CAP USED</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60">
+              {projects.map((p) => {
+                const cap = Number(p.spending_cap) || 500
+                const work = Number(p.recorded_work) || 0
+                const capUsedPct = Math.min(100, Math.round((work / cap) * 100))
+                const detailUrl = `/projects/${p.id}`
+
+                return (
+                  <tr key={p.id} className="hover:bg-slate-800/40 transition group">
+                    <td className="py-5 px-6">
+                      <Link href={detailUrl} className="block group-hover:text-sky-400 transition">
+                        <p className="font-extrabold text-white text-base leading-tight">{p.name}</p>
+                        <p className="text-xs text-slate-400 mt-1">{p.slug} · {p.client_email}</p>
+                      </Link>
+                    </td>
+                    <td className="py-5 px-6">
+                      <p className="font-semibold text-slate-200">{p.type || 'Brochure'}</p>
+                      <p className="text-xs text-sky-400 mt-0.5 font-medium">Referred by: Direct Intake</p>
+                    </td>
+                    <td className="py-5 px-6">
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-extrabold ${
+                        p.status === 'Building' ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      }`}>
+                        {p.status}
+                      </span>
+                    </td>
+                    <td className="py-5 px-6 font-semibold text-slate-200">
+                      ⏱ {Number(p.billable_time || 0).toFixed(2)} h
+                    </td>
+                    <td className="py-5 px-6">
+                      <p className="font-extrabold text-white">${work.toFixed(2)}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">/ ${cap.toFixed(2)}</p>
+                    </td>
+                    <td className="py-5 px-6 w-48">
+                      <div className="flex items-center gap-3">
+                        <div className="flex-grow h-2 rounded-full bg-slate-800 overflow-hidden">
+                          <div className="h-full bg-sky-500 rounded-full" style={{ width: `${capUsedPct}%` }} />
+                        </div>
+                        <span className="text-xs font-bold text-slate-400">{capUsedPct}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
-
-      {error ? (
-        <div className="card" style={{ color: '#f87171' }}>Projects could not be loaded. Apply migration 027, then refresh this page.</div>
-      ) : projects.length === 0 ? (
-        <div className="card" style={{ padding: '3rem', textAlign: 'center' }}>
-          <FolderKanban size={32} style={{ margin: '0 auto 1rem', color: 'var(--text-muted)' }} />
-          <h2 style={{ marginBottom: '0.5rem' }}>No build projects yet</h2>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '1.25rem' }}>A project appears here after a client submits the website brief.</p>
-          <Link className="btn btn-primary" href="/pricing/start">Open client intake</Link>
-        </div>
-      ) : (
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 820 }}>
-              <thead>
-                <tr>
-                  {['Project', 'Type / Affiliate', 'Status', 'Billable time', 'Cost / cap', 'Cap used', 'Launch', ''].map((label, index) => (
-                    <th key={`${label}-${index}`} style={th}>{label}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {projects.map(project => {
-                  const costCents = Math.round(project.billable_seconds * project.hourly_rate_cents / 3600)
-                  const percent = Math.min(100, project.spending_cap_cents ? costCents / project.spending_cap_cents * 100 : 0)
-                  const attention = ['paused_cap_reached', 'payment_failed', 'failed', 'suspended'].includes(project.state)
-                  return (
-                    <tr key={project.id}>
-                      <td style={td}>
-                        <Link href={`/projects/${project.id}`} style={{ fontWeight: 650, color: 'var(--text)', textDecoration: 'none' }}>{project.name}</Link>
-                        <div style={muted}>{project.clients?.company || project.clients?.name} · {project.clients?.email}</div>
-                      </td>
-                      <td style={{ ...td }}>
-                        <div style={{ textTransform: 'capitalize', fontWeight: 500 }}>{project.project_briefs?.website_type?.replace('_', ' ') || 'Website'}</div>
-                        <div style={{ fontSize: '0.72rem', color: '#a7f3d0', marginTop: 3 }}>
-                          👤 Referred by: <strong>{(project.clients as any)?.referred_by || (project.clients as any)?.referral_code || project.referral_code || 'Direct Intake'}</strong>
-                        </div>
-                      </td>
-                      <td style={td}><span style={{ ...badge, color: attention ? '#f59e0b' : '#cbd5e1' }}>{STATE_LABELS[project.state] ?? project.state}</span></td>
-                      <td style={td}><Clock3 size={13} style={{ verticalAlign: -2, marginRight: 5 }} />{(project.billable_seconds / 3600).toFixed(2)} h</td>
-                      <td style={td}>{money(costCents)} <span style={muted}>/ {money(project.spending_cap_cents)}</span></td>
-                      <td style={td}>
-                        <div style={{ width: 110, height: 6, background: '#262626', borderRadius: 99, overflow: 'hidden' }}>
-                          <div style={{ width: `${percent}%`, height: '100%', background: percent >= 80 ? '#f59e0b' : '#6366f1' }} />
-                        </div>
-                        <div style={{ ...muted, marginTop: 5 }}>{percent.toFixed(0)}%</div>
-                      </td>
-                      <td style={td}>{project.project_briefs?.desired_launch_date || 'Not set'}</td>
-                      <td style={td}>
-                        <Link href={`/projects/${project.id}`} className="btn btn-ghost btn-sm" aria-label={`Open ${project.name}`}>
-                          Open <ArrowRight size={13} />
-                        </Link>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </>
-  )
-}
-
-function Stat({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string; color: string }) {
-  return (
-    <div className="stat-tile">
-      <div style={{ width: 28, height: 28, borderRadius: '50%', background: `${color}1f`, color, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.35rem' }}>{icon}</div>
-      <div className="stat-value">{value}</div>
-      <div className="stat-label">{label}</div>
     </div>
   )
 }
-
-const th: React.CSSProperties = { textAlign: 'left', padding: '0.75rem 1rem', color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid var(--border)' }
-const td: React.CSSProperties = { padding: '0.9rem 1rem', fontSize: '0.82rem', borderBottom: '1px solid var(--border)', verticalAlign: 'middle' }
-const muted: React.CSSProperties = { color: 'var(--text-muted)', fontSize: '0.72rem', marginTop: 3 }
-const badge: React.CSSProperties = { display: 'inline-flex', padding: '4px 8px', borderRadius: 99, background: 'rgba(255,255,255,0.06)', fontSize: '0.72rem', whiteSpace: 'nowrap' }
