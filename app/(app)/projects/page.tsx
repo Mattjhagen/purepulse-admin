@@ -3,19 +3,47 @@ import { adminSupabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { StatTile } from '@/components/ui/StatTile'
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  BriefcaseBusiness,
+  CheckCircle2,
+  Clock3,
+  DollarSign,
+  FolderKanban,
+  Gauge,
+  Mail,
+  Plus,
+} from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+interface BuildProject {
+  id: string
+  name: string
+  slug: string
+  client_name: string
+  client_email: string
+  status: string
+  type: string
+  spending_cap: number
+  recorded_work: number
+  billable_time: number
+  created_at: string
+  github_repo: string
+  live_url: string
+}
+
 export default async function ProjectsPage() {
   await requireAdmin()
 
-  let dbProjects: any[] = []
+  let dbProjects: BuildProject[] = []
   try {
     const supabase = adminSupabase()
     const { data } = await supabase.from('projects').select('*').order('created_at', { ascending: false })
     if (data && data.length > 0) {
-      dbProjects = data
+      dbProjects = data as BuildProject[]
     }
   } catch (err) {
     console.error('Failed to fetch projects from DB:', err)
@@ -54,7 +82,7 @@ export default async function ProjectsPage() {
     },
   ]
 
-  const projectMap = new Map<string, any>()
+  const projectMap = new Map<string, BuildProject>()
   defaultProjects.forEach(p => projectMap.set(p.id, p))
   dbProjects.forEach(p => projectMap.set(p.id || p.name, { ...projectMap.get(p.id), ...p }))
   
@@ -63,26 +91,35 @@ export default async function ProjectsPage() {
   const totalRecordedWork = projects.reduce((acc, p) => acc + (Number(p.recorded_work) || 0), 0)
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 text-white font-sans min-w-0">
+    <div className="projects-shell text-white font-sans">
       <PageHeader
         title="Build Projects"
         description="Control client scopes, pipeline stages, billable time, and hard spending caps."
         action={
           <Link href="/intake" className="btn btn-primary">
-            + New client intake
+            <Plus size={16} aria-hidden="true" /> New client intake
           </Link>
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatTile label="Active Builds" value={projects.length} icon="📂" />
-        <StatTile label="Needs Attention" value={0} icon="⚠️" />
-        <StatTile label="Live Sites" value={0} icon="✓" />
-        <StatTile label="Recorded Work" value={`$${totalRecordedWork.toFixed(2)}`} icon="$" />
+      <div className="project-stats">
+        <StatTile label="Active Builds" value={projects.length} subtext="Projects in progress" icon={<FolderKanban size={17} />} />
+        <StatTile label="Needs Attention" value={0} subtext="No blockers reported" icon={<AlertTriangle size={17} />} />
+        <StatTile label="Live Sites" value={0} subtext="Published projects" icon={<CheckCircle2 size={17} />} />
+        <StatTile label="Recorded Work" value={`$${totalRecordedWork.toFixed(2)}`} subtext="Across active builds" icon={<DollarSign size={17} />} />
       </div>
 
-      <div className="table-wrap">
-        <table>
+      <section className="project-directory" aria-labelledby="project-directory-title">
+        <div className="project-directory-heading">
+          <div>
+            <p className="section-eyebrow">Project directory</p>
+            <h2 id="project-directory-title">Active client builds</h2>
+          </div>
+          <p>{projects.length} {projects.length === 1 ? 'project' : 'projects'}</p>
+        </div>
+
+        <div className="table-wrap project-desktop-table">
+        <table className="project-table">
           <thead>
             <tr>
               <th>PROJECT</th>
@@ -104,14 +141,14 @@ export default async function ProjectsPage() {
               return (
                 <tr key={p.id}>
                   <td style={{ minWidth: 240 }}>
-                    <Link href={detailUrl} className="block hover:text-purple-400 transition">
-                      <p style={{ fontWeight: 700, fontSize: '0.9375rem' }}>{p.name}</p>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>{p.slug} · {p.client_email}</p>
+                    <Link href={detailUrl} className="project-name-link">
+                      <p>{p.name}</p>
+                      <span>{p.slug}</span>
                     </Link>
                   </td>
                   <td>
-                    <p style={{ fontWeight: 500 }}>{p.type || 'Brochure'}</p>
-                    <p style={{ fontSize: '0.75rem', color: '#c084fc', marginTop: 2 }}>Direct Intake</p>
+                    <p className="project-table-primary">{p.type || 'Brochure'}</p>
+                    <p className="project-table-secondary project-table-accent">Direct intake</p>
                   </td>
                   <td>
                     <span className="badge badge-purple">{p.status}</span>
@@ -133,7 +170,7 @@ export default async function ProjectsPage() {
                   </td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <Link href={detailUrl} className="btn btn-ghost btn-sm">
-                      View & Take Action →
+                      Open project <ArrowUpRight size={14} aria-hidden="true" />
                     </Link>
                   </td>
                 </tr>
@@ -141,7 +178,51 @@ export default async function ProjectsPage() {
             })}
           </tbody>
         </table>
-      </div>
+        </div>
+
+        <div className="project-mobile-list" aria-label="Build projects">
+        {projects.map((p) => {
+          const cap = Number(p.spending_cap) || 500
+          const work = Number(p.recorded_work) || 0
+          const capUsedPct = Math.min(100, Math.round((work / cap) * 100))
+          const detailUrl = `/projects/${p.id}`
+
+          return (
+            <article className="card project-list-card" key={p.id}>
+              <div className="project-list-card-header">
+                <div className="project-card-identity">
+                  <span className="project-card-icon"><BriefcaseBusiness size={18} aria-hidden="true" /></span>
+                  <div className="min-w-0">
+                  <Link href={detailUrl} className="project-name-link">
+                    <h3>{p.name}</h3>
+                  </Link>
+                  <p className="project-card-email">
+                    <Mail size={13} aria-hidden="true" /> {p.client_email}
+                  </p>
+                  </div>
+                </div>
+                <span className="badge badge-purple">{p.status}</span>
+              </div>
+
+              <div className="project-list-card-metrics">
+                <div><span><BriefcaseBusiness size={14} /> Type</span><strong>{p.type || 'Brochure'}</strong></div>
+                <div><span><Clock3 size={14} /> Billable time</span><strong>{Number(p.billable_time || 0).toFixed(2)} h</strong></div>
+                <div><span><DollarSign size={14} /> Cost / cap</span><strong>${work.toFixed(2)} <small>/ ${cap.toFixed(2)}</small></strong></div>
+              </div>
+
+              <div className="project-cap-row">
+                <div className="project-cap-label"><span><Gauge size={14} /> Spending cap</span><strong>{capUsedPct}% used</strong></div>
+                <div className="project-cap-track" role="progressbar" aria-label={`${p.name} spending cap used`} aria-valuenow={capUsedPct} aria-valuemin={0} aria-valuemax={100}>
+                  <div style={{ width: `${capUsedPct}%` }} />
+                </div>
+              </div>
+
+              <Link href={detailUrl} className="btn btn-ghost btn-sm">View project <ArrowUpRight size={14} aria-hidden="true" /></Link>
+            </article>
+          )
+        })}
+        </div>
+      </section>
     </div>
   )
 }

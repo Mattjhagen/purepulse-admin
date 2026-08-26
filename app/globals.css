@@ -43,10 +43,10 @@ body {
   overflow-x: hidden;
 }
 
-/* Defensive Content Safeguards */
-p, h1, h2, h3, h4, h5, h6, span, a, td, th {
-  overflow-wrap: anywhere;
-  word-break: break-word;
+/* Defensive content safeguards. Do not force word breaks on table cells: that
+   turns narrow columns into one-character stacks instead of scrolling. */
+p, h1, h2, h3, h4, h5, h6, span, a {
+  overflow-wrap: break-word;
 }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -174,3 +174,456 @@ td {
 }
 tr:last-child td { border-bottom: none; }
 tr:hover td { background: rgba(255, 255, 255, 0.02); }
+
+/* Build projects */
+.projects-shell {
+  width: min(100%, 80rem);
+  margin-inline: auto;
+  min-width: 0;
+  display: grid;
+  gap: 1.5rem;
+}
+
+.projects-shell > :first-child {
+  margin-bottom: 0;
+}
+
+.section-eyebrow {
+  color: #c084fc;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.project-stats,
+.project-detail-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.project-table {
+  min-width: 1050px;
+  table-layout: auto;
+}
+
+.project-directory {
+  display: grid;
+  gap: 0.875rem;
+  min-width: 0;
+}
+
+.project-directory-heading,
+.project-section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.project-directory-heading h2,
+.project-section-heading h2,
+.project-review-copy h2 {
+  margin-top: 0.2rem;
+  color: var(--text);
+  font-size: 1.125rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.project-directory-heading > p,
+.project-updated {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.project-name-link {
+  color: var(--text);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.project-name-link:hover {
+  color: #c084fc;
+}
+
+.project-name-link > p,
+.project-name-link > h3 {
+  font-size: 0.9375rem;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.project-name-link > span,
+.project-table-secondary {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.project-table-primary {
+  font-weight: 600;
+}
+
+.project-table-accent {
+  color: #c084fc;
+}
+
+.project-table th,
+.project-table td {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.project-table th {
+  white-space: nowrap;
+}
+
+.project-mobile-list {
+  display: none;
+}
+
+.project-card-identity {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.project-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 2.25rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  border-radius: 0.75rem;
+  background: rgba(168, 85, 247, 0.1);
+  color: #c084fc;
+}
+
+.project-card-email,
+.project-contact-link {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.3rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.project-card-email {
+  overflow-wrap: anywhere;
+}
+
+.project-list-card-metrics > div {
+  min-width: 0;
+}
+
+.project-list-card-metrics span,
+.project-cap-label span {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.project-list-card-metrics strong {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.project-list-card-metrics small {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.project-cap-row {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.project-cap-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.project-cap-label strong {
+  color: #d4d4d8;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.project-cap-track {
+  height: 0.4rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+}
+
+.project-cap-track > div {
+  height: 100%;
+  min-width: 0.25rem;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #7e22ce, #a855f7);
+}
+
+.project-detail-actions,
+.project-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.project-detail-actions .btn,
+.project-review-actions .btn {
+  max-width: 100%;
+}
+
+.project-contact-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 1.125rem;
+  font-weight: 750;
+}
+
+.project-pipeline-card {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.project-pipeline {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  list-style: none;
+}
+
+.project-pipeline li {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  min-width: 0;
+  padding-right: 1rem;
+}
+
+.project-pipeline li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  top: 1rem;
+  left: 2.1rem;
+  right: 0.25rem;
+  height: 1px;
+  background: var(--border-strong);
+}
+
+.project-pipeline li > span {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 2rem;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+}
+
+.project-pipeline li.is-complete > span {
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.12);
+  color: #4ade80;
+}
+
+.project-pipeline li.is-complete::after {
+  background: rgba(34, 197, 94, 0.35);
+}
+
+.project-pipeline li.is-active > span {
+  border-color: rgba(168, 85, 247, 0.55);
+  background: rgba(168, 85, 247, 0.16);
+  color: #c084fc;
+  box-shadow: 0 0 0 4px rgba(168, 85, 247, 0.07);
+}
+
+.project-pipeline li > div {
+  min-width: 0;
+  padding-top: 0.15rem;
+}
+
+.project-pipeline strong,
+.project-pipeline small {
+  display: block;
+  line-height: 1.35;
+}
+
+.project-pipeline strong {
+  font-size: 0.8125rem;
+}
+
+.project-pipeline small {
+  margin-top: 0.15rem;
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+}
+
+.project-review-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+}
+
+.project-review-copy {
+  flex: 1 1 32rem;
+  min-width: 0;
+}
+
+.project-review-copy > p {
+  margin-top: 0.35rem;
+  max-width: 42rem;
+  color: #a1a1aa;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.project-contact-link {
+  width: fit-content;
+  transition: color 0.15s ease;
+}
+
+.project-contact-link:hover {
+  color: #c084fc;
+}
+
+.project-review-actions {
+  flex: 0 1 auto;
+}
+
+@media (max-width: 1100px) {
+  .project-stats,
+  .project-detail-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .project-desktop-table {
+    display: none;
+  }
+
+  .project-mobile-list {
+    display: grid;
+    gap: 0.875rem;
+  }
+
+  .project-list-card {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .project-list-card-header,
+  .project-list-card-metrics {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .project-list-card-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .project-list-card .btn {
+    width: 100%;
+  }
+
+  .project-review-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 860px) {
+  .project-pipeline {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .project-pipeline li {
+    min-height: 3.5rem;
+    padding: 0 0 0.75rem;
+  }
+
+  .project-pipeline li:not(:last-child)::after {
+    top: 2rem;
+    bottom: 0;
+    left: 1rem;
+    right: auto;
+    width: 1px;
+    height: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .projects-shell {
+    gap: 1rem;
+  }
+
+  .project-stats,
+  .project-detail-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .project-detail-actions,
+  .project-review-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .project-detail-actions .btn,
+  .project-review-actions .btn {
+    width: 100%;
+    white-space: normal;
+    text-align: center;
+  }
+
+  .project-list-card-header {
+    flex-direction: column;
+  }
+
+  .project-list-card-header .badge {
+    margin-left: 3rem;
+  }
+
+  .project-list-card-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .project-list-card-metrics > div:last-child {
+    grid-column: 1 / -1;
+  }
+}
