@@ -31,8 +31,8 @@ interface BuildProject {
   recorded_work: number
   billable_time: number
   created_at: string
-  github_repo: string
-  live_url: string
+  github_repo: string | null
+  live_url: string | null
 }
 
 export default async function ProjectsPage() {
@@ -62,8 +62,8 @@ export default async function ProjectsPage() {
       recorded_work: 45.00,
       billable_time: 1.80,
       created_at: new Date().toISOString(),
-      github_repo: 'https://github.com/Mattjhagen/fuelshield-defense',
-      live_url: 'https://mattjhagen.github.io/fuelshield-defense/',
+      github_repo: null,
+      live_url: null,
     },
     {
       id: '6b2a8538-a410-4423-b09c-5d2ffe12c50a',

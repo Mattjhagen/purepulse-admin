@@ -352,6 +352,37 @@ tr:hover td { background: rgba(255, 255, 255, 0.02); }
   margin-bottom: 0;
 }
 
+.page-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  border-radius: 0.7rem;
+  background: rgba(168, 85, 247, 0.08);
+  color: #d8b4fe;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.page-back-link:hover {
+  border-color: rgba(192, 132, 252, 0.55);
+  background: rgba(168, 85, 247, 0.14);
+  color: #fff;
+}
+
+.btn-disabled {
+  cursor: not-allowed;
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.035);
+  color: #71717a;
+  box-shadow: none;
+}
+
 .section-eyebrow {
   color: #c084fc;
   font-size: 0.6875rem;

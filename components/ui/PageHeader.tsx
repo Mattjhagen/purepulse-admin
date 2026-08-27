@@ -1,5 +1,6 @@
 import React from 'react'
 import Link from 'next/link'
+import { ArrowLeft } from 'lucide-react'
 
 interface PageHeaderProps {
   title: string
@@ -16,9 +17,10 @@ export function PageHeader({ title, description, backLink, badge, action }: Page
         <div>
           <Link
             href={backLink.href}
-            className="inline-flex items-center text-xs font-semibold text-zinc-400 hover:text-white transition gap-1"
+            className="page-back-link"
           >
-            ← {backLink.label}
+            <ArrowLeft size={17} aria-hidden="true" />
+            <span>{backLink.label}</span>
           </Link>
         </div>
       )}

@@ -1,4 +1,5 @@
 import { requireAdmin } from '@/lib/require-admin'
+import { adminSupabase } from '@/lib/supabase'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { StatTile } from '@/components/ui/StatTile'
 import {
@@ -25,13 +26,47 @@ interface ProjectDetailProps {
   params: Promise<{ id: string }>
 }
 
+interface ProjectDetail {
+  id: string
+  name: string
+  slug: string
+  client_name: string
+  client_email: string
+  status: string
+  type: string
+  spending_cap: number
+  recorded_work: number
+  billable_time: number
+  created_at: string
+  github_repo: string | null
+  live_url: string | null
+  description: string
+}
+
+async function reachableDeploymentUrl(url: string | null) {
+  if (!url) return null
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'https:') return null
+    const response = await fetch(parsed, {
+      method: 'HEAD',
+      redirect: 'follow',
+      cache: 'no-store',
+      signal: AbortSignal.timeout(3000),
+    })
+    return response.ok ? url : null
+  } catch {
+    return null
+  }
+}
+
 export default async function ProjectDetailPage({ params }: ProjectDetailProps) {
   await requireAdmin()
   const { id } = await params
 
   const isFuelShield = id.includes('fuelshield') || id === 'mock-fuelshield-001'
 
-  const project = isFuelShield
+  const fallbackProject: ProjectDetail = isFuelShield
     ? {
         id: 'fuelshield-defense-001',
         name: 'FuelShield Defense Studio',
@@ -44,8 +79,8 @@ export default async function ProjectDetailPage({ params }: ProjectDetailProps) 
         recorded_work: 45.00,
         billable_time: 1.80,
         created_at: new Date().toISOString(),
-        github_repo: 'https://github.com/Mattjhagen/fuelshield-defense',
-        live_url: 'https://mattjhagen.github.io/fuelshield-defense/',
+        github_repo: null,
+        live_url: null,
         description: 'Premier automotive ceramic coating, paint protection film (PPF), and precision detailing studio serving luxury and exotic vehicle owners in Naperville & Chicago, IL.',
       }
     : {
@@ -65,6 +100,25 @@ export default async function ProjectDetailPage({ params }: ProjectDetailProps) 
         description: 'Chicago premier plumbing, HVAC, and electrical repair company website with 5 distinct standalone pages.',
       }
 
+  let project = fallbackProject
+  try {
+    const { data } = await adminSupabase()
+      .from('projects')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (data) project = { ...fallbackProject, ...data } as ProjectDetail
+  } catch (error) {
+    console.error('Failed to load project deployment details:', error)
+  }
+
+  const [verifiedRepo, verifiedSite] = await Promise.all([
+    reachableDeploymentUrl(project.github_repo),
+    reachableDeploymentUrl(project.live_url),
+  ])
+  project = { ...project, github_repo: verifiedRepo, live_url: verifiedSite }
+
   const capUsedPct = Math.min(100, Math.round((project.recorded_work / project.spending_cap) * 100))
 
   return (
@@ -79,22 +133,24 @@ export default async function ProjectDetailPage({ params }: ProjectDetailProps) 
 
       {/* Action Bar (Flex Container with Consistent Gap & Wrapping) */}
       <div className="project-detail-actions">
-        <a
-          href={project.live_url}
-          target="_blank"
-          rel="noreferrer"
-          className="btn btn-purple"
-        >
-          <ExternalLink size={16} aria-hidden="true" /> Launch live site
-        </a>
-        <a
-          href={project.github_repo}
-          target="_blank"
-          rel="noreferrer"
-          className="btn btn-ghost"
-        >
-          <GitBranch size={16} aria-hidden="true" /> Open GitHub repo
-        </a>
+        {project.live_url ? (
+          <a href={project.live_url} target="_blank" rel="noreferrer" className="btn btn-purple">
+            <ExternalLink size={16} aria-hidden="true" /> Launch live site
+          </a>
+        ) : (
+          <span className="btn btn-disabled" title="The site has not been published yet">
+            <ExternalLink size={16} aria-hidden="true" /> Site not published
+          </span>
+        )}
+        {project.github_repo ? (
+          <a href={project.github_repo} target="_blank" rel="noreferrer" className="btn btn-ghost">
+            <GitBranch size={16} aria-hidden="true" /> Open GitHub repo
+          </a>
+        ) : (
+          <span className="btn btn-disabled" title="The project repository has not been provisioned yet">
+            <GitBranch size={16} aria-hidden="true" /> Repository pending
+          </span>
+        )}
         <a
           href="https://tty-purepulse.relayapp.pro"
           target="_blank"
