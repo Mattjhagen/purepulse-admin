@@ -186,6 +186,30 @@ const TEMPLATES: MarketingTemplate[] = [
 
   // --- AFFILIATE PARTNER TEMPLATES ---
   {
+    id: 'affiliate-personal-welcome-call',
+    category: 'affiliates',
+    name: '👋 Affiliate Welcome & Personal Call',
+    subject: 'Welcome to the PurePulse Affiliate Team!',
+    preview: 'Thank you for joining PurePulse — Matty will give you a quick call this week.',
+    body: `
+      <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#A066FF;">Welcome to the Team</p>
+      <h1 style="margin:0 0 16px;font-size:22px;font-weight:800;color:#FFFFFF;">Hi {{name}}, welcome to PurePulse! 👋</h1>
+      <p style="margin:0 0 16px;font-size:15px;color:rgba(244,244,255,0.85);line-height:1.7;">Thank you for signing up to become a PurePulse affiliate. I’m excited to have you on the team!</p>
+      <p style="margin:0 0 16px;font-size:15px;color:rgba(244,244,255,0.85);line-height:1.7;">Sometime this week, I’ll give you a quick call to introduce myself, get to know you, hear what you hope to accomplish with PurePulse, and answer any questions you may have about the affiliate program.</p>
+
+      <div style="background:rgba(123,47,255,0.12);border:1px solid rgba(123,47,255,0.3);border-radius:12px;padding:20px;margin-bottom:24px;">
+        <p style="margin:0 0 6px;font-size:14px;font-weight:700;color:#FFFFFF;">We’re here to help you succeed</p>
+        <p style="margin:0;font-size:14px;color:rgba(244,244,255,0.75);line-height:1.7;">Whether you need help understanding your affiliate link, using your dashboard, finding customers, or planning how to get started, PurePulse wants to make sure you have everything you need.</p>
+      </div>
+
+      <p style="margin:0 0 20px;font-size:15px;color:rgba(244,244,255,0.85);line-height:1.7;">In the meantime, feel free to explore your affiliate dashboard and start sharing your unique link whenever you’re ready.</p>
+      <div style="margin-bottom:28px;">
+        <a href="https://login.purepulse.one/affiliates/dashboard" style="display:inline-block;background:#7B2FFF;color:#FFFFFF;padding:12px 28px;border-radius:10px;font-weight:700;text-decoration:none;font-size:14px;box-shadow:0 4px 16px rgba(123,47,255,0.4);">Open Your Affiliate Dashboard →</a>
+      </div>
+      <p style="margin:24px 0 0;font-size:14px;color:rgba(244,244,255,0.6);">Talk soon,<br><strong style="color:#FFF;">Matty Hagen</strong><br>Founder, PurePulse</p>
+    `,
+  },
+  {
     id: 'affiliate-prescreen-technical-apology',
     category: 'affiliates',
     name: '⚠️ Technical Issue Apology & Pre-Screen Re-Submission',
