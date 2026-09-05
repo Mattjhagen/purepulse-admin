@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Calendar, Clock, CheckCircle2, ShieldCheck, ArrowRight, Loader2 } from 'lucide-react'
+import { Calendar, Clock, CheckCircle2, ShieldCheck, Loader2 } from 'lucide-react'
 
 interface TimeSlot {
   startISO: string
@@ -10,7 +10,11 @@ interface TimeSlot {
 }
 
 export default function ScheduleClient({ token }: { token: string }) {
-  const [candidate, setCandidate] = useState<any>(null)
+  const [candidate, setCandidate] = useState<{ name: string; email: string; job_title: string } | null>(null)
+  const [dateBounds] = useState(() => ({
+    min: new Date().toISOString().split('T')[0],
+    max: new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0],
+  }))
   const [selectedDate, setSelectedDate] = useState(() => {
     const tomorrow = new Date()
     tomorrow.setDate(tomorrow.getDate() + 1)
@@ -26,8 +30,10 @@ export default function ScheduleClient({ token }: { token: string }) {
   const [error, setError] = useState('')
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true)
     setError('')
+    setSelectedSlot(null)
     fetch(`/api/schedule/${encodeURIComponent(token)}?date=${selectedDate}`)
       .then(res => res.json())
       .then(data => {
@@ -62,8 +68,8 @@ export default function ScheduleClient({ token }: { token: string }) {
       } else {
         setError(data.error || 'Failed to confirm interview booking')
       }
-    } catch (e: any) {
-      setError(e.message)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to confirm interview booking')
     } finally {
       setSubmitting(false)
     }
@@ -88,7 +94,7 @@ export default function ScheduleClient({ token }: { token: string }) {
           </div>
 
           <p style={{ fontSize: '0.8125rem', color: '#6B7280', margin: 0 }}>
-            An invitation has been dispatched to <strong style={{ color: '#9CA3AF' }}>{candidate?.email}</strong> and synced to our Apple Calendar.
+            A Google Calendar invitation has been sent to <strong style={{ color: '#9CA3AF' }}>{candidate?.email}</strong>.
           </p>
         </div>
       </div>
@@ -138,6 +144,8 @@ export default function ScheduleClient({ token }: { token: string }) {
               type="date"
               value={selectedDate}
               onChange={e => setSelectedDate(e.target.value)}
+              min={dateBounds.min}
+              max={dateBounds.max}
               style={{ width: '100%', padding: '0.75rem 1rem', background: '#0D0D14', border: '1px solid #262636', borderRadius: '8px', color: '#fff', fontSize: '0.9375rem', fontWeight: 600 }}
             />
           </div>
@@ -151,11 +159,11 @@ export default function ScheduleClient({ token }: { token: string }) {
             {loading ? (
               <div style={{ textAlign: 'center', padding: '2rem', color: '#6B7280' }}>
                 <Loader2 size={24} style={{ animation: 'spin 1s linear infinite', marginBottom: 8 }} />
-                <p style={{ fontSize: '0.875rem', margin: 0 }}>Checking Apple Calendar availability...</p>
+                <p style={{ fontSize: '0.875rem', margin: 0 }}>Checking Google Calendar availability...</p>
               </div>
             ) : slots.length === 0 ? (
               <p style={{ textAlign: 'center', color: '#9CA3AF', padding: '1.5rem', background: '#0D0D14', borderRadius: '8px', margin: 0 }}>
-                No open slots available on weekends. Please pick a Monday through Friday date.
+                No open appointments are available on this date. Please choose another weekday.
               </p>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '0.625rem', maxHeight: '280px', overflowY: 'auto', paddingRight: 4 }}>

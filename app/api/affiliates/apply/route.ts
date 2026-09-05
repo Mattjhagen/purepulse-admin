@@ -33,11 +33,11 @@ export async function POST(req: NextRequest) {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0] ?? req.headers.get('x-real-ip') ?? 'unknown'
 
   // Check if affiliate account already exists
-  let existingAffiliate: { id: string; name: string; email: string; referral_code: string } | null = null
+  let existingAffiliate: { id: string; name: string; email: string; referral_code: string; interview_token?: string | null } | null = null
   try {
     const { data: existing } = await supabase
       .from('affiliates')
-      .select('id, name, email, referral_code, status')
+      .select('id, name, email, referral_code, status, interview_token')
       .eq('email', email.trim().toLowerCase())
       .single()
 
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     console.warn('[affiliates/apply] Duplicate check warning:', dupErr)
   }
 
-  let affiliate: { id: string; name: string; email: string; referral_code: string } | null = null
+  let affiliate: { id: string; name: string; email: string; referral_code: string; interview_token?: string | null } | null = null
   let referralCode = existingAffiliate?.referral_code || ''
 
   if (existingAffiliate) {
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
           terms_ip: ip,
         })
         .eq('id', existingAffiliate.id)
-        .select('id, name, email, referral_code')
+        .select('id, name, email, referral_code, interview_token')
         .single()
 
       affiliate = updated || existingAffiliate
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
           terms_signature_data: signature_data,
           terms_ip: ip,
         })
-        .select('id, name, email, referral_code')
+        .select('id, name, email, referral_code, interview_token')
         .single()
 
       if (data) {
@@ -125,6 +125,17 @@ export async function POST(req: NextRequest) {
       email: email.trim().toLowerCase(),
       referral_code: referralCode,
     }
+  }
+
+  if (!affiliate.interview_token && !affiliate.id.startsWith('aff_')) {
+    const interviewToken = crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '').slice(0, 16)
+    const { data: updated } = await supabase
+      .from('affiliates')
+      .update({ interview_token: interviewToken })
+      .eq('id', affiliate.id)
+      .select('interview_token')
+      .single()
+    affiliate.interview_token = updated?.interview_token || interviewToken
   }
 
   // Generate secure Supabase auth link for instant dashboard access
@@ -291,5 +302,7 @@ export async function POST(req: NextRequest) {
     referral_code: referralCode,
     email: affiliate.email,
     action_link: inviteLink,
+    interview_token: affiliate.interview_token || null,
+    schedule_url: affiliate.interview_token ? `${appUrl}/schedule/${affiliate.interview_token}` : null,
   })
 }
