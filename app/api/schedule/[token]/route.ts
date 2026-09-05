@@ -1,231 +1,145 @@
+import crypto from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 import { adminSupabase } from '@/lib/supabase'
-import { getICloudBusySlots, createICloudEvent, generateCentralTimeSlots } from '@/lib/icloud-calendar'
-import { Resend } from 'resend'
+import { getResend } from '@/lib/resend'
+import { INTERVIEW_TIMEZONE, createGoogleInterviewEvent, generateCentralInterviewSlots, getGoogleBusySlots } from '@/lib/google-calendar'
+
+type Candidate = {
+  id: string
+  affiliate_id?: string | null
+  candidate_name: string
+  candidate_email: string
+  candidate_phone?: string | null
+  job_title?: string | null
+  scheduled_at?: string | null
+}
+
+async function resolveCandidate(token: string): Promise<Candidate | null> {
+  const supabase = adminSupabase()
+  const { data: directInterview } = await supabase.from('interviews').select('*').eq('schedule_token', token).maybeSingle()
+  if (directInterview) return directInterview as Candidate
+
+  const { data: affiliate } = await supabase.from('affiliates').select('id, name, email, phone').eq('interview_token', token).maybeSingle()
+  if (!affiliate) return null
+  const { data: interview } = await supabase.from('interviews').select('*').eq('affiliate_id', affiliate.id).order('created_at', { ascending: false }).limit(1).maybeSingle()
+  if (interview) return interview as Candidate
+  return {
+    id: '',
+    affiliate_id: affiliate.id,
+    candidate_name: affiliate.name,
+    candidate_email: affiliate.email,
+    candidate_phone: affiliate.phone,
+    job_title: 'Affiliate Sales Partner',
+  }
+}
+
+function validateTargetDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const day = fromZonedTime(`${value} 12:00:00`, INTERVIEW_TIMEZONE)
+  const now = new Date()
+  return day.getTime() >= now.getTime() - 12 * 60 * 60 * 1000 && day.getTime() <= now.getTime() + 90 * 24 * 60 * 60 * 1000
+}
+
+async function availabilityForDate(targetDate: string) {
+  const dayStart = fromZonedTime(`${targetDate} 00:00:00`, INTERVIEW_TIMEZONE)
+  const dayEnd = fromZonedTime(`${targetDate} 23:59:59`, INTERVIEW_TIMEZONE)
+  const busy = await getGoogleBusySlots(dayStart.toISOString(), dayEnd.toISOString())
+  return generateCentralInterviewSlots(targetDate, busy)
+}
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
     const { token } = await params
-    const { searchParams } = req.nextUrl
-    const targetDate = searchParams.get('date') || new Date().toISOString().split('T')[0]
+    const targetDate = req.nextUrl.searchParams.get('date') || formatInTimeZone(new Date(), INTERVIEW_TIMEZONE, 'yyyy-MM-dd')
+    if (!validateTargetDate(targetDate)) return NextResponse.json({ error: 'Choose a weekday within the next 90 days.' }, { status: 400 })
+    const candidate = await resolveCandidate(token)
+    if (!candidate) return NextResponse.json({ error: 'Scheduling link is invalid or has expired.' }, { status: 404 })
+    if (candidate.scheduled_at) return NextResponse.json({ error: 'This interview has already been scheduled.' }, { status: 409 })
 
-    const supabase = adminSupabase()
-
-    // 1. Fetch candidate interview by token or ID
-    let { data: interview } = await supabase
-      .from('interviews')
-      .select('*')
-      .or(`id.eq.${token},candidate_email.eq.${token}`)
-      .maybeSingle()
-
-    if (!interview) {
-      // Check affiliates table
-      const { data: affiliate } = await supabase
-        .from('affiliates')
-        .select('*')
-        .or(`id.eq.${token},interview_token.eq.${token},email.eq.${token}`)
-        .maybeSingle()
-
-      if (affiliate) {
-        interview = {
-          id: affiliate.id,
-          candidate_name: affiliate.name,
-          candidate_email: affiliate.email,
-          candidate_phone: affiliate.phone,
-          job_title: 'Affiliate Sales Partner',
-        } as any
-      }
-    }
-
-    if (!interview) {
-      return NextResponse.json({ error: 'Scheduling link is invalid or has expired' }, { status: 404 })
-    }
-
-    // 2. Fetch Apple iCloud Calendar settings
-    const { data: calSetting } = await supabase
-      .from('system_settings')
-      .select('value')
-      .eq('key', 'apple_icloud_calendar')
-      .maybeSingle()
-
-    const config = calSetting?.value || {
-      appleId: process.env.APPLE_ICLOUD_ID || 'matty@purepulse.one',
-      appPassword: process.env.APPLE_APP_SPECIFIC_PASSWORD || '',
-      caldavUrl: '',
-    }
-
-    // 3. Query Apple iCloud CalDAV for busy slots on target date
-    const dayStart = `${targetDate}T00:00:00Z`
-    const dayEnd = `${targetDate}T23:59:59Z`
-    const busyRanges = await getICloudBusySlots(config, dayStart, dayEnd)
-
-    // 4. Generate Central Time 30-min slots (12pm - 7pm CT, Mon-Fri)
-    const slots = generateCentralTimeSlots(targetDate, busyRanges)
-
+    const slots = await availabilityForDate(targetDate)
     return NextResponse.json({
-      candidate: {
-        id: interview.id,
-        name: interview.candidate_name,
-        email: interview.candidate_email,
-        job_title: interview.job_title || 'Affiliate Sales Partner',
-      },
+      candidate: { id: candidate.id, name: candidate.candidate_name, email: candidate.candidate_email, job_title: candidate.job_title || 'Affiliate Sales Partner' },
       date: targetDate,
       slots,
     })
-  } catch (err: any) {
-    console.error('[schedule/token] GET Error:', err)
-    return NextResponse.json({ error: 'Failed loading calendar slots' }, { status: 500 })
+  } catch (error) {
+    console.error('[schedule/token] availability error:', error)
+    const message = error instanceof Error && error.message === 'Google Calendar is not connected'
+      ? 'Interview scheduling is temporarily unavailable. Please contact PurePulse.'
+      : 'We could not load calendar availability. Please try again.'
+    return NextResponse.json({ error: message }, { status: 503 })
   }
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
     const { token } = await params
-    const { startISO, endISO, displayTime } = await req.json()
-
-    if (!startISO || !endISO) {
-      return NextResponse.json({ error: 'Start and end times are required' }, { status: 400 })
+    const { startISO, endISO } = await req.json()
+    const requestedStart = new Date(startISO)
+    const requestedEnd = new Date(endISO)
+    if (!startISO || !endISO || Number.isNaN(requestedStart.getTime()) || Number.isNaN(requestedEnd.getTime())) {
+      return NextResponse.json({ error: 'Choose a valid interview time.' }, { status: 400 })
     }
+    if (requestedEnd.getTime() - requestedStart.getTime() !== 30 * 60 * 1000 || requestedStart <= new Date()) {
+      return NextResponse.json({ error: 'Interview appointments must be an available future 30-minute slot.' }, { status: 400 })
+    }
+
+    let candidate = await resolveCandidate(token)
+    if (!candidate) return NextResponse.json({ error: 'Scheduling link is invalid or has expired.' }, { status: 404 })
+    if (candidate.scheduled_at) return NextResponse.json({ error: 'This interview has already been scheduled.' }, { status: 409 })
+
+    const targetDate = formatInTimeZone(requestedStart, INTERVIEW_TIMEZONE, 'yyyy-MM-dd')
+    if (!validateTargetDate(targetDate)) return NextResponse.json({ error: 'Choose a weekday within the next 90 days.' }, { status: 400 })
+    const slots = await availabilityForDate(targetDate)
+    const selected = slots.find(slot => slot.available && slot.startISO === requestedStart.toISOString() && slot.endISO === requestedEnd.toISOString())
+    if (!selected) return NextResponse.json({ error: 'That time is no longer available. Please select another slot.' }, { status: 409 })
 
     const supabase = adminSupabase()
-
-    let { data: interview } = await supabase
-      .from('interviews')
-      .select('*')
-      .or(`id.eq.${token},candidate_email.eq.${token}`)
-      .maybeSingle()
-
-    if (!interview) {
-      const { data: affiliate } = await supabase
-        .from('affiliates')
-        .select('*')
-        .or(`id.eq.${token},interview_token.eq.${token},email.eq.${token}`)
-        .maybeSingle()
-
-      if (affiliate) {
-        interview = {
-          id: affiliate.id,
-          candidate_name: affiliate.name,
-          candidate_email: affiliate.email,
-          candidate_phone: affiliate.phone,
-          job_title: 'Affiliate Sales Partner',
-        } as any
-      }
+    if (!candidate.id) {
+      const interviewId = crypto.randomUUID()
+      const { data, error } = await supabase.from('interviews').insert({
+        id: interviewId,
+        affiliate_id: candidate.affiliate_id,
+        candidate_name: candidate.candidate_name,
+        candidate_email: candidate.candidate_email,
+        candidate_phone: candidate.candidate_phone || null,
+        job_title: candidate.job_title || 'Affiliate Sales Partner',
+        status: 'submitted',
+        schedule_token: token,
+      }).select('*').single()
+      if (error || !data) throw new Error(error?.message || 'Unable to create interview record')
+      candidate = data as Candidate
     }
 
-    if (!interview) {
-      return NextResponse.json({ error: 'Scheduling link is invalid' }, { status: 404 })
-    }
-
-    // Load Apple iCloud config
-    const { data: calSetting } = await supabase
-      .from('system_settings')
-      .select('value')
-      .eq('key', 'apple_icloud_calendar')
-      .maybeSingle()
-
-    const config = calSetting?.value || {
-      appleId: process.env.APPLE_ICLOUD_ID || 'matty@purepulse.one',
-      appPassword: process.env.APPLE_APP_SPECIFIC_PASSWORD || '',
-    }
-
-    // 1. Create event on Apple iCloud Calendar
-    const eventCreated = await createICloudEvent(config, {
-      title: `PurePulse 1-on-1 Interview: ${interview.candidate_name}`,
-      candidateName: interview.candidate_name,
-      candidateEmail: interview.candidate_email,
-      startISO,
-      endISO,
+    const event = await createGoogleInterviewEvent({
+      candidateName: candidate.candidate_name,
+      candidateEmail: candidate.candidate_email,
+      startISO: selected.startISO,
+      endISO: selected.endISO,
+      interviewId: candidate.id,
     })
+    const { error: updateError } = await supabase.from('interviews').update({
+      status: 'scheduled_1on1', scheduled_at: selected.startISO, calendar_event_id: event.id,
+      meeting_url: event.hangoutLink || null, updated_at: new Date().toISOString(),
+    }).eq('id', candidate.id).is('scheduled_at', null)
+    if (updateError) throw new Error(updateError.message)
 
-    // 2. Update interview status in database
-    await supabase
-      .from('interviews')
-      .update({
-        status: 'scheduled_1on1',
-        scheduled_at: startISO,
-        updated_at: new Date().toISOString(),
+    try {
+      const formattedDate = formatInTimeZone(requestedStart, INTERVIEW_TIMEZONE, 'EEEE, MMMM d, yyyy')
+      const displayTime = `${formatInTimeZone(requestedStart, INTERVIEW_TIMEZONE, 'h:mm a')} CT`
+      await getResend().emails.send({
+        from: 'PurePulse Hiring <hiring@purepulse.one>',
+        to: [candidate.candidate_email, 'matty@purepulse.one'],
+        subject: `Interview confirmed: ${formattedDate} at ${displayTime}`,
+        html: `<div style="font-family:system-ui,sans-serif;max-width:600px;margin:auto"><h2>PurePulse interview confirmed</h2><p>Hi ${candidate.candidate_name}, your 30-minute interview is scheduled for <strong>${formattedDate} at ${displayTime}</strong>.</p>${event.hangoutLink ? `<p><a href="${event.hangoutLink}">Join the Google Meet</a></p>` : ''}<p>Google Calendar has also sent an invitation to ${candidate.candidate_email}.</p></div>`,
       })
-      .eq('id', interview.id)
-
-    // 3. Send email confirmation to candidate & admin via Resend
-    const resendKey = process.env.RESEND_API_KEY
-    if (resendKey) {
-      const resend = new Resend(resendKey)
-      const formattedDate = new Date(startISO).toLocaleDateString('en-US', {
-        weekday: 'long',
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric',
-      })
-
-      const htmlBody = `
-        <div style="font-family:system-ui,-apple-system,sans-serif;max-width:600px;margin:0 auto;background:#0d0d0d;color:#fff;border-radius:12px;border:1px solid #262626;padding:32px;">
-          <div style="margin-bottom:20px;">
-            <span style="font-size:20px;font-weight:800;color:#fff;">Pure<span style="color:#A066FF;">Pulse</span></span>
-          </div>
-          <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#10B981;">1-on-1 Interview Confirmed 🎉</p>
-          <h1 style="margin:0 0 16px;font-size:22px;font-weight:800;color:#FFFFFF;">Hi ${interview.candidate_name}, your 1-on-1 interview is scheduled!</h1>
-          <p style="margin:0 0 16px;font-size:15px;color:rgba(244,244,255,0.85);line-height:1.7;">Your 1-on-1 virtual interview with Matty Hagen for the <strong>${interview.job_title || 'Affiliate Sales Partner'}</strong> position has been added to our calendar.</p>
-          <div style="background:rgba(123,47,255,0.12);border:1px solid rgba(123,47,255,0.3);border-radius:10px;padding:20px;margin:20px 0;">
-            <p style="margin:0 0 8px;font-size:14px;font-weight:700;color:#A066FF;">📅 Scheduled Date &amp; Time</p>
-            <p style="margin:0 0 4px;font-size:16px;font-weight:800;color:#FFFFFF;">${formattedDate}</p>
-            <p style="margin:0;font-size:15px;font-weight:700;color:#00D4FF;">${displayTime || 'Central Time'}</p>
-          </div>
-          <p style="margin:0 0 16px;font-size:14px;color:rgba(244,244,255,0.75);">An invite has been placed on our Apple Calendar. If you need to reschedule, reply directly to this email.</p>
-          <p style="margin:24px 0 0;font-size:14px;color:rgba(244,244,255,0.6);">Best regards,<br><strong style="color:#FFF;">Matty Hagen</strong><br>PurePulse Technology Solutions</p>
-        </div>
-      `
-
-      const uid = `purepulse-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
-      const dtstart = new Date(startISO).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
-      const dtend = new Date(endISO).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
-      const dtstamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
-
-      const icsContent = [
-        'BEGIN:VCALENDAR',
-        'VERSION:2.0',
-        'PRODID:-//PurePulse Inc//1-on-1 Interview Scheduler//EN',
-        'CALSCALE:GREGORIAN',
-        'METHOD:REQUEST',
-        'BEGIN:VEVENT',
-        `UID:${uid}`,
-        `DTSTAMP:${dtstamp}`,
-        `DTSTART:${dtstart}`,
-        `DTEND:${dtend}`,
-        `SUMMARY:PurePulse 1-on-1 Virtual Interview (${interview.candidate_name})`,
-        `DESCRIPTION:1-on-1 Partner Interview with Matty Hagen for ${interview.job_title || 'Affiliate Sales Partner'}.`,
-        'ORGANIZER;CN=Matty Hagen:mailto:matty@purepulse.one',
-        `ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=${interview.candidate_name}:mailto:${interview.candidate_email}`,
-        'STATUS:CONFIRMED',
-        'END:VEVENT',
-        'END:VCALENDAR',
-      ].join('\r\n')
-
-      try {
-        await resend.emails.send({
-          from: 'PurePulse Hiring <hiring@purepulse.one>',
-          to: [interview.candidate_email, 'matty@purepulse.one'],
-          subject: `🗓️ Confirmed: 1-on-1 Interview with ${interview.candidate_name} (${formattedDate})`,
-          html: htmlBody,
-          attachments: [
-            {
-              filename: 'interview-invite.ics',
-              content: Buffer.from(icsContent).toString('base64'),
-            },
-          ],
-        })
-      } catch (emailErr) {
-        console.warn('[schedule/token] Confirmation email warning:', emailErr)
-      }
+    } catch (emailError) {
+      console.warn('[schedule/token] confirmation email warning:', emailError)
     }
-
-    return NextResponse.json({
-      success: true,
-      message: '1-on-1 Interview scheduled successfully!',
-      eventCreated,
-    })
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Scheduling failed' }, { status: 500 })
+    return NextResponse.json({ success: true, message: 'Interview scheduled successfully.', meetingUrl: event.hangoutLink || null })
+  } catch (error) {
+    console.error('[schedule/token] booking error:', error)
+    return NextResponse.json({ error: 'We could not schedule this interview. Please try another time.' }, { status: 500 })
   }
 }

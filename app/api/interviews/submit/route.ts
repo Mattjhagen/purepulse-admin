@@ -79,9 +79,11 @@ export async function POST(req: NextRequest) {
     const userAgent = req.headers.get('user-agent') ?? null
 
     const interviewId = crypto.randomUUID()
+    const scheduleToken = crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '').slice(0, 16)
 
     const insertPayload = {
       id: interviewId,
+      schedule_token: scheduleToken,
       affiliate_id: affiliateId,
       candidate_name: resolvedName,
       candidate_email: resolvedEmail,
@@ -195,6 +197,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       interview_id: interviewId,
+      schedule_token: scheduleToken,
+      schedule_url: `${appUrl}/schedule/${scheduleToken}`,
       message: 'Interview submitted successfully',
     })
   } catch (err) {

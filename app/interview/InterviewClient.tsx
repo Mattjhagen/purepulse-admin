@@ -174,7 +174,7 @@ export default function InterviewClient({ token }: { token?: string }) {
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [submissionError, setSubmissionError] = useState('')
-  const [submittedInterviewId, setSubmittedInterviewId] = useState<string | null>(null)
+  const [submittedScheduleToken, setSubmittedScheduleToken] = useState<string | null>(null)
   const [validationError, setValidationError] = useState('')
 
   // Refs
@@ -455,7 +455,7 @@ export default function InterviewClient({ token }: { token?: string }) {
 
         const submitData = await submitRes.json()
         if (!submitRes.ok) throw new Error(submitData.error || 'Interview submission failed.')
-        if (submitData.interview_id) setSubmittedInterviewId(submitData.interview_id)
+        if (submitData.schedule_token) setSubmittedScheduleToken(submitData.schedule_token)
         console.log('[submitInterview] Submitted successfully:', submitData)
       } catch (submitErr) {
         throw submitErr
@@ -1120,12 +1120,15 @@ export default function InterviewClient({ token }: { token?: string }) {
           Select an open 30-minute time slot between <strong>12:00 PM – 7:00 PM Central Time (Mon–Fri)</strong> to connect directly with founder Matty Hagen.
         </p>
         <a
-          href={`/schedule/${submittedInterviewId || encodeURIComponent(email)}`}
+          href={submittedScheduleToken ? `/schedule/${submittedScheduleToken}` : '#'}
+          aria-disabled={!submittedScheduleToken}
           style={{
             display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
             background: 'linear-gradient(135deg, #7B2FFF, #00D4FF)', color: '#fff', fontSize: '0.875rem', fontWeight: 800,
             padding: '0.75rem 1.75rem', borderRadius: '8px', textDecoration: 'none',
-            boxShadow: '0 4px 16px rgba(123,47,255,0.4)',
+            boxShadow: submittedScheduleToken ? '0 4px 16px rgba(123,47,255,0.4)' : 'none',
+            opacity: submittedScheduleToken ? 1 : 0.55,
+            pointerEvents: submittedScheduleToken ? 'auto' : 'none',
           }}
         >
           🗓️ Schedule 1-on-1 Interview Now →

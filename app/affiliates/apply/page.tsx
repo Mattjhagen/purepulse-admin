@@ -185,6 +185,7 @@ function ApplyContent() {
   const [referralCode, setReferralCode] = useState('')
   const [resultEmail, setResultEmail] = useState('')
   const [actionLink, setActionLink] = useState('')
+  const [scheduleUrl, setScheduleUrl] = useState('')
 
   // Refs for media
   const liveVideoRef = useRef<HTMLVideoElement>(null)
@@ -454,6 +455,7 @@ function ApplyContent() {
       if (data.action_link) {
         setActionLink(data.action_link)
       }
+      if (data.schedule_url) setScheduleUrl(data.schedule_url)
 
       // 2. Also submit video pre-screen responses to interviews table (non-blocking)
       try {
@@ -478,7 +480,7 @@ function ApplyContent() {
           }
         }
 
-        await fetch('/api/interviews/submit', {
+        const interviewRes = await fetch('/api/interviews/submit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -489,8 +491,11 @@ function ApplyContent() {
             video_urls: finalVideoUrls,
             text_answers: textAnswers,
             roleplay_video_url: finalVideoUrls.roleplay || null,
+            interview_token: data.interview_token || undefined,
           }),
         })
+        const interviewData = await interviewRes.json().catch(() => ({}))
+        if (interviewRes.ok && interviewData.schedule_url) setScheduleUrl(interviewData.schedule_url)
       } catch (interviewErr) {
         console.warn('[submitApplication] interview backup upload warning:', interviewErr)
       }
@@ -1043,6 +1048,18 @@ function ApplyContent() {
                 <li>Once approved, your email will include your official <strong>Partner Portal setup link</strong> and <strong>Unique Referral Code</strong> to start earning commissions immediately.</li>
               </ul>
             </div>
+
+            {scheduleUrl && (
+              <div style={{ background: 'rgba(123,47,255,0.08)', border: '1.5px solid rgba(123,47,255,0.28)', borderRadius: 12, padding: '22px 20px', marginBottom: 24, textAlign: 'center' }}>
+                <h3 style={{ margin: '0 0 8px', fontSize: '1.0625rem', fontWeight: 800, color: '#111' }}>Schedule Your Live Interview</h3>
+                <p style={{ margin: '0 auto 16px', maxWidth: 500, color: '#4b5563', fontSize: '0.875rem', lineHeight: 1.6 }}>
+                  Choose any open 30-minute appointment from 12:00 PM to 7:00 PM Central Time. Times already busy on our Google Calendar will not be available.
+                </p>
+                <a href={scheduleUrl} style={{ ...s.btn, display: 'inline-flex', width: 'auto', textDecoration: 'none', background: '#7B2FFF', color: '#fff' }}>
+                  Schedule My Interview →
+                </a>
+              </div>
+            )}
 
             <div style={{ textAlign: 'center' }}>
               <Link href="/affiliates" className="btn btn-ghost btn-sm" style={{ color: '#7B2FFF', fontWeight: 600 }}>
