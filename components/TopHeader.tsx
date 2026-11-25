@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { LogOut, ShieldCheck, User, Menu } from 'lucide-react'
 import { signOut, isSuperuser } from '@/lib/auth'
 import { useRouter } from 'next/navigation'
+import OwnerPortalSwitcher from './OwnerPortalSwitcher'
 
 export default function TopHeader({ initialEmail }: { initialEmail?: string }) {
   const router = useRouter()
@@ -134,6 +135,7 @@ export default function TopHeader({ initialEmail }: { initialEmail?: string }) {
           </span>
         </div>
       </div>
+      <OwnerPortalSwitcher email={user.email} />
 
       <button
         onClick={handleLogout}

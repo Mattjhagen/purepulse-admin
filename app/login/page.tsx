@@ -1,12 +1,12 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn } from '@/lib/auth'
 import { createClient } from '@/lib/supabase'
 
 export default function LoginPage() {
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -60,6 +60,11 @@ export default function LoginPage() {
       const data = await res.json()
 
       if (res.ok && data.ok) {
+        const { error: supabaseError } = await supabase.auth.signInWithPassword({ email: cleanEmail, password })
+        if (supabaseError) {
+          setError('Unable to establish the shared portal session. Please try again.')
+          return
+        }
         if (data.user?.role === 'affiliate') {
           window.location.href = '/affiliates/dashboard'
         } else {

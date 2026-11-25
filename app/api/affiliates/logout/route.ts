@@ -10,5 +10,7 @@ export async function POST() {
   } catch (err) {
     console.warn('[affiliates/logout] signOut notice:', err)
   }
-  return NextResponse.redirect(new URL('/affiliates/login', process.env.NEXT_PUBLIC_APP_URL ?? 'https://login.purepulse.one'))
+  const response = NextResponse.redirect(new URL('/affiliates/login', process.env.NEXT_PUBLIC_APP_URL ?? 'https://login.purepulse.one'))
+  response.cookies.set('purepulse_team_session', '', { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 0 })
+  return response
 }

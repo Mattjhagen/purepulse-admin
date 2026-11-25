@@ -1,0 +1,16 @@
+[Unit]
+Description=PurePulse campaign scheduler worker
+After=network-online.target
+
+[Service]
+Type=simple
+User=matt
+WorkingDirectory=/home/matt/PurePulse-Recovery/purepulse-admin
+EnvironmentFile=/home/matt/PurePulse-Recovery/purepulse-admin/.env.production
+ExecStart=/usr/bin/node scripts/campaign-worker.mjs
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

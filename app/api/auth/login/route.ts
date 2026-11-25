@@ -26,9 +26,9 @@ export async function POST(req: NextRequest) {
 
     const user = userRes.rows[0]
     let name = user?.raw_user_meta_data?.name || cleanEmail.split('@')[0]
-    let role = user?.raw_user_meta_data?.role || 'admin'
+    let role = user?.raw_user_meta_data?.role || null
     let title = user?.raw_user_meta_data?.title || null
-    let userId = user?.id
+    const userId = user?.id
 
     // 2. Cross-reference team_members table
     const teamRes = await client.query(
@@ -46,16 +46,14 @@ export async function POST(req: NextRequest) {
       title = teamMember.title || title
     }
 
-    if (!user) {
-      // Check master admin fallback if applicable
-      const MASTER_EMAILS = ['matty@purepulse.one', 'mattjhagen0@gmail.com']
-      if (MASTER_EMAILS.includes(cleanEmail)) {
-        userId = userId || '00000000-0000-0000-0000-000000000001'
-        role = 'admin'
-      } else {
-        return NextResponse.json({ error: 'Invalid login credentials' }, { status: 401 })
-      }
+    const MASTER_EMAILS = ['matty@purepulse.one', 'mattjhagen0@gmail.com', 'admin@purepulse.one']
+    if (!user && !MASTER_EMAILS.includes(cleanEmail)) {
+      return NextResponse.json({ error: 'Invalid login credentials' }, { status: 401 })
     }
+    if (!teamMember && !MASTER_EMAILS.includes(cleanEmail)) {
+      return NextResponse.json({ error: 'This account is not authorized for the administrator portal.' }, { status: 403 })
+    }
+    role = role || 'admin'
 
     // 3. Update last login
     if (teamMember) {

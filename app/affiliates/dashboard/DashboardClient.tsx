@@ -1,6 +1,7 @@
 'use client'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import OwnerPortalSwitcher from '@/components/OwnerPortalSwitcher'
 import {
   TrendingUp, Gift, DollarSign, MousePointer, Copy, CheckCircle,
   Printer, Download, Share2, Landmark, Sparkles, ExternalLink,
@@ -849,6 +850,8 @@ export default function AffiliateDashboardClient({
               ● {affiliate.status.toUpperCase()}
             </span>
           </div>
+
+          <OwnerPortalSwitcher email={affiliate.email} />
 
           <form action="/api/affiliates/logout" method="POST">
             <button type="submit" style={s.signOutBtn}>

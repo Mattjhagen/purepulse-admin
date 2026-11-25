@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
@@ -13,7 +13,7 @@ export default function AffiliateLoginPage() {
   const [error, setError] = useState('')
   const [sent, setSent] = useState(false)
 
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://login.purepulse.one'
 
@@ -74,8 +74,7 @@ export default function AffiliateLoginPage() {
       setError('Invalid email or password. If you have not set a password yet, please use the sign-in link option.')
       return
     }
-    router.push('/affiliates/dashboard')
-    router.refresh()
+    window.location.assign('/affiliates/dashboard')
   }
 
   return (

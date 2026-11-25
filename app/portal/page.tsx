@@ -1,9 +1,10 @@
 'use client'
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { formatDate, statusBadgeClass } from '@/lib/utils'
 import { Plus, X, LogOut, CheckCircle, Circle, Clock, MessageCircle, FileText, CreditCard, LifeBuoy, Sparkles, ThumbsUp, RotateCcw, ChevronDown, ChevronRight, ClipboardList, Pencil } from 'lucide-react'
 import HandoffStatusCard from './handoff-status-card'
+import OwnerPortalSwitcher from '@/components/OwnerPortalSwitcher'
 
 type Tab = 'home' | 'progress' | 'campaign' | 'brief' | 'messages' | 'invoices' | 'tickets' | 'posts'
 
@@ -82,7 +83,7 @@ const GOAL_OPTIONS = [
 ]
 
 export default function CustomerPortalPage() {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [session, setSession] = useState<{ user: { email?: string; id: string } } | null>(null)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -476,8 +477,9 @@ export default function CustomerPortalPage() {
   }
 
   async function handleSignOut() {
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
     await supabase.auth.signOut()
-    setSession(null); setClientId(null); setStages([]); setMessages([]); setInvoices([]); setTickets([]); setCampaigns([]); setBrief(null); setBriefSuccess(false)
+    window.location.assign('/login')
   }
 
   function toggleMilestone(id: string) {
@@ -708,6 +710,7 @@ export default function CustomerPortalPage() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{clientName || session.user.email}</span>
+          <OwnerPortalSwitcher email={session.user.email} />
           <button className="btn btn-ghost btn-sm" onClick={handleSignOut}><LogOut size={14} /> Sign out</button>
         </div>
       </header>

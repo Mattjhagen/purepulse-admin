@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import Link from 'next/link'
 import { Sparkles, ArrowRight } from 'lucide-react'
+import CampaignScheduler from '@/components/CampaignScheduler'
 
 export default async function CampaignsPage() {
   const supabase = await createServerSupabaseClient()
@@ -118,6 +119,7 @@ export default async function CampaignsPage() {
           })}
         </div>
       )}
+      <CampaignScheduler />
     </>
   )
 }
