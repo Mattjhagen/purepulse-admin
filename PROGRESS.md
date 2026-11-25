@@ -22,6 +22,14 @@
 - Final verification: `https://purepulse.one` remains HTTP 200 but is still the alternate Vite build; durable preview `http://127.0.0.1:3040` returns HTTP 200 for the original splash, home, CSS, and portfolio assets.
 - Latest commit: `ae8184d` (`ops: add reproducible original site systemd unit`), pushed to `origin/recovery/consolidate-platform`.
 
+## 2026-11-24 — backend recovery audit
+
+- Recovered route inventory confirms original admin, client portal, affiliate, applications/video interviews, contracts, onboarding, referrals, payroll/commission, campaigns, and reporting surfaces remain in the canonical repository.
+- Dependency/build validation: existing 51-test suite passed; TypeScript/build had previously passed before the security-only fallback removal, with a follow-up TypeScript process requiring additional runtime time on this host.
+- Security repair: removed hardcoded database-password and session-secret fallbacks; production now requires `SUPABASE_DB_PASS`/`DATABASE_URL` and `SESSION_SECRET`.
+- Service artifact: `deploy/systemd/purepulse-admin.service` prepared for localhost:3041; it intentionally requires an uncommitted `.env.production`.
+- Infrastructure blocker: `login.purepulse.one` currently resolves directly to Vercel and returns `DEPLOYMENT_DISABLED` (HTTP 402). No login hostname exists in the R510 tunnel config, and no authorized Supabase/service credentials were found locally.
+
 ## 2026-11-24 — restoration validation
 
 - R510 search: found historical source at `/home/matt/PurePulse/PurePulse-Marketing`, the deployed build at `/home/matt/services/portfolio-projects/purepulse`, and deployment docs under `/home/matt/PurePulse/sites-on-r510`.

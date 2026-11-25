@@ -1,0 +1,23 @@
+[Unit]
+Description=PurePulse recovered administrative backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=matt
+WorkingDirectory=/home/matt/PurePulse-Recovery/purepulse-admin
+Environment=NODE_ENV=production
+Environment=PORT=3041
+EnvironmentFile=/home/matt/PurePulse-Recovery/purepulse-admin/.env.production
+ExecStart=/usr/bin/npm run start -- -p 3041
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/home/matt/PurePulse-Recovery/purepulse-admin/.next
+
+[Install]
+WantedBy=multi-user.target

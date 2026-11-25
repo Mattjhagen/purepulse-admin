@@ -37,3 +37,22 @@ Before starting it, stop only the current PurePulse listener on 3014 and retain
 its source for rollback. Do not stop an unrelated service. The active
 Cloudflare tunnel currently routes `purepulse.one` and `www.purepulse.one` to
 localhost:3014; unrelated hostname routes must remain unchanged.
+
+## Backend service artifact
+
+`deploy/systemd/purepulse-admin.service` defines the recovered Next.js backend
+on the currently unused localhost port 3041. It requires an administrator-owned
+`/home/matt/PurePulse-Recovery/purepulse-admin/.env.production` with authorized
+Supabase and application secrets; no environment file is committed. Install
+only after the environment has been populated and checked:
+
+```sh
+sudo install -o root -g root -m 0644 deploy/systemd/purepulse-admin.service /etc/systemd/system/purepulse-admin.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now purepulse-admin.service
+curl -fsS http://127.0.0.1:3041/login
+```
+
+The current `login.purepulse.one` DNS points to a disabled Vercel deployment,
+not the R510 tunnel. DNS or tunnel ingress must be changed separately after
+the backend is healthy; the existing `purepulse-r510` routes must be preserved.

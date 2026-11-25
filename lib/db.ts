@@ -1,9 +1,11 @@
 import { adminSupabase } from '@/lib/supabase'
 
 export async function getDbClient(): Promise<any> {
-  const connectionString =
-    process.env.DATABASE_URL ||
-    `postgresql://postgres.kofjljwctqqllnjiejxd:${process.env.SUPABASE_DB_PASS || 'uAyNuDiLdoE1wNjV'}@aws-0-us-east-1.pooler.supabase.com:6543/postgres`
+  const dbPassword = process.env.SUPABASE_DB_PASS
+  const connectionString = process.env.DATABASE_URL ||
+    (dbPassword
+      ? `postgresql://postgres.kofjljwctqqllnjiejxd:${dbPassword}@aws-0-us-east-1.pooler.supabase.com:6543/postgres`
+      : '')
 
   try {
     // @ts-ignore

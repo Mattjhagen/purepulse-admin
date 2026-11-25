@@ -2,7 +2,7 @@ import { cookies } from 'next/headers'
 import crypto from 'crypto'
 
 const SESSION_COOKIE = 'purepulse_team_session'
-const SECRET = process.env.SUPABASE_DB_PASS || 'purepulse-secret-key-2026-auth'
+const SECRET = process.env.SESSION_SECRET || process.env.SUPABASE_DB_PASS || ''
 
 export interface SessionUser {
   id: string
@@ -13,6 +13,7 @@ export interface SessionUser {
 }
 
 export function signSession(user: SessionUser): string {
+  if (!SECRET) throw new Error('SESSION_SECRET is not configured')
   const payload = Buffer.from(JSON.stringify(user)).toString('base64url')
   const signature = crypto.createHmac('sha256', SECRET).update(payload).digest('base64url')
   return `${payload}.${signature}`
@@ -20,6 +21,7 @@ export function signSession(user: SessionUser): string {
 
 export function verifySession(token: string): SessionUser | null {
   try {
+    if (!SECRET) return null
     const [payload, signature] = token.split('.')
     if (!payload || !signature) return null
 
