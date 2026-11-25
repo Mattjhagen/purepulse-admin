@@ -11,6 +11,15 @@
 - Blockers: staging hostname/Cloudflare credentials, Supabase project backup authorization, and production deployment approval are not yet verified.
 - Latest commit: working tree branch created; documentation milestone pending commit.
 
+## 2026-11-24 — cutover preparation
+
+- GitHub: `restoration/original-website` and annotated tag `purepulse-original-restored-2026-11-24` both point to the confirmed `d2b3ed8` source.
+- Backend review: `recovery/consolidate-platform` is clean and pushed; its delta is recovery documentation only. Secret scan found no real credentials or sensitive records.
+- Durable deployment: exact static copy staged at `/home/matt/PurePulse-Recovery/deploy/purepulse-original`; byte hashes match the confirmed candidate and `/var/www/purepulse`.
+- Service artifact: `deploy/systemd/purepulse-original.service` prepared for localhost:3014 with restart and hardening settings.
+- Validation: durable copy returns HTTP 200 for `/`, `/home.html`, CSS, splash HTML, and portfolio assets on the isolated preview port 3040.
+- Cutover status: not yet switched. Port 3014 still serves the rejected alternate Vite build; host administrator access is required to install the unit and change the listener safely.
+
 ## 2026-11-24 — restoration validation
 
 - R510 search: found historical source at `/home/matt/PurePulse/PurePulse-Marketing`, the deployed build at `/home/matt/services/portfolio-projects/purepulse`, and deployment docs under `/home/matt/PurePulse/sites-on-r510`.

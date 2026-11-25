@@ -16,3 +16,24 @@ Run the canonical Next.js server on a dedicated localhost port, behind a dedicat
 4. Start staging and verify health, auth, RLS, forms, affiliate flows, and mobile rendering.
 5. Observe logs and disk usage through one full restart.
 6. Obtain explicit approval before changing production tunnel ingress or cutover.
+
+## Original public-site deployment artifact
+
+An exact byte-for-byte copy of the confirmed `d2b3ed8` static site is staged at
+`/home/matt/PurePulse-Recovery/deploy/purepulse-original` on the R510. It is
+outside `/tmp` and excludes Git metadata. The matching unit file is
+`deploy/systemd/purepulse-original.service`; it binds localhost:3014 so the
+existing `purepulse.one` tunnel route can be switched without changing DNS or
+unrelated tunnel routes. Installation requires host administrator access:
+
+```sh
+sudo install -o root -g root -m 0644 deploy/systemd/purepulse-original.service /etc/systemd/system/purepulse-original.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now purepulse-original.service
+curl -fsS http://127.0.0.1:3014/
+```
+
+Before starting it, stop only the current PurePulse listener on 3014 and retain
+its source for rollback. Do not stop an unrelated service. The active
+Cloudflare tunnel currently routes `purepulse.one` and `www.purepulse.one` to
+localhost:3014; unrelated hostname routes must remain unchanged.
