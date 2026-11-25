@@ -15,6 +15,7 @@
 
 - R510 search: found historical source at `/home/matt/PurePulse/PurePulse-Marketing`, the deployed build at `/home/matt/services/portfolio-projects/purepulse`, and deployment docs under `/home/matt/PurePulse/sites-on-r510`.
 - Public artifact: served the recovered built Vite site on `127.0.0.1:3035`; HTTP 200, title `PurePulse — Elite Web Design & Digital Roster`, and SHA-256 matches the deployed build.
+- Production status: `https://purepulse.one` currently returns HTTP 200 and the same Vite build hash. The domain is already online; no cutover was performed.
 - Dependency recovery: `npm ci --ignore-scripts --no-audit --no-fund --cache /tmp/purepulse-npm-cache` completed successfully after moving the failed generated dependency tree out of the application directory. No package versions were changed.
 - Canonical backend validation: TypeScript passed; Next.js production build passed and generated 91 static pages/routes plus the existing API surface.
 - Lint: existing application lint currently reports 85 errors/127 warnings, primarily React 19 hook/purity rules and legacy `any` usage. No lint auto-fix was applied because this is restoration work and broad rewrites could change behavior.

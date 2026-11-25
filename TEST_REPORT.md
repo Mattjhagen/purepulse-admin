@@ -6,6 +6,8 @@
 - Repository preservation: passed; each source is cloned in the recovery workspace.
 - Live domain response: passed HTTP 200; confirmed current Vite title and assets.
 - Original asset parity: passed; `/var/www/purepulse/index.html` SHA-256 matches `PurePulse/index.html`.
+- Historical production artifact parity: passed; `/home/matt/PurePulse/PurePulse-Marketing/dist/index.html` SHA-256 matches `/home/matt/services/portfolio-projects/purepulse/index.html`.
+- Public production smoke check: passed; `https://purepulse.one` returned HTTP 200 with the expected PurePulse title.
 - Host service inventory: passed read-only inspection; unrelated services remain untouched.
 
 ## Application checks
