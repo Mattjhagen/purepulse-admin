@@ -19,6 +19,8 @@
 - Service artifact: `deploy/systemd/purepulse-original.service` prepared for localhost:3014 with restart and hardening settings.
 - Validation: durable copy returns HTTP 200 for `/`, `/home.html`, CSS, splash HTML, and portfolio assets on the isolated preview port 3040.
 - Cutover status: not yet switched. Port 3014 still serves the rejected alternate Vite build; host administrator access is required to install the unit and change the listener safely.
+- Final verification: `https://purepulse.one` remains HTTP 200 but is still the alternate Vite build; durable preview `http://127.0.0.1:3040` returns HTTP 200 for the original splash, home, CSS, and portfolio assets.
+- Latest commit: `ae8184d` (`ops: add reproducible original site systemd unit`), pushed to `origin/recovery/consolidate-platform`.
 
 ## 2026-11-24 — restoration validation
 
