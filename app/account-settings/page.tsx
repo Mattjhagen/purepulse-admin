@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { AlertCircle, CheckCircle2, Eye, EyeOff, KeyRound, UserCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 
@@ -8,6 +9,7 @@ type PasswordField = 'currentPassword' | 'newPassword' | 'confirmPassword'
 
 export default function AccountSettingsPage() {
   const supabase = useMemo(() => createClient(), [])
+  const router = useRouter()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [passwords, setPasswords] = useState<Record<PasswordField, string>>({ currentPassword: '', newPassword: '', confirmPassword: '' })
@@ -42,7 +44,7 @@ export default function AccountSettingsPage() {
       if (!response.ok) throw new Error(data.error || 'Password could not be updated.')
       setPasswords({ currentPassword: '', newPassword: '', confirmPassword: '' })
       setMessage({ kind: 'success', text: 'Password updated. Other sessions were signed out. Sign in again with your new password.' })
-      window.setTimeout(() => { window.location.href = '/login?passwordChanged=1' }, 1200)
+      window.setTimeout(() => router.push('/login?passwordChanged=1'), 1200)
     } catch (error) {
       setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Password could not be updated.' })
     } finally {

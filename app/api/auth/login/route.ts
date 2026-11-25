@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
       [cleanEmail, password]
     )
 
-    let user = userRes.rows[0]
+    const user = userRes.rows[0]
     let name = user?.raw_user_meta_data?.name || cleanEmail.split('@')[0]
     let role = user?.raw_user_meta_data?.role || 'admin'
     let title = user?.raw_user_meta_data?.title || null
