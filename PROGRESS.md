@@ -10,7 +10,7 @@
 - Migration: added `040_team_session_version.sql`; applied to the isolated database without destructive changes.
 - Build: Next.js production build passes. No second server was launched; `purepulse-admin.service` remains the only backend service.
 - External routing: `https://login.purepulse.one` still returns the disabled Vercel deployment (HTTP 402). No DNS or Cloudflare route was changed, per approval gate.
-- Latest commit: `75ba689` (`feat: add secure account password settings`), pushed to `origin/recovery/consolidate-platform`.
+- Latest commits: `1eb1630` (`fix: polish account settings release checks`) and `3b6571a` (`docs: record portal recovery milestone`), pushed to `origin/recovery/consolidate-platform`.
 
 ## 2026-11-24
 
