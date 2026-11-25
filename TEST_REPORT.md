@@ -30,6 +30,18 @@ Pending clean dependency installation and canonical recovery changes. Existing r
 - Affiliate video: original H.264/AAC `videoplayback.mp4` recovered from `PurePulseMarketing:1718dc8`; HTTP 206 byte-range and MIME checks passed.
 - Payments, payouts, payroll execution, external email, and social publication: not executed.
 
+## 2026-11-25 portal and account-settings validation
+
+- Existing service state: `purepulse-admin.service` is active on `127.0.0.1:3041`; no conflicting preview server was launched.
+- Local route smoke tests: `/login`, `/portal`, `/affiliates/login`, `/affiliates/apply`, and the restored video return 200. Unauthenticated requests to `/dashboard`, `/affiliates/dashboard`, `/interviews`, `/marketing`, `/campaigns`, `/social`, `/contracts`, and `/time-clock` redirect to `/login`.
+- Restored video: `/media/videoplayback.mp4` returns `Content-Type: video/mp4`, `Accept-Ranges: bytes`, and supports byte-range delivery.
+- Authentication: owner, administrator, demo client, and demo affiliate Supabase Auth checks pass. Client and affiliate RLS-scoped checks pass.
+- Account settings: password input validation tests pass; production build includes `/account-settings` and `/api/account/password`. The API has no target-user input, verifies the current password against the authenticated account, updates only that account, revokes other Supabase sessions, and invalidates legacy team sessions with the new persisted version function.
+- Automated tests: 54 passed across 23 suites.
+- Production build: passed with Next.js 16.3.0; generated route table includes `/account-settings` and `/api/account/password`.
+- Browser automation: no browser surface was available in this environment, so route-level and application-auth tests were used instead; visual browser acceptance remains for the owner.
+- External hostname: `login.purepulse.one` returns Vercel `DEPLOYMENT_DISABLED` HTTP 402 and is not yet routed to the R510. DNS/tunnel changes were intentionally not made.
+
 ## Pending acceptance
 
 - Install the systemd unit with administrator access.

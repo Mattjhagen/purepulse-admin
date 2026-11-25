@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import crypto from 'crypto'
+import { getDbClient } from '@/lib/db'
 
 const SESSION_COOKIE = 'purepulse_team_session'
 const SECRET = process.env.SESSION_SECRET || process.env.SUPABASE_DB_PASS || ''
@@ -10,6 +11,7 @@ export interface SessionUser {
   email: string
   role: string
   title?: string | null
+  sessionVersion?: number
 }
 
 export function signSession(user: SessionUser): string {
@@ -40,7 +42,27 @@ export async function getAppSession(): Promise<SessionUser | null> {
     const cookieStore = await cookies()
     const token = cookieStore.get(SESSION_COOKIE)?.value
     if (!token) return null
-    return verifySession(token)
+    const session = verifySession(token)
+    if (!session) return null
+
+    // Legacy team sessions are stateless cookies. Check the persisted version
+    // so a password change can invalidate every previously issued cookie.
+    const client = await getDbClient()
+    try {
+      await client.connect()
+      const result = await client.query(
+        'SELECT session_version FROM team_members WHERE (auth_user_id = $1 OR LOWER(email) = LOWER($2)) AND status <> $3 LIMIT 1',
+        [session.id, session.email, 'inactive']
+      )
+      const currentVersion = result.rows[0]?.session_version
+      if (currentVersion !== undefined && Number(currentVersion) !== Number(session.sessionVersion ?? 1)) return null
+      return session
+    } catch {
+      // Preserve existing behavior if the compatibility database is unavailable.
+      return session
+    } finally {
+      await client.end()
+    }
   } catch {
     return null
   }

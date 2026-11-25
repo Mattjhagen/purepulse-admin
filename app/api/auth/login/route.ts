@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
 
     // 2. Cross-reference team_members table
     const teamRes = await client.query(
-      'SELECT id, name, role, title, status FROM team_members WHERE LOWER(email) = LOWER($1)',
+      'SELECT id, name, role, title, status, auth_user_id, session_version FROM team_members WHERE LOWER(email) = LOWER($1)',
       [cleanEmail]
     )
     const teamMember = teamRes.rows[0]
@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
       email: cleanEmail,
       role,
       title,
+      sessionVersion: teamMember?.session_version ?? 1,
     }
 
     const sessionToken = signSession(sessionPayload)

@@ -6,7 +6,7 @@ import {
   Menu, X as CloseIcon, ArrowUp, ArrowDown, GripVertical, RotateCcw, Edit2, Check,
   Clock, Users, Ticket, FileText, FileCheck, Receipt, LayoutDashboard, Settings,
   LogOut, ChevronRight, Inbox, Mail, MessageCircle, Sparkles, CalendarDays,
-  Share2, UsersRound, Gift, Megaphone, ShoppingBag, Video, Workflow, ServerCog, ShieldCheck
+  Share2, UsersRound, Gift, Megaphone, ShoppingBag, Video, Workflow, ServerCog, ShieldCheck, UserCog
 } from 'lucide-react'
 import { signOut, isSuperuser } from '@/lib/auth'
 
@@ -285,6 +285,11 @@ export default function Nav({ email }: { email?: string }) {
             </div>
           )}
 
+          <Link
+            href="/account-settings"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '6px', fontSize: '0.8125rem', color: pathname === '/account-settings' ? '#C4A2FF' : 'var(--text-muted)', background: pathname === '/account-settings' ? 'rgba(123,47,255,0.14)' : 'transparent', border: pathname === '/account-settings' ? '1px solid rgba(123,47,255,0.3)' : '1px solid transparent', textDecoration: 'none', width: '100%', fontWeight: 600, marginBottom: '0.5rem' }}
+          ><UserCog size={14} /> Account Settings</Link>
+
           <button
             onClick={handleSignOut}
             style={{
@@ -385,6 +390,7 @@ export default function Nav({ email }: { email?: string }) {
 
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.875rem', marginTop: '0.75rem' }}>
               {email && <p style={{ fontSize: '0.75rem', color: '#9CA3AF', margin: '0 0 8px 4px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{email}</p>}
+              <Link href="/account-settings" onClick={() => setDrawerOpen(false)} style={{ width: '100%', padding: '0.625rem', marginBottom: '0.5rem', borderRadius: '6px', color: pathname === '/account-settings' ? '#C4A2FF' : '#D1D5DB', background: pathname === '/account-settings' ? 'rgba(123,47,255,0.14)' : 'rgba(255,255,255,0.04)', border: pathname === '/account-settings' ? '1px solid rgba(123,47,255,0.3)' : '1px solid rgba(255,255,255,0.08)', fontWeight: 700, fontSize: '0.8125rem', textDecoration: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}><UserCog size={16} /> Account Settings</Link>
               <button
                 onClick={() => { setDrawerOpen(false); handleSignOut() }}
                 style={{ width: '100%', padding: '0.625rem', borderRadius: '6px', color: '#F87171', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}

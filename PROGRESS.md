@@ -1,5 +1,17 @@
 # Progress Log
 
+## 2026-11-25 — client and affiliate portal recovery validation
+
+- Phase: Portal recovery and account security
+- Completed: validated the existing client and affiliate route surface without replacing the recovered interfaces; public login/application pages return 200 and protected dashboard routes redirect unauthenticated requests.
+- Database: isolated self-hosted Supabase remains healthy and persistent; owner, administrator, fictional client, and fictional affiliate authentication checks pass. Demo seed remains separate from the owner account.
+- Security: client/affiliate scoped RLS checks pass; existing automated authorization suite plus three account-password validation tests pass (54 total tests).
+- Account settings: added the original dark/purple sidebar entry and authenticated self-service password change. Current password is verified through Supabase Auth, the new password is written to the authenticated user only, Supabase sessions are revoked, and legacy team cookies are invalidated through persisted session versions.
+- Migration: added `040_team_session_version.sql`; applied to the isolated database without destructive changes.
+- Build: Next.js production build passes. No second server was launched; `purepulse-admin.service` remains the only backend service.
+- External routing: `https://login.purepulse.one` still returns the disabled Vercel deployment (HTTP 402). No DNS or Cloudflare route was changed, per approval gate.
+- Latest commit: pending this milestone commit.
+
 ## 2026-11-24
 
 - Phase: Discovery and recovery

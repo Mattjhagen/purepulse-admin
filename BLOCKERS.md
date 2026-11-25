@@ -10,3 +10,5 @@
 - No authorized `.env.production` or Supabase service credentials are present locally; do not create substitute credentials or run migrations.
 - Administrator access is required to install `purepulse-admin.service` and update the single login hostname route while preserving all other Cloudflare routes.
 - Resend is not configured because no authorized `RESEND_API_KEY` or verified sender-domain configuration is present. The app boundary is preserved with `RESEND_FROM_EMAIL=PurePulse <noreply@purepulse.one>` and delivery remains disabled until credentials are supplied.
+- `login.purepulse.one` remains on the disabled Vercel route (HTTP 402). The local backend is healthy on `127.0.0.1:3041`, but the single Cloudflare ingress addition still requires the owner’s approved deployment step. No DNS or unrelated tunnel route was changed.
+- The new Account Settings build is prepared but requires `sudo systemctl restart purepulse-admin.service` before it is served by the active unit. The restart command is intentionally provided for owner execution after reviewing the change; no service restart was performed in this phase.

@@ -77,6 +77,22 @@ The exact login ingress addition is in
 `purepulse-r510` config after installing `purepulse-admin.service`; do not
 modify the public-site route or other tunnel entries.
 
+## Account settings release
+
+The current build adds `https://login.purepulse.one/account-settings` for an
+authenticated user. It is served by the same `purepulse-admin.service`; do not
+start a second Next.js process. After reviewing the pushed build and verifying
+the owner’s intended password change, reload it with:
+
+```sh
+sudo systemctl restart purepulse-admin.service
+sudo systemctl status --no-pager purepulse-admin.service
+```
+
+The password API does not require Resend. It verifies the submitted current
+password with Supabase Auth, changes only the authenticated account, signs out
+other Supabase sessions, and bumps the persisted legacy team-session version.
+
 ## Demonstration database backups
 
 `deploy/backup/purepulse-demo-backup.sh` creates mode-0600 custom-format dumps
