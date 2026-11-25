@@ -1,6 +1,17 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { validatePasswordChangeInput } from '../lib/account-security'
+import { isTrustedAccountOrigin, validatePasswordChangeInput } from '../lib/account-security'
+
+test('account password endpoint accepts the production HTTPS origin behind Cloudflare', () => {
+  assert.equal(isTrustedAccountOrigin('https://login.purepulse.one'), true)
+  assert.equal(isTrustedAccountOrigin('https://login.purepulse.one/'), true)
+})
+
+test('account password endpoint rejects malicious, localhost, and missing origins', () => {
+  assert.equal(isTrustedAccountOrigin('https://evil.example'), false)
+  assert.equal(isTrustedAccountOrigin('http://127.0.0.1:3041'), false)
+  assert.equal(isTrustedAccountOrigin(null), false)
+})
 
 test('account password validation rejects incomplete input', () => {
   assert.equal(validatePasswordChangeInput('', 'new-password', 'new-password'), 'Complete all password fields.')

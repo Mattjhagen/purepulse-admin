@@ -1,5 +1,7 @@
 # Blockers
 
+- The new build requires the existing `purepulse-admin.service` restart before the Origin fix is live. This environment cannot run `sudo` because of its no-new-privileges restriction; run the documented restart command manually.
+
 - Final public login cutover remains pending: `login.purepulse.one` still returns disabled Vercel HTTP 402. The validated Cloudflare route artifact is ready, but DNS/ingress activation was intentionally not performed.
 
 - Staging hostname and isolated Cloudflare ingress are not yet confirmed.

@@ -1,5 +1,15 @@
 # Progress Log
 
+## 2026-11-25 — production Origin validation fix
+
+- Diagnosed the failure: Account Settings compared the browser `Origin` host with `req.nextUrl.host`, which reflects the internal port-3041 request after Cloudflare HTTPS termination.
+- Fixed the password endpoint to require the explicit trusted origin `https://login.purepulse.one`; arbitrary, localhost, missing, and malformed origins remain rejected.
+- Updated Account Settings identity loading to use `/api/auth/me` first, restoring the authenticated owner name and email for the legacy team-session login flow.
+- Audited mutation origin checks: handoff actions use the configured production `NEXT_PUBLIC_APP_URL`; lead CORS allows production site/login origins and only permits localhost outside production.
+- Added trusted/malicious origin regression tests. Test suite now passes 56 tests; production build passes.
+- Restart attempt was blocked by the execution environment's `sudo` no-new-privileges restriction. No service or DNS change was made from this session.
+- Latest commit: pending this production bug-fix milestone.
+
 ## 2026-11-25 — production HTTPS readiness audit
 
 - Audited browser-facing URLs, Supabase callbacks, portal links, CORS origins, media references, and service environment wiring.

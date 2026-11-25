@@ -3,22 +3,17 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { adminSupabase } from '@/lib/supabase'
 import { getAppSession } from '@/lib/session'
-import { validatePasswordChangeInput } from '@/lib/account-security'
+import { isTrustedAccountOrigin, validatePasswordChangeInput } from '@/lib/account-security'
 
 export const dynamic = 'force-dynamic'
 
-function sameOrigin(req: NextRequest): boolean {
-  const origin = req.headers.get('origin')
-  if (!origin) return true
-  try {
-    return new URL(origin).host === req.nextUrl.host
-  } catch {
-    return false
-  }
-}
-
 export async function POST(req: NextRequest) {
-  if (!sameOrigin(req)) return NextResponse.json({ error: 'Invalid request origin.' }, { status: 403 })
+  // Cloudflare terminates HTTPS before forwarding to the private HTTP service,
+  // so the internal request host is not a trustworthy public-origin signal.
+  // Validate the browser Origin against the explicit production allowlist.
+  if (!isTrustedAccountOrigin(req.headers.get('origin'))) {
+    return NextResponse.json({ error: 'Invalid request origin.' }, { status: 403 })
+  }
 
   let body: { currentPassword?: string; newPassword?: string; confirmPassword?: string }
   try {

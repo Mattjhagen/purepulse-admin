@@ -1,5 +1,16 @@
 # Test Report
 
+## 2026-11-25 Account Settings production-origin regression
+
+- Trusted origin `https://login.purepulse.one`: accepted by the new validation helper.
+- Malicious origin `https://evil.example`: rejected.
+- Localhost origin and missing origin: rejected.
+- Cloudflare model: validation no longer uses the internal `req.nextUrl.host`; it uses the explicit public HTTPS allowlist and does not trust forwarded headers.
+- Profile identity: `/api/auth/me` is now preferred, so legacy team-session authentication displays the authenticated name and email.
+- Automated tests: 56 passed across 23 suites.
+- Next.js production build: passed.
+- Live restart: not performed because `sudo` is unavailable under this environment's no-new-privileges constraint.
+
 ## 2026-11-25 production HTTPS readiness
 
 - `https://purepulse.one/` and `https://www.purepulse.one/` return HTTP 200.

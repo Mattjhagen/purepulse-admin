@@ -19,12 +19,31 @@ export default function AccountSettingsPage() {
   const [message, setMessage] = useState<{ kind: 'error' | 'success'; text: string } | null>(null)
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      const user = data.user
-      setEmail(user?.email || '')
-      setName((user?.user_metadata?.name || user?.user_metadata?.full_name || user?.email || '').toString())
-      setLoading(false)
-    }).catch(() => setLoading(false))
+    fetch('/api/auth/me')
+      .then((response) => response.json())
+      .then(async (sessionData) => {
+        if (sessionData.user?.email) {
+          setEmail(sessionData.user.email)
+          setName((sessionData.user.fullName || sessionData.user.name || sessionData.user.email).toString())
+          setLoading(false)
+          return
+        }
+        const { data } = await supabase.auth.getUser()
+        const user = data.user
+        setEmail(user?.email || '')
+        setName((user?.user_metadata?.name || user?.user_metadata?.full_name || user?.email || '').toString())
+        setLoading(false)
+      })
+      .catch(async () => {
+        try {
+          const { data } = await supabase.auth.getUser()
+          const user = data.user
+          setEmail(user?.email || '')
+          setName((user?.user_metadata?.name || user?.user_metadata?.full_name || user?.email || '').toString())
+        } finally {
+          setLoading(false)
+        }
+      })
   }, [supabase])
 
   const updatePassword = (field: PasswordField, value: string) => setPasswords((current) => ({ ...current, [field]: value }))
