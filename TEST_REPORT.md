@@ -9,6 +9,7 @@
 - Auth callbacks reject external redirect targets; only same-origin relative paths are accepted.
 - Direct private Tailscale polling was removed from the browser; management actions require the permanent owner identity.
 - Automated tests: 54 passed across 23 suites. Next.js production build passed.
+- Full-repository lint remains legacy debt; targeted cutover files report existing dashboard/chat hook and style issues and were not broadly rewritten during restoration.
 
 ## Discovery checks
 
