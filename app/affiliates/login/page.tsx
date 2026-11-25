@@ -10,31 +10,41 @@ export default function AffiliateLoginPage() {
   const [password, setPassword] = useState('')
   const [mode, setMode] = useState<'magic' | 'password'>('magic')
   const [loading, setLoading] = useState(false)
+  const [checkingSession, setCheckingSession] = useState(true)
   const [error, setError] = useState('')
   const [sent, setSent] = useState(false)
 
   const supabase = useMemo(() => createClient(), [])
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://login.purepulse.one'
-
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        router.push('/affiliates/dashboard')
-      }
-    })
+    let active = true
+    const finish = () => { if (active) setCheckingSession(false) }
 
-    const hash = window.location.hash
-    if (hash.includes('access_token')) {
-      const params = new URLSearchParams(hash.substring(1))
-      const access_token = params.get('access_token')
-      const refresh_token = params.get('refresh_token')
-      if (access_token && refresh_token) {
-        supabase.auth.setSession({ access_token, refresh_token }).then(({ error }) => {
-          if (!error) window.location.href = '/affiliates/dashboard'
-        })
+    const resolveSession = async () => {
+      const hash = window.location.hash
+      if (hash.includes('access_token')) {
+        const params = new URLSearchParams(hash.substring(1))
+        const access_token = params.get('access_token')
+        const refresh_token = params.get('refresh_token')
+        if (access_token && refresh_token) {
+          const { error: sessionError } = await supabase.auth.setSession({ access_token, refresh_token })
+          if (!sessionError) {
+            window.location.replace('/affiliates/dashboard')
+            return
+          }
+        }
       }
+
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        router.replace('/affiliates/dashboard')
+        return
+      }
+      finish()
     }
+
+    void resolveSession()
+    return () => { active = false }
   }, [supabase, router])
 
   async function handleMagicLink(e: React.FormEvent) {
@@ -74,7 +84,7 @@ export default function AffiliateLoginPage() {
       setError('Invalid email or password. If you have not set a password yet, please use the sign-in link option.')
       return
     }
-    window.location.assign('/affiliates/dashboard')
+    router.replace('/affiliates/dashboard')
   }
 
   return (
@@ -86,7 +96,13 @@ export default function AffiliateLoginPage() {
 
       <main style={s.main}>
         <div style={s.card}>
-          {sent ? (
+          {checkingSession ? (
+            <div style={s.sentWrap} aria-live="polite">
+              <div style={s.sentIcon}>✦</div>
+              <h1 style={s.h1}>Loading your portal</h1>
+              <p style={s.sub}>Checking your secure session…</p>
+            </div>
+          ) : sent ? (
             <div style={s.sentWrap}>
               <div style={s.sentIcon}>✉️</div>
               <h1 style={s.h1}>Check your email</h1>

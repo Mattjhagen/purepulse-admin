@@ -5,6 +5,10 @@ import { createServerClient } from '@supabase/ssr'
 const PUBLIC_EXACT = ['/', '/login', '/portal', '/pricing', '/pricing/start', '/affiliates', '/affiliates/apply', '/affiliates/login', '/interview', '/schedule', '/team/setup']
 const PUBLIC_PREFIXES = ['/login/', '/portal/', '/auth/', '/api/', '/_next/', '/favicon', '/pricing/', '/sign/', '/checkout/', '/referrals/connect/', '/ref/', '/affiliates/apply/', '/affiliates/login/', '/affiliates/print/', '/interview/', '/schedule/', '/team/setup']
 
+function unauthenticatedPath(pathname: string) {
+  return pathname.startsWith('/affiliates/dashboard') ? '/affiliates/login' : '/login'
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -23,7 +27,7 @@ export async function middleware(request: NextRequest) {
 
   // Env vars not configured — let the app render (it will handle auth)
   if (!supabaseUrl || !supabaseAnonKey) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    return NextResponse.redirect(new URL(unauthenticatedPath(pathname), request.url))
   }
 
   try {
@@ -51,7 +55,7 @@ export async function middleware(request: NextRequest) {
     return res
   } catch {
     // If Supabase is unreachable or keys are invalid, fall back to login
-    return NextResponse.redirect(new URL('/login', request.url))
+    return NextResponse.redirect(new URL(unauthenticatedPath(pathname), request.url))
   }
 }
 
