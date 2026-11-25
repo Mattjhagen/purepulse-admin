@@ -8,7 +8,7 @@
 - Audited mutation origin checks: handoff actions use the configured production `NEXT_PUBLIC_APP_URL`; lead CORS allows production site/login origins and only permits localhost outside production.
 - Added trusted/malicious origin regression tests. Test suite now passes 56 tests; production build passes.
 - Restart attempt was blocked by the execution environment's `sudo` no-new-privileges restriction. No service or DNS change was made from this session.
-- Latest commit: pending this production bug-fix milestone.
+- Latest commit: `e3d3013` (`fix: allow trusted Cloudflare origin for password changes`), pushed to `origin/recovery/consolidate-platform`.
 
 ## 2026-11-25 — production HTTPS readiness audit
 
