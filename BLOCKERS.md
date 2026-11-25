@@ -9,3 +9,4 @@
 - The historical Supabase project hostnames currently fail DNS resolution from the R510, so authenticated database workflows cannot be validated or migrated safely.
 - No authorized `.env.production` or Supabase service credentials are present locally; do not create substitute credentials or run migrations.
 - Administrator access is required to install `purepulse-admin.service` and update the single login hostname route while preserving all other Cloudflare routes.
+- Resend is not configured because no authorized `RESEND_API_KEY` or verified sender-domain configuration is present. The app boundary is preserved with `RESEND_FROM_EMAIL=PurePulse <noreply@purepulse.one>` and delivery remains disabled until credentials are supplied.

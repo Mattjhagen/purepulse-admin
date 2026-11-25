@@ -1,0 +1,14 @@
+[Unit]
+Description=Backup isolated PurePulse demonstration database
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=matt
+ExecStart=/home/matt/PurePulse-Recovery/purepulse-admin/deploy/backup/purepulse-demo-backup.sh
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/home/matt/PurePulse-Recovery/backups/purepulse-demo

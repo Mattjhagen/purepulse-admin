@@ -1,0 +1,4 @@
+# Add this single ingress entry to the existing purepulse-r510 config.
+# Keep every unrelated hostname and the final catch-all unchanged.
+- hostname: login.purepulse.one
+  service: http://127.0.0.1:3041

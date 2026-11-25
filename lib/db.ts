@@ -12,7 +12,7 @@ export async function getDbClient(): Promise<any> {
     const { Client } = await import('pg')
     return new Client({
       connectionString,
-      ssl: { rejectUnauthorized: false },
+      ssl: process.env.DATABASE_SSL === 'disable' ? undefined : { rejectUnauthorized: false },
     })
   } catch {
     return {

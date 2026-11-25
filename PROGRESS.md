@@ -30,6 +30,15 @@
 - Service artifact: `deploy/systemd/purepulse-admin.service` prepared for localhost:3041; it intentionally requires an uncommitted `.env.production`.
 - Infrastructure blocker: `login.purepulse.one` currently resolves directly to Vercel and returns `DEPLOYMENT_DISABLED` (HTTP 402). No login hostname exists in the R510 tunnel config, and no authorized Supabase/service credentials were found locally.
 
+## 2026-11-24 — isolated demonstration backend
+
+- Official self-hosted Supabase `self-hosted/v0.8.5` stack provisioned under `/home/matt/PurePulse-Recovery/deploy/supabase-demo` with persistent Docker storage and localhost-only API/Postgres/pooler ports.
+- All repository migrations applied after compatibility repairs `014b_legacy_referrals.sql`, `031b_affiliate_active_clients.sql`, and `039_recovery_team_login.sql`.
+- Seeded isolated fictional records and created restricted credentials for demo admin, client, and affiliate accounts.
+- Provisioned permanent owner `admin@purepulse.one` separately with verified Supabase Auth and admin team role; credentials are outside Git at `/home/matt/PurePulse-Recovery/private/purepulse-owner-credentials.txt` mode 0600.
+- Recovered original affiliate briefing video from `PurePulseMarketing:1718dc8`, hosted as same-origin `/media/videoplayback.mp4`, with HTTP 206 byte-range support.
+- Remaining cutover: install `purepulse-admin.service`, install backup timer, add only `login.purepulse.one -> 127.0.0.1:3041` to `purepulse-r510`, and configure Resend credentials.
+
 ## 2026-11-24 — restoration validation
 
 - R510 search: found historical source at `/home/matt/PurePulse/PurePulse-Marketing`, the deployed build at `/home/matt/services/portfolio-projects/purepulse`, and deployment docs under `/home/matt/PurePulse/sites-on-r510`.

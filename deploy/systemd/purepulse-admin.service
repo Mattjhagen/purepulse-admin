@@ -10,7 +10,7 @@ WorkingDirectory=/home/matt/PurePulse-Recovery/purepulse-admin
 Environment=NODE_ENV=production
 Environment=PORT=3041
 EnvironmentFile=/home/matt/PurePulse-Recovery/purepulse-admin/.env.production
-ExecStart=/usr/bin/npm run start -- -p 3041
+ExecStart=/usr/bin/npm run start -- -H 127.0.0.1 -p 3041
 Restart=always
 RestartSec=5
 NoNewPrivileges=true

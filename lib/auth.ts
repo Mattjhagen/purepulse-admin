@@ -1,7 +1,7 @@
 'use client'
 import { createClient } from './supabase'
 
-const MASTER_ADMIN_EMAILS = ['matty@purepulse.one', 'mattjhagen0@gmail.com']
+const MASTER_ADMIN_EMAILS = ['matty@purepulse.one', 'mattjhagen0@gmail.com', 'admin@purepulse.one']
 
 export async function signIn(email: string, password: string) {
   const supabase = createClient()

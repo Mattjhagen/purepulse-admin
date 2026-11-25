@@ -56,3 +56,43 @@ curl -fsS http://127.0.0.1:3041/login
 The current `login.purepulse.one` DNS points to a disabled Vercel deployment,
 not the R510 tunnel. DNS or tunnel ingress must be changed separately after
 the backend is healthy; the existing `purepulse-r510` routes must be preserved.
+
+## Isolated Supabase demonstration stack
+
+The official Supabase `self-hosted/v0.8.5` Docker snapshot is staged at
+`/home/matt/PurePulse-Recovery/deploy/supabase-demo`. It uses persistent local
+bind mounts, localhost-only API gateway `18000`, Postgres `15433`, and pooler
+ports `15432`/`16543`. The stack is separate from all existing containers.
+The repository migrations plus compatibility migrations `014b`, `031b`, and
+`039` have been applied to its empty database. Its generated `.env` is not in
+Git; keep it mode `0600`.
+
+The recovered briefing video is served from the backend at
+`/media/videoplayback.mp4`, preserving the original `PurePulseMarketing` asset
+from commit `1718dc8`. It returns `Content-Type: video/mp4`, `Accept-Ranges`,
+and HTTP 206 byte-range responses.
+
+The exact login ingress addition is in
+`deploy/cloudflare/login-purepulse-route.yml`. Apply it only to the existing
+`purepulse-r510` config after installing `purepulse-admin.service`; do not
+modify the public-site route or other tunnel entries.
+
+## Demonstration database backups
+
+`deploy/backup/purepulse-demo-backup.sh` creates mode-0600 custom-format dumps
+under `/home/matt/PurePulse-Recovery/backups/purepulse-demo`. Install the
+provided service and timer as root after verifying the path and Docker access:
+
+```sh
+sudo install -m 0750 -o matt -g matt deploy/backup/purepulse-demo-backup.sh /usr/local/sbin/purepulse-demo-backup.sh
+sudo install -m 0644 deploy/systemd/purepulse-demo-backup.service /etc/systemd/system/
+sudo install -m 0644 deploy/systemd/purepulse-demo-backup.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now purepulse-demo-backup.timer
+sudo systemctl start purepulse-demo-backup.service
+```
+
+Restore only into the isolated stack after stopping its application and taking
+another backup: `docker exec -i supabase-db pg_restore -U postgres -d postgres
+--clean --if-exists < backup.dump`. Never run that command against another
+application or historical production database.
