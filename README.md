@@ -1,3 +1,7 @@
+> Recovery branch: canonical PurePulse platform repository. See [RECOVERY_PLAN.md](./RECOVERY_PLAN.md) for the audited source matrix and deployment constraints.
+
+The public PurePulse landing experience is recovered from the original Vite implementation in `PurePulse-Marketing`; this repository remains the canonical administrative/backend application.
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
