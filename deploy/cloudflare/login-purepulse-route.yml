@@ -1,4 +1,21 @@
-# Add this single ingress entry to the existing purepulse-r510 config.
-# Keep every unrelated hostname and the final catch-all unchanged.
+# Add these entries before the application hostname entry in the existing
+# purepulse-r510 config. Keep every unrelated hostname and the final catch-all.
+# The Supabase gateway is API-only; PostgreSQL, Studio, and privileged keys
+# remain loopback/private. The browser uses the publishable anon key only.
+- hostname: login.purepulse.one
+  path: /auth/v1/*
+  service: http://127.0.0.1:18000
+- hostname: login.purepulse.one
+  path: /rest/v1/*
+  service: http://127.0.0.1:18000
+- hostname: login.purepulse.one
+  path: /storage/v1/*
+  service: http://127.0.0.1:18000
+- hostname: login.purepulse.one
+  path: /realtime/v1/*
+  service: http://127.0.0.1:18000
+- hostname: login.purepulse.one
+  path: /functions/v1/*
+  service: http://127.0.0.1:18000
 - hostname: login.purepulse.one
   service: http://127.0.0.1:3041

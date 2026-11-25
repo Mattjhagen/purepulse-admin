@@ -77,6 +77,21 @@ The exact login ingress addition is in
 `purepulse-r510` config after installing `purepulse-admin.service`; do not
 modify the public-site route or other tunnel entries.
 
+The browser Supabase base URL is `https://login.purepulse.one`. The five
+path-scoped ingress entries in the Cloudflare artifact forward only Auth,
+REST, Storage, Realtime, and Edge Functions traffic to the localhost gateway
+at `127.0.0.1:18000`; the hostname's catch-all continues to serve Next.js on
+`127.0.0.1:3041`. PostgreSQL and Studio remain unexposed.
+
+After the route is applied, restart the isolated Supabase stack so its Auth
+external URL and redirect allowlist take effect, then rebuild/restart the app:
+
+```sh
+cd /home/matt/PurePulse-Recovery/deploy/supabase-demo
+docker compose --env-file .env -f docker-compose.yml -f docker-compose.local.yml up -d
+sudo systemctl restart purepulse-admin.service
+```
+
 ## Production HTTPS checklist
 
 Browser-facing values in `.env.production` must remain:

@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
   if (cookieUser && cookieUser.id !== target.id) return NextResponse.json({ error: 'Authenticated account mismatch.' }, { status: 403 })
 
   const verifier = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_PROJECT_URL || process.env.SUPABASE_PUBLIC_URL || '',
+    process.env.SUPABASE_URL || process.env.SUPABASE_PROJECT_URL || process.env.SUPABASE_PUBLIC_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '',
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || '',
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
