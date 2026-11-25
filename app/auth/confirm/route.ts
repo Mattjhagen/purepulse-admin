@@ -8,7 +8,8 @@ export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const tokenHash = searchParams.get('token_hash')
   const type = searchParams.get('type') as EmailOtpType | null
-  const next = searchParams.get('next') ?? '/portal'
+  const requestedNext = searchParams.get('next') ?? '/portal'
+  const next = requestedNext.startsWith('/') && !requestedNext.startsWith('//') ? requestedNext : '/portal'
 
   if (tokenHash && type) {
     const cookieStore = await cookies()

@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
           <div style="padding:28px 32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px">
             ${htmlBody}
             <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0" />
-            <p style="margin:0;font-size:12px;color:#999">PurePulse · <a href="https://portal.purepulse.one" style="color:#A066FF;text-decoration:none">Client Portal</a></p>
+            <p style="margin:0;font-size:12px;color:#999">PurePulse · <a href="https://login.purepulse.one/portal" style="color:#A066FF;text-decoration:none">Client Portal</a></p>
           </div>
         </div>
       `,

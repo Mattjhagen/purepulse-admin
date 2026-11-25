@@ -113,6 +113,7 @@ export default function Nav({ email }: { email?: string }) {
   const renderNavList = (onItemClick?: () => void) => (
     <nav style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.25rem', paddingRight: '4px' }} className="nav-scroll-area">
       {items.map(({ label, href, icon: Icon, external }, index) => {
+        if (external && href === 'https://tty-purepulse.relayapp.pro' && !isSuper) return null
         const active = !external && (pathname === href || (href !== '/dashboard' && pathname.startsWith(href)))
         return (
           <div

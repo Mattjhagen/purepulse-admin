@@ -1,5 +1,15 @@
 # Test Report
 
+## 2026-11-25 production HTTPS readiness
+
+- `https://purepulse.one/` and `https://www.purepulse.one/` return HTTP 200.
+- `https://login.purepulse.one/login` still returns HTTP 402 `DEPLOYMENT_DISABLED` from Vercel; DNS was not modified.
+- Local unauthenticated checks: `/account-settings`, `/dashboard`, and `/affiliates/dashboard` return HTTP 307.
+- No browser-facing `portal.purepulse.one` or localhost application links remain in the audited UI/email templates.
+- Auth callbacks reject external redirect targets; only same-origin relative paths are accepted.
+- Direct private Tailscale polling was removed from the browser; management actions require the permanent owner identity.
+- Automated tests: 54 passed across 23 suites. Next.js production build passed.
+
 ## Discovery checks
 
 - Remote reachability: passed for all five GitHub repositories.

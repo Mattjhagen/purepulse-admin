@@ -1,5 +1,7 @@
 import { requireAdmin } from '@/lib/require-admin'
 import { adminSupabase } from '@/lib/supabase'
+import { getAppSession } from '@/lib/session'
+import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { StatTile } from '@/components/ui/StatTile'
 import {
@@ -62,6 +64,11 @@ async function reachableDeploymentUrl(url: string | null) {
 
 export default async function ProjectDetailPage({ params }: ProjectDetailProps) {
   await requireAdmin()
+  const teamSession = await getAppSession()
+  const supabaseSession = await createServerSupabaseClient()
+  const { data: { user: authUser } } = await supabaseSession.auth.getUser()
+  const currentEmail = (teamSession?.email || authUser?.email || '').toLowerCase()
+  const isOwner = ['matty@purepulse.one', 'mattjhagen0@gmail.com', 'admin@purepulse.one'].includes(currentEmail)
   const { id } = await params
 
   const isFuelShield = id.includes('fuelshield') || id === 'mock-fuelshield-001'
@@ -151,14 +158,14 @@ export default async function ProjectDetailPage({ params }: ProjectDetailProps) 
             <GitBranch size={16} aria-hidden="true" /> Repository pending
           </span>
         )}
-        <a
+        {isOwner && <a
           href="https://tty-purepulse.relayapp.pro"
           target="_blank"
           rel="noreferrer"
           className="btn btn-ghost"
         >
           <Headphones size={16} aria-hidden="true" /> Command Center TTY
-        </a>
+        </a>}
       </div>
 
       {/* 4 Metric Cards (Responsive Grid with Consistent Padding & Containment) */}

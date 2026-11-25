@@ -1,5 +1,15 @@
 # Progress Log
 
+## 2026-11-25 — production HTTPS readiness audit
+
+- Audited browser-facing URLs, Supabase callbacks, portal links, CORS origins, media references, and service environment wiring.
+- Kept server-side loopback connections private; no PostgreSQL, Studio, service-role key, or local Supabase gateway is browser-facing.
+- Replaced stale `portal.purepulse.one` email links with `https://login.purepulse.one/portal` and hardened auth callbacks to accept only same-origin relative redirects.
+- Removed browser polling of the private Tailscale management address. Infrastructure actions and TTY links now require the permanent owner identity; demo administrators cannot invoke them through PurePulse.
+- Added `scripts/rotate-demo-passwords.mjs`, which generates new demo passwords, stores them mode 0600 outside Git/public roots, and never prints password values.
+- `https://purepulse.one` and `https://www.purepulse.one` return HTTP 200. `login.purepulse.one` remains HTTP 402 from disabled Vercel until DNS/Cloudflare cutover approval.
+- Latest commit: pending this production-readiness milestone.
+
 ## 2026-11-25 — client and affiliate portal recovery validation
 
 - Phase: Portal recovery and account security

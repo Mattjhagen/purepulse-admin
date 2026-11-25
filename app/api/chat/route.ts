@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getAppSession } from '@/lib/session'
+import { createServerSupabaseClient } from '@/lib/supabase-server'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -73,7 +75,21 @@ export async function POST(req: NextRequest) {
     }
 
     const referer = req.headers.get('referer') || ''
-    const isAdmin = body.isAdmin === true || (referer.includes('/dashboard') && !referer.includes('purepulse.one/portal'))
+    const requestedAdmin = body.isAdmin === true || (referer.includes('/dashboard') && !referer.includes('purepulse.one/portal'))
+    let authenticatedEmail = ''
+    const teamSession = await getAppSession()
+    if (teamSession?.email) {
+      authenticatedEmail = teamSession.email.toLowerCase()
+    } else {
+      const supabase = await createServerSupabaseClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      authenticatedEmail = user?.email?.toLowerCase() || ''
+    }
+    const isOwner = ['matty@purepulse.one', 'mattjhagen0@gmail.com', 'admin@purepulse.one'].includes(authenticatedEmail)
+    if (requestedAdmin && !isOwner) {
+      return NextResponse.json({ error: 'Owner authorization required for infrastructure actions.' }, { status: 403, headers: CORS_HEADERS })
+    }
+    const isAdmin = requestedAdmin && isOwner
 
     const lastMsg = rawMessages[rawMessages.length - 1]?.content || ''
     const lowerMsg = String(lastMsg).toLowerCase().trim()

@@ -3,7 +3,12 @@ import { createClient } from '@supabase/supabase-js'
 import { generatePortalLink } from '@/lib/portal-auth-link'
 import { sendPortalInviteEmail } from '@/lib/portal-invite-email'
 
-const ALLOWED_ORIGINS = ['https://purepulse.one', 'https://login.purepulse.one', 'http://localhost:3000']
+const ALLOWED_ORIGINS = [
+  'https://purepulse.one',
+  'https://www.purepulse.one',
+  'https://login.purepulse.one',
+  ...(process.env.NODE_ENV === 'production' ? [] : ['http://localhost:3000']),
+]
 
 function cors(origin: string | null) {
   const allowed = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]

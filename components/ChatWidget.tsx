@@ -24,6 +24,8 @@ const PUBLIC_SUGGESTIONS = [
 export default function ChatWidget() {
   const pathname = usePathname() || ''
   const isAdminPage = pathname.startsWith('/dashboard') || pathname.startsWith('/admin') || pathname.startsWith('/handoff') || pathname.startsWith('/tickets')
+  const [ownerAuthorized, setOwnerAuthorized] = useState(false)
+  const canUseAdminAssistant = isAdminPage && ownerAuthorized
 
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([
@@ -42,25 +44,30 @@ export default function ChatWidget() {
 
   // Poll state ONLY on admin pages for manual review alerts
   useEffect(() => {
-    if (!isAdminPage) {
+    if (isAdminPage) {
+      fetch('/api/auth/me').then(res => res.json()).then(data => {
+        const email = String(data.user?.email || '').toLowerCase()
+        setOwnerAuthorized(['matty@purepulse.one', 'mattjhagen0@gmail.com', 'admin@purepulse.one'].includes(email))
+      }).catch(() => setOwnerAuthorized(false))
+    } else {
+      setOwnerAuthorized(false)
+    }
+  }, [isAdminPage])
+
+  useEffect(() => {
+    if (!canUseAdminAssistant) {
       setNeedsReview(false)
       return
     }
     const checkState = async () => {
       try {
-        const res = await fetch('/api/chat', { method: 'OPTIONS' })
-        const stateRes = await fetch('http://100.123.142.27:8422/api/state', { cache: 'no-store' }).catch(() => null)
-        if (stateRes && stateRes.ok) {
-          const d = await stateRes.json()
-          const reviewNodes = (d.nodes || []).filter((n: any) => n.opencode_state === 'review')
-          setNeedsReview(reviewNodes.length > 0 || d.workflow?.state === 'awaiting-human')
-        }
+        await fetch('/api/chat', { method: 'OPTIONS' })
       } catch (e) {}
     }
     checkState()
     const interval = setInterval(checkState, 10000)
     return () => clearInterval(interval)
-  }, [isAdminPage])
+  }, [canUseAdminAssistant])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -82,7 +89,7 @@ export default function ChatWidget() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: updatedMessages,
-          isAdmin: isAdminPage,
+          isAdmin: canUseAdminAssistant,
         }),
       })
 
@@ -93,7 +100,7 @@ export default function ChatWidget() {
       
       // Safety filter: strip thinking process text if model leaks it
       if (replyText.toLowerCase().includes("here's a thinking process") || replyText.toLowerCase().includes("analyze user input")) {
-        replyText = isAdminPage
+        replyText = canUseAdminAssistant
           ? "Admin Assistant active. Enter 'heal', 'unblock', or 'status' to run server actions."
           : "Hello! Welcome to PurePulse. How can we help you with your web project today? Feel free to email support@purepulse.one!"
       }
@@ -104,7 +111,7 @@ export default function ChatWidget() {
         ...prev,
         {
           role: 'assistant',
-          content: isAdminPage
+          content: canUseAdminAssistant
             ? 'Big Pickle chat unavailable. Enter "heal" or "status" to execute direct server actions.'
             : 'For direct assistance or custom project quotes, please email our team at support@purepulse.one!',
         },
@@ -149,9 +156,9 @@ export default function ChatWidget() {
             height: '480px',
             background: 'rgba(13, 12, 24, 0.95)',
             backdropFilter: 'blur(16px)',
-            border: isAdminPage && needsReview ? '2px solid #ef4444' : '1px solid rgba(123, 47, 255, 0.35)',
+            border: canUseAdminAssistant && needsReview ? '2px solid #ef4444' : '1px solid rgba(123, 47, 255, 0.35)',
             borderRadius: '16px',
-            boxShadow: isAdminPage && needsReview ? '0 0 30px rgba(239, 68, 68, 0.5)' : '0 16px 48px rgba(0, 0, 0, 0.6)',
+            boxShadow: canUseAdminAssistant && needsReview ? '0 0 30px rgba(239, 68, 68, 0.5)' : '0 16px 48px rgba(0, 0, 0, 0.6)',
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
@@ -163,7 +170,7 @@ export default function ChatWidget() {
           <div
             style={{
               padding: '14px 16px',
-              background: isAdminPage && needsReview ? 'rgba(239, 68, 68, 0.2)' : 'linear-gradient(135deg, rgba(123, 47, 255, 0.3), rgba(0, 212, 255, 0.15))',
+              background: canUseAdminAssistant && needsReview ? 'rgba(239, 68, 68, 0.2)' : 'linear-gradient(135deg, rgba(123, 47, 255, 0.3), rgba(0, 212, 255, 0.15))',
               borderBottom: '1px solid rgba(123, 47, 255, 0.2)',
               display: 'flex',
               alignItems: 'center',
@@ -189,10 +196,10 @@ export default function ChatWidget() {
               </div>
               <div>
                 <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  {isAdminPage ? 'PurePulse Admin Assistant' : 'PurePulse Support'}
+                  {canUseAdminAssistant ? 'PurePulse Admin Assistant' : 'PurePulse Support'}
                 </div>
                 <div style={{ fontSize: '10px', color: isAdminPage && needsReview ? '#f87171' : '#00D4FF', fontWeight: 600 }}>
-                  {isAdminPage && needsReview ? '🚨 Manual Review Needed' : '● Online'}
+                  {canUseAdminAssistant && needsReview ? '🚨 Manual Review Needed' : '● Online'}
                 </div>
               </div>
             </div>
@@ -269,9 +276,9 @@ export default function ChatWidget() {
             {messages.length === 1 && !isLoading && (
               <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <div style={{ fontSize: '11px', color: '#6d6c7d', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  {isAdminPage ? 'Server Action Commands' : 'Suggested Questions'}
+                  {canUseAdminAssistant ? 'Server Action Commands' : 'Suggested Questions'}
                 </div>
-                {(isAdminPage ? ADMIN_SUGGESTIONS : PUBLIC_SUGGESTIONS).map((q, idx) => (
+                {(canUseAdminAssistant ? ADMIN_SUGGESTIONS : PUBLIC_SUGGESTIONS).map((q, idx) => (
                   <button
                     key={idx}
                     onClick={() => handleSend(q)}
@@ -295,7 +302,7 @@ export default function ChatWidget() {
                       e.currentTarget.style.borderColor = 'rgba(123, 47, 255, 0.25)'
                     }}
                   >
-                    {isAdminPage ? '⚡ ' : '💬 '}{q}
+                    {canUseAdminAssistant ? '⚡ ' : '💬 '}{q}
                   </button>
                 ))}
               </div>
@@ -320,7 +327,7 @@ export default function ChatWidget() {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={isAdminPage ? "Type 'unblock', 'restart r510', 'status'..." : "Ask a question about our web plans..."}
+              placeholder={canUseAdminAssistant ? "Type 'unblock', 'restart r510', 'status'..." : "Ask a question about our web plans..."}
               rows={1}
               style={{
                 flex: 1,
@@ -365,7 +372,7 @@ export default function ChatWidget() {
       )}
 
       {/* Floating Red Alert Badge (Admin Only) */}
-      {isAdminPage && needsReview && !isOpen && (
+      {canUseAdminAssistant && needsReview && !isOpen && (
         <div
           style={{
             position: 'absolute',
@@ -391,18 +398,18 @@ export default function ChatWidget() {
       {/* Launcher Button */}
       <button
         onClick={() => setIsOpen(prev => !prev)}
-        className={isAdminPage && needsReview ? 'admin-blink-alert' : ''}
+        className={canUseAdminAssistant && needsReview ? 'admin-blink-alert' : ''}
         style={{
           width: '56px',
           height: '56px',
           borderRadius: '50%',
-          background: isAdminPage && needsReview ? '#ef4444' : 'linear-gradient(135deg, #7B2FFF, #00D4FF)',
+          background: canUseAdminAssistant && needsReview ? '#ef4444' : 'linear-gradient(135deg, #7B2FFF, #00D4FF)',
           border: 'none',
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: isAdminPage && needsReview ? '0 0 30px rgba(239, 68, 68, 0.9)' : '0 8px 24px rgba(123, 47, 255, 0.45)',
+          boxShadow: canUseAdminAssistant && needsReview ? '0 0 30px rgba(239, 68, 68, 0.9)' : '0 8px 24px rgba(123, 47, 255, 0.45)',
           color: '#fff',
           transition: 'transform 0.2s, box-shadow 0.2s',
         }}

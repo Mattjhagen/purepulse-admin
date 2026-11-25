@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
               <div style="background:#f8f8ff;border-left:3px solid #A066FF;padding:12px 16px;border-radius:0 8px 8px 0;margin-bottom:24px">
                 <p style="margin:0;font-size:14px;color:#333;line-height:1.6">${body.trim()}</p>
               </div>
-              <a href="https://portal.purepulse.one" style="display:inline-block;background:#7B2FFF;color:#fff;padding:10px 24px;border-radius:100px;font-weight:700;text-decoration:none;font-size:14px">
+              <a href="https://login.purepulse.one/portal" style="display:inline-block;background:#7B2FFF;color:#fff;padding:10px 24px;border-radius:100px;font-weight:700;text-decoration:none;font-size:14px">
                 View in Portal →
               </a>
             </div>

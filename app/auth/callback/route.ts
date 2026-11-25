@@ -26,12 +26,13 @@ export async function GET(request: NextRequest) {
       }
     )
     const { error } = await supabase.auth.exchangeCodeForSession(code)
-    const next = searchParams.get('next') ?? '/portal'
+    const requestedNext = searchParams.get('next') ?? '/portal'
+    const next = requestedNext.startsWith('/') && !requestedNext.startsWith('//') ? requestedNext : '/portal'
     if (!error) return NextResponse.redirect(`${origin}${next}`)
   }
 
   const next = searchParams.get('next')
-  if (next && next.startsWith('/affiliates')) {
+  if (next && next.startsWith('/') && !next.startsWith('//') && next.startsWith('/affiliates')) {
     return NextResponse.redirect(`${origin}${next}`)
   }
 

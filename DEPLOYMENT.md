@@ -77,6 +77,31 @@ The exact login ingress addition is in
 `purepulse-r510` config after installing `purepulse-admin.service`; do not
 modify the public-site route or other tunnel entries.
 
+## Production HTTPS checklist
+
+Browser-facing values in `.env.production` must remain:
+
+```text
+NEXT_PUBLIC_APP_URL=https://login.purepulse.one
+APP_BASE_URL=https://login.purepulse.one
+NEXT_PUBLIC_SITE_URL=https://purepulse.one
+NEXT_PUBLIC_PORTAL_URL=https://login.purepulse.one/portal
+```
+
+Keep `SUPABASE_URL`, `DATABASE_URL`, and the Cloudflare origin loopback/private.
+Do not publish PostgreSQL, Studio, the service-role key, or the local Supabase
+gateway.
+
+Rotate fictional demo passwords without displaying them:
+
+```sh
+cd /home/matt/PurePulse-Recovery/purepulse-admin
+node scripts/rotate-demo-passwords.mjs
+```
+
+The script writes replacement credentials only to the mode-0600 file under the
+recovery workspace `private/` directory and never changes the owner account.
+
 ## Account settings release
 
 The current build adds `https://login.purepulse.one/account-settings` for an

@@ -1,5 +1,7 @@
 # Blockers
 
+- Final public login cutover remains pending: `login.purepulse.one` still returns disabled Vercel HTTP 402. The validated Cloudflare route artifact is ready, but DNS/ingress activation was intentionally not performed.
+
 - Staging hostname and isolated Cloudflare ingress are not yet confirmed.
 - Supabase production backup/restore access has not been exercised; do not run migrations against production until a verified backup exists.
 - npm cache is read-only in the current sandbox; use a task-local cache under `/tmp` for clean dependency installation.
