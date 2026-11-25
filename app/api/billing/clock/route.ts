@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminSupabase } from '@/lib/supabase'
+import { requireAdmin } from '@/lib/require-admin'
 
 export async function POST(req: NextRequest) {
+  if (!(await requireAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   try {
     const body = await req.json()
     const { action, client_id, description, hourly_rate } = body

@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
 import { cleanupTestAffiliates } from '@/lib/cleanup-test-affiliates'
+import { requireOwner } from '@/lib/require-admin'
 
 export async function GET() {
+  if (!(await requireOwner())) return NextResponse.json({ error: 'Owner authorization required.' }, { status: 403 })
   try {
     const results = await cleanupTestAffiliates()
     return NextResponse.json({ success: true, results })

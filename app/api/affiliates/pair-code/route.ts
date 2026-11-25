@@ -1,14 +1,23 @@
 import { NextResponse } from 'next/server';
 import { adminSupabase } from '@/lib/supabase';
+import { getApiUser } from '@/lib/api-auth';
+import { resolveAuthenticatedAffiliate } from '@/lib/affiliate-auth';
 
 export const dynamic = 'force-dynamic';
 export async function POST(req: Request) {
   const supabase = adminSupabase();
   try {
+    const user = await getApiUser(req as import('next/server').NextRequest)
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const { affiliateId } = await req.json();
 
     if (!affiliateId) {
       return NextResponse.json({ error: 'Affiliate ID is required' }, { status: 400 });
+    }
+
+    const { affiliate } = await resolveAuthenticatedAffiliate(user, supabase)
+    if (!affiliate || affiliate.id !== affiliateId) {
+      return NextResponse.json({ error: 'Affiliate account mismatch' }, { status: 403 })
     }
 
     // Generate random 6-character code (e.g. PX-4892)

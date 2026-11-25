@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminSupabase } from '@/lib/supabase'
+import { requireAdmin } from '@/lib/require-admin'
 
 export async function GET(req: NextRequest) {
+  if (!(await requireAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { searchParams } = new URL(req.url)
   const clientId = searchParams.get('client_id')
   if (!clientId) {
@@ -23,6 +25,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  if (!(await requireAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   try {
     const body = await req.json()
     const { client_id, name, status, sort_order, note } = body

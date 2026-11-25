@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getDbClient } from '@/lib/db'
 import crypto from 'crypto'
 import { sendEmailSafely } from '@/lib/email'
+import { requireAdmin, requireOwner } from '@/lib/require-admin'
 
 export const dynamic = 'force-dynamic'
 
@@ -146,6 +147,7 @@ async function sendRoleInviteEmail(params: {
 }
 
 export async function GET() {
+  if (!(await requireAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const client = await getDbClient()
   try {
     await client.connect()
@@ -161,6 +163,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  if (!(await requireOwner())) return NextResponse.json({ error: 'Owner authorization required.' }, { status: 403 })
   const client = await getDbClient()
   try {
     const { name, email, role, title, phone, hourly_rate, notes } = await req.json()
@@ -247,6 +250,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  if (!(await requireOwner())) return NextResponse.json({ error: 'Owner authorization required.' }, { status: 403 })
   const client = await getDbClient()
   try {
     const { searchParams } = new URL(req.url)
@@ -265,6 +269,7 @@ export async function DELETE(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  if (!(await requireOwner())) return NextResponse.json({ error: 'Owner authorization required.' }, { status: 403 })
   const client = await getDbClient()
   try {
     const body = await req.json()

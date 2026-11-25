@@ -8,6 +8,7 @@ import {
   SuspensionEmailData
 } from '@/lib/suspension-email'
 import { formatMoney } from '@/lib/utils'
+import { requireAdmin } from '@/lib/require-admin'
 
 function adminSupabase() {
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_PROJECT_URL || 'https://cucksfwkdmrkeiwmdlut.supabase.co'
@@ -18,6 +19,7 @@ function adminSupabase() {
 // ─── GET: Preview Suspension Data & Email ─────────────────────────────────────
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!(await requireAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
   const supabase = adminSupabase()
 
@@ -92,6 +94,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 // ─── POST: Execute Suspension & Send Email ────────────────────────────────────
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!(await requireAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
   const supabase = adminSupabase()
   const body = await req.json().catch(() => ({}))
@@ -301,6 +304,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 // ─── DELETE: Unsuspend Client ─────────────────────────────────────────────────
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!(await requireAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
   const supabase = adminSupabase()
 

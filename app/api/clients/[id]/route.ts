@@ -1,4 +1,5 @@
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!(await requireAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
   const supabase = adminSupabase()
   let { data: client, error } = await supabase.from('clients').select('*').eq('id', id).maybeSingle()
@@ -25,6 +26,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireAdmin } from '@/lib/require-admin'
 
 function adminSupabase() {
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_PROJECT_URL || 'https://cucksfwkdmrkeiwmdlut.supabase.co'
@@ -33,6 +35,7 @@ function adminSupabase() {
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!(await requireAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
   const body = await req.json()
   const supabase = adminSupabase()

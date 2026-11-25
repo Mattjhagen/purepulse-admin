@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireOwner } from '@/lib/require-admin'
 
 function adminSupabase() {
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_PROJECT_URL || 'https://cucksfwkdmrkeiwmdlut.supabase.co'
@@ -12,6 +13,7 @@ function sleep(ms: number) {
 }
 
 export async function POST(req: NextRequest) {
+  if (!(await requireOwner())) return NextResponse.json({ error: 'Owner authorization required.' }, { status: 403 })
   const { subject, html, recipients, isTest } = await req.json()
 
   if (!subject?.trim() || !html?.trim()) {
@@ -199,6 +201,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
+  if (!(await requireOwner())) return NextResponse.json({ error: 'Owner authorization required.' }, { status: 403 })
   const supabase = adminSupabase()
 
   const [clientsRes, leadsRes, affiliatesRes] = await Promise.all([

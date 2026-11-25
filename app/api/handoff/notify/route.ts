@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sendEmailSafely } from '@/lib/email'
+import { requireOwner } from '@/lib/require-admin'
 
 export async function POST(req: NextRequest) {
+  if (!(await requireOwner())) return NextResponse.json({ error: 'Owner authorization required.' }, { status: 403 })
   try {
     const { title = 'Acme Home Services Website', pr_number = '44', stage = 'human-approval' } = await req.json()
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireAdmin } from '@/lib/require-admin'
 
 const PLAN_PRICES: Record<string, number> = { starter: 20, growth: 50, premium: 75, business: 100 }
 
@@ -19,6 +20,7 @@ function generateInvoiceNumber(): string {
 
 // GET — preview: return clients that don't yet have an invoice this month
 export async function GET() {
+  if (!(await requireAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const supabase = adminSupabase()
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
@@ -41,6 +43,7 @@ export async function GET() {
 
 // POST — generate invoices for all unbilled active clients this month and send them
 export async function POST(req: NextRequest) {
+  if (!(await requireAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await req.json().catch(() => ({}))
   const autoSend = body.autoSend !== false // default true
 

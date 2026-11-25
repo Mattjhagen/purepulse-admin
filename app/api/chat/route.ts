@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAppSession } from '@/lib/session'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { isOwnerEmail } from '@/lib/require-admin'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest) {
       const { data: { user } } = await supabase.auth.getUser()
       authenticatedEmail = user?.email?.toLowerCase() || ''
     }
-    const isOwner = ['matty@purepulse.one', 'mattjhagen0@gmail.com', 'admin@purepulse.one'].includes(authenticatedEmail)
+    const isOwner = isOwnerEmail(authenticatedEmail)
     if (requestedAdmin && !isOwner) {
       return NextResponse.json({ error: 'Owner authorization required for infrastructure actions.' }, { status: 403, headers: CORS_HEADERS })
     }

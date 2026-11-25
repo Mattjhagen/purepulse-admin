@@ -3,8 +3,10 @@ import { adminSupabase } from '@/lib/supabase'
 import { getResend } from '@/lib/resend'
 import { getStripe } from '@/lib/stripe'
 import { TEST_EMAILS_TO_REMOVE } from '@/lib/cleanup-test-affiliates'
+import { requireAdmin } from '@/lib/require-admin'
 
 export async function GET() {
+  if (!(await requireAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   try {
     const supabase = adminSupabase()
 
@@ -168,6 +170,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  if (!(await requireAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   let body: {
     name?: string
     email?: string

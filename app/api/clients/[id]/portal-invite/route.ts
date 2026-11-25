@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { generatePortalLink } from '@/lib/portal-auth-link'
 import { sendPortalInviteEmail } from '@/lib/portal-invite-email'
+import { requireAdmin } from '@/lib/require-admin'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!(await requireAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id: clientId } = await params
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://login.purepulse.one'
 

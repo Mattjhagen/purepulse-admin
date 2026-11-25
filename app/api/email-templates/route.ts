@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminSupabase } from '@/lib/supabase'
 import { DEFAULT_TEMPLATES } from '@/lib/email-templates'
+import { requireAdmin } from '@/lib/require-admin'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
+  if (!(await requireAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const supabase = adminSupabase()
   try {
     const { data, error } = await supabase
@@ -34,6 +36,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  if (!(await requireAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { name, subject_prefix, body } = await req.json()
   if (!name?.trim() || !body?.trim()) {
     return NextResponse.json({ error: 'name and body are required' }, { status: 400 })

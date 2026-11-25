@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { selectAvailableCloudNode, CLOUD_NODES } from '@/lib/cloud-dispatcher'
 import { requireAdmin } from '@/lib/require-admin'
+import { requireOwner } from '@/lib/require-admin'
 import { adminSupabase } from '@/lib/supabase'
 import { ensureGitHubRepository } from '@/lib/github-deployment'
 
 export async function POST(req: NextRequest) {
+  if (!(await requireOwner())) return NextResponse.json({ error: 'Owner authorization required.' }, { status: 403 })
   const isAdmin = await requireAdmin()
   if (!isAdmin) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

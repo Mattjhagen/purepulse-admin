@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
 import { adminSupabase } from '@/lib/supabase'
 import { DEFAULT_TEMPLATES } from '@/lib/email-templates'
+import { requireAdmin } from '@/lib/require-admin'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST() {
+  if (!(await requireAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const supabase = adminSupabase()
   let seededTemplates = DEFAULT_TEMPLATES
 
