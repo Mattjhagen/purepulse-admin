@@ -21,3 +21,11 @@
 - Lint: existing application lint currently reports 85 errors/127 warnings, primarily React 19 hook/purity rules and legacy `any` usage. No lint auto-fix was applied because this is restoration work and broad rewrites could change behavior.
 - Tests: existing backend suite passed 51 tests across 23 suites.
 - Correction: the temporary reimagined homepage was removed; the backend root is restored to its original `/dashboard` behavior. The exact recovered public landing artifact remains the restoration source of truth.
+
+## 2026-11-24 — historical frontend recovery
+
+- Recovered and previewed detached `PurePulse` worktrees: `7af218c` on :3036, `5e6d9f9` on :3037, `821a253` on :3038, and current `d2b3ed8` on :3039.
+- Strongest match: `d2b3ed8` (latest complete static lineage) or `821a253` (clean entrance/home split). Both retain the original portfolio lookbook, four service plans, $150 deposit, 12-month commitment, contract page, and portal/backend links.
+- Historical backend lineage: `purepulse-admin` commits `8aafe17` (affiliate onboarding), `78ec1d1` (affiliate growth portal and video interview), and `476751a` (Stripe Global Payouts sandbox).
+- Added `CANDIDATE_RECOVERY_REPORT.md` with exact commits, dates, feature matches, missing details, and preview URLs.
+- User-confirmation gate: do not create a restoration branch from a public candidate until visual inspection identifies the correct baseline.
